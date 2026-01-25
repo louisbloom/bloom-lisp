@@ -180,6 +180,25 @@ format_sources() {
 		log_warn "prettier not found. Skipping markdown formatting."
 	fi
 
+	# Format Lisp files with lisp-fmt.lisp
+	log_info "Formatting Lisp files with lisp-fmt.lisp..."
+	local repl_path=""
+	if [ -x "$BUILD_DIR/repl/bloom-repl" ]; then
+		repl_path="$BUILD_DIR/repl/bloom-repl"
+	elif [ -x "$INSTALL_PREFIX/bin/bloom-repl" ]; then
+		repl_path="$INSTALL_PREFIX/bin/bloom-repl"
+	elif command -v bloom-repl &>/dev/null; then
+		repl_path="bloom-repl"
+	fi
+
+	if [ -n "$repl_path" ]; then
+		find lisp/ tests/ -name "*.lisp" | while read -r file; do
+			"$repl_path" lisp/lisp-fmt.lisp -i "$file"
+		done
+	else
+		log_warn "bloom-repl not found. Skipping Lisp formatting. Build the project first."
+	fi
+
 	log_info "Formatting completed."
 }
 
@@ -212,11 +231,14 @@ main() {
 			;;
 		--help)
 			echo "Usage: $0 [options]"
+			echo ""
+			echo "Default: configure, build, and install to $HOME/.local"
+			echo ""
 			echo "Options:"
-			echo "  --install         Only install the project (skip build and run)"
+			echo "  --install         Only configure and install (skip build)"
 			echo "  --bear            Generate compile_commands.json using bear"
 			echo "  --no-debug        Disable debug build"
-			echo "  --format          Format source files with clang-format, shfmt, and prettier"
+			echo "  --format          Format source files (C, shell, markdown, Lisp)"
 			echo "  --prefix=PATH     Set installation prefix (default: $HOME/.local)"
 			echo "  --help            Show this help message"
 			exit 0
@@ -274,6 +296,11 @@ main() {
 			if ! build_project; then
 				exit 1
 			fi
+		fi
+
+		# Install by default after building
+		if ! install_project; then
+			exit 1
 		fi
 	fi
 
