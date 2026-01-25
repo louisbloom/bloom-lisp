@@ -193,7 +193,7 @@ format_sources() {
 
 	if [ -n "$repl_path" ]; then
 		find lisp/ tests/ -name "*.lisp" | while read -r file; do
-			"$repl_path" lisp/lisp-fmt.lisp -i "$file"
+			"$repl_path" lisp/lisp-fmt.lisp -- -i "$file"
 		done
 	else
 		log_warn "bloom-repl not found. Skipping Lisp formatting. Build the project first."
