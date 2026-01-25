@@ -6,7 +6,8 @@
 static void print_list(LispObject *obj, char **buffer, size_t *size, size_t *pos);
 static void append_str(char **buffer, size_t *size, size_t *pos, const char *str);
 
-static void append_str(char **buffer, size_t *size, size_t *pos, const char *str) {
+static void append_str(char **buffer, size_t *size, size_t *pos, const char *str)
+{
     size_t len = strlen(str);
     while (*pos + len + 1 > *size) {
         *size *= 2;
@@ -18,7 +19,8 @@ static void append_str(char **buffer, size_t *size, size_t *pos, const char *str
     *pos += len;
 }
 
-static void append_char(char **buffer, size_t *size, size_t *pos, char c) {
+static void append_char(char **buffer, size_t *size, size_t *pos, char c)
+{
     while (*pos + 2 > *size) {
         *size *= 2;
         char *new_buffer = GC_malloc(*size);
@@ -30,7 +32,8 @@ static void append_char(char **buffer, size_t *size, size_t *pos, char c) {
 }
 
 /* Append string with proper escaping for Lisp output */
-static void append_escaped_str(char **buffer, size_t *size, size_t *pos, const char *str) {
+static void append_escaped_str(char **buffer, size_t *size, size_t *pos, const char *str)
+{
     for (const char *p = str; *p; p++) {
         switch (*p) {
         case '\\':
@@ -60,7 +63,8 @@ static void append_escaped_str(char **buffer, size_t *size, size_t *pos, const c
     }
 }
 
-static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *pos) {
+static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *pos)
+{
     char temp[256];
 
     if (obj == NULL || obj == NIL) {
@@ -118,7 +122,8 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         }
         break;
 
-    case LISP_ERROR: {
+    case LISP_ERROR:
+    {
         append_str(buffer, size, pos, "ERROR: [");
 
         /* Print error type symbol */
@@ -159,7 +164,8 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         append_str(buffer, size, pos, temp);
         break;
 
-    case LISP_CHAR: {
+    case LISP_CHAR:
+    {
         unsigned int cp = obj->value.character;
         append_str(buffer, size, pos, "#\\");
         /* Named characters */
@@ -183,7 +189,7 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
             append_str(buffer, size, pos, "alarm");
         else if (cp >= 0x21 && cp <= 0x7e) {
             /* Printable ASCII */
-            char cbuf[2] = {(char)cp, '\0'};
+            char cbuf[2] = { (char)cp, '\0' };
             append_str(buffer, size, pos, cbuf);
         } else if (cp > 0x7f && cp <= 0xffff) {
             /* Unicode - use #\uXXXX format for BMP */
@@ -236,7 +242,8 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
     }
 }
 
-static void print_list(LispObject *obj, char **buffer, size_t *size, size_t *pos) {
+static void print_list(LispObject *obj, char **buffer, size_t *size, size_t *pos)
+{
     append_str(buffer, size, pos, "(");
 
     while (obj != NULL && obj != NIL && obj->type == LISP_CONS) {
@@ -257,7 +264,8 @@ static void print_list(LispObject *obj, char **buffer, size_t *size, size_t *pos
     append_str(buffer, size, pos, ")");
 }
 
-char *lisp_print(LispObject *obj) {
+char *lisp_print(LispObject *obj)
+{
     size_t size = 256;
     size_t pos = 0;
     char *buffer = GC_malloc(size);
@@ -272,7 +280,8 @@ char *lisp_print(LispObject *obj) {
 static void princ_list(LispObject *obj);
 static void princ_object(LispObject *obj);
 
-static void princ_object(LispObject *obj) {
+static void princ_object(LispObject *obj)
+{
     if (obj == NULL || obj == NIL) {
         printf("nil");
         return;
@@ -322,7 +331,8 @@ static void princ_object(LispObject *obj) {
         }
         break;
 
-    case LISP_ERROR: {
+    case LISP_ERROR:
+    {
         printf("ERROR: [");
 
         /* Print error type symbol */
@@ -361,7 +371,8 @@ static void princ_object(LispObject *obj) {
         printf("%lld", obj->value.integer);
         break;
 
-    case LISP_CHAR: {
+    case LISP_CHAR:
+    {
         /* princ prints the actual character, not the reader syntax */
         unsigned int cp = obj->value.character;
         char utf8_buf[5];
@@ -403,7 +414,8 @@ static void princ_object(LispObject *obj) {
     }
 }
 
-static void princ_list(LispObject *obj) {
+static void princ_list(LispObject *obj)
+{
     printf("(");
 
     while (obj != NULL && obj != NIL && obj->type == LISP_CONS) {
@@ -425,18 +437,21 @@ static void princ_list(LispObject *obj) {
 }
 
 /* Common Lisp style printing functions */
-void lisp_princ(LispObject *obj) {
+void lisp_princ(LispObject *obj)
+{
     princ_object(obj);
     fflush(stdout);
 }
 
-void lisp_prin1(LispObject *obj) {
+void lisp_prin1(LispObject *obj)
+{
     char *str = lisp_print(obj);
     printf("%s", str);
     fflush(stdout);
 }
 
-void lisp_print_cl(LispObject *obj) {
+void lisp_print_cl(LispObject *obj)
+{
     printf("\n"); /* Newline BEFORE */
     lisp_prin1(obj);
     printf("\n"); /* Newline AFTER */

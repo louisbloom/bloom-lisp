@@ -5,15 +5,16 @@
 #include <sys/stat.h>
 
 #ifdef _WIN32
-#include <windows.h>
 #include <wchar.h>
+#include <windows.h>
 
 /* Convert UTF-8 string to UTF-16 (wide char) for Windows APIs.
  * Caller must free the returned buffer with free().
  *
  * Returns: Wide char string on success, NULL on failure
  */
-wchar_t *utf8_to_utf16(const char *utf8_str) {
+wchar_t *utf8_to_utf16(const char *utf8_str)
+{
     if (!utf8_str)
         return NULL;
 
@@ -37,7 +38,8 @@ wchar_t *utf8_to_utf16(const char *utf8_str) {
 }
 #endif
 
-FILE *file_open(const char *utf8_path, const char *mode) {
+FILE *file_open(const char *utf8_path, const char *mode)
+{
     if (!utf8_path || !mode)
         return NULL;
 
@@ -67,7 +69,8 @@ FILE *file_open(const char *utf8_path, const char *mode) {
 #endif
 }
 
-int file_remove(const char *utf8_path) {
+int file_remove(const char *utf8_path)
+{
     if (!utf8_path)
         return -1;
 
@@ -90,7 +93,8 @@ int file_remove(const char *utf8_path) {
 #endif
 }
 
-int file_mkdir(const char *utf8_path) {
+int file_mkdir(const char *utf8_path)
+{
     if (!utf8_path)
         return -1;
 

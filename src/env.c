@@ -9,12 +9,13 @@
 #endif
 
 /* Global profiling state */
-ProfileState g_profile_state = {0, NULL, 0};
+ProfileState g_profile_state = { 0, NULL, 0 };
 
 /* Get current time in nanoseconds */
-uint64_t profile_get_time_ns(void) {
+uint64_t profile_get_time_ns(void)
+{
 #ifdef _WIN32
-    static LARGE_INTEGER freq = {0};
+    static LARGE_INTEGER freq = { 0 };
     if (freq.QuadPart == 0) {
         QueryPerformanceFrequency(&freq);
     }
@@ -29,7 +30,8 @@ uint64_t profile_get_time_ns(void) {
 }
 
 /* Find or create profile entry for function */
-static ProfileEntry *profile_find_or_create(const char *function_name) {
+static ProfileEntry *profile_find_or_create(const char *function_name)
+{
     ProfileEntry *entry = g_profile_state.entries;
     while (entry != NULL) {
         if (strcmp(entry->function_name, function_name) == 0) {
@@ -48,19 +50,22 @@ static ProfileEntry *profile_find_or_create(const char *function_name) {
 }
 
 /* Record a function call with elapsed time */
-void profile_record(const char *function_name, uint64_t elapsed_ns) {
+void profile_record(const char *function_name, uint64_t elapsed_ns)
+{
     ProfileEntry *entry = profile_find_or_create(function_name);
     entry->call_count++;
     entry->total_time_ns += elapsed_ns;
 }
 
 /* Reset profiling data */
-void profile_reset(void) {
+void profile_reset(void)
+{
     g_profile_state.entries = NULL;
     g_profile_state.start_time_ns = 0;
 }
 
-Environment *env_create(Environment *parent) {
+Environment *env_create(Environment *parent)
+{
     Environment *env = GC_malloc(sizeof(Environment));
     env->bindings = NULL;
     env->parent = parent;
@@ -69,7 +74,8 @@ Environment *env_create(Environment *parent) {
     return env;
 }
 
-void env_define(Environment *env, const char *name, LispObject *value) {
+void env_define(Environment *env, const char *name, LispObject *value)
+{
     /* Check if binding already exists */
     struct Binding *binding = env->bindings;
     while (binding != NULL) {
@@ -88,7 +94,8 @@ void env_define(Environment *env, const char *name, LispObject *value) {
     env->bindings = binding;
 }
 
-LispObject *env_lookup(Environment *env, const char *name) {
+LispObject *env_lookup(Environment *env, const char *name)
+{
     while (env != NULL) {
         struct Binding *binding = env->bindings;
         while (binding != NULL) {
@@ -102,7 +109,8 @@ LispObject *env_lookup(Environment *env, const char *name) {
     return NULL;
 }
 
-int env_set(Environment *env, const char *name, LispObject *value) {
+int env_set(Environment *env, const char *name, LispObject *value)
+{
     /* Look for binding in current or parent environments */
     while (env != NULL) {
         struct Binding *binding = env->bindings;
@@ -118,14 +126,16 @@ int env_set(Environment *env, const char *name, LispObject *value) {
     return 0; /* Variable not found */
 }
 
-void env_free(Environment *env) {
+void env_free(Environment *env)
+{
     /* GC handles cleanup automatically */
     /* We don't need to free individual bindings or the environment */
     (void)env; /* Suppress unused parameter warning */
 }
 
 /* Call stack functions */
-void push_call_frame(Environment *env, const char *function_name) {
+void push_call_frame(Environment *env, const char *function_name)
+{
     CallStackFrame *frame = GC_malloc(sizeof(CallStackFrame));
     frame->function_name = GC_strdup(function_name);
     frame->parent = env->call_stack;
@@ -138,7 +148,8 @@ void push_call_frame(Environment *env, const char *function_name) {
     env->call_stack = frame;
 }
 
-void pop_call_frame(Environment *env) {
+void pop_call_frame(Environment *env)
+{
     if (env->call_stack != NULL) {
         if (g_profile_state.enabled && env->call_stack->entry_time_ns != 0) {
             uint64_t elapsed = profile_get_time_ns() - env->call_stack->entry_time_ns;
@@ -148,7 +159,8 @@ void pop_call_frame(Environment *env) {
     }
 }
 
-LispObject *capture_call_stack(Environment *env) {
+LispObject *capture_call_stack(Environment *env)
+{
     LispObject *stack = NIL;
     CallStackFrame *frame = env->call_stack;
     int depth = 0;
@@ -237,7 +249,8 @@ static const char *stdlib_code =
     "(defalias string-length length \"Alias for `length` (also works on lists and vectors).\")\n";
 
 /* Helper to load stdlib from embedded string */
-static int load_stdlib(Environment *env) {
+static int load_stdlib(Environment *env)
+{
     const char *input = stdlib_code;
     while (*input) {
         /* Skip whitespace and comments */
@@ -267,7 +280,8 @@ static int load_stdlib(Environment *env) {
     return 1; /* Success */
 }
 
-Environment *env_create_global(void) {
+Environment *env_create_global(void)
+{
     Environment *env = env_create(NULL);
     register_builtins(env);
 

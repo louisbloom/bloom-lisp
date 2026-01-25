@@ -1,14 +1,14 @@
 #ifndef LISP_H
 #define LISP_H
 
-#include <stdio.h>
+#include <gc.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <gc.h>
+#include <stdio.h>
 
 #define PCRE2_CODE_UNIT_WIDTH 8
-#include <pcre2.h>
 #include "utf8.h"
+#include <pcre2.h>
 
 /* Forward declarations */
 typedef struct LispObject LispObject;
@@ -18,30 +18,34 @@ typedef struct HandlerContext HandlerContext;
 typedef struct Symbol Symbol;
 
 /* Symbol structure - interned with optional docstring */
-struct Symbol {
+struct Symbol
+{
     char *name;
-    char *docstring;  /* Documentation string (CommonMark format) */
+    char *docstring; /* Documentation string (CommonMark format) */
 };
 
 /* Call stack frame structure */
-struct CallStackFrame {
+struct CallStackFrame
+{
     char *function_name;
     CallStackFrame *parent;
-    uint64_t entry_time_ns;  /* Entry timestamp for profiling */
+    uint64_t entry_time_ns; /* Entry timestamp for profiling */
 };
 
 /* Profiling data structures */
-typedef struct ProfileEntry {
+typedef struct ProfileEntry
+{
     char *function_name;
     uint64_t call_count;
-    uint64_t total_time_ns;  /* Inclusive time (includes children) */
+    uint64_t total_time_ns; /* Inclusive time (includes children) */
     struct ProfileEntry *next;
 } ProfileEntry;
 
-typedef struct {
+typedef struct
+{
     int enabled;
-    ProfileEntry *entries;   /* Linked list of profile entries */
-    uint64_t start_time_ns;  /* When profiling started */
+    ProfileEntry *entries;  /* Linked list of profile entries */
+    uint64_t start_time_ns; /* When profiling started */
 } ProfileState;
 
 extern ProfileState g_profile_state;
@@ -52,15 +56,17 @@ void profile_record(const char *function_name, uint64_t elapsed_ns);
 void profile_reset(void);
 
 /* Handler context for condition-case */
-struct HandlerContext {
-    LispObject *handlers;        /* Assoc list: ((ERROR-SYMBOL . HANDLER-BODY) ...) */
-    LispObject *error_var_name;  /* Symbol: variable to bind error (or NIL) */
-    Environment *handler_env;    /* Environment for handler evaluation */
-    HandlerContext *parent;      /* Previous handler context */
+struct HandlerContext
+{
+    LispObject *handlers;       /* Assoc list: ((ERROR-SYMBOL . HANDLER-BODY) ...) */
+    LispObject *error_var_name; /* Symbol: variable to bind error (or NIL) */
+    Environment *handler_env;   /* Environment for handler evaluation */
+    HandlerContext *parent;     /* Previous handler context */
 };
 
 /* Object types */
-typedef enum {
+typedef enum
+{
     LISP_NIL,
     LISP_NUMBER,
     LISP_INTEGER,
@@ -84,85 +90,98 @@ typedef enum {
 typedef LispObject *(*BuiltinFunc)(LispObject *args, Environment *env);
 
 /* Lisp object structure */
-struct LispObject {
+struct LispObject
+{
     LispType type;
-    union {
+    union
+    {
         double number;
         long long integer;
-        unsigned int character;  /* Unicode codepoint for LISP_CHAR */
+        unsigned int character; /* Unicode codepoint for LISP_CHAR */
         char *string;
-        Symbol *symbol;  /* Interned symbol with name and docstring */
+        Symbol *symbol; /* Interned symbol with name and docstring */
         int boolean;
-        struct {
+        struct
+        {
             LispObject *car;
             LispObject *cdr;
         } cons;
-        struct {
+        struct
+        {
             BuiltinFunc func;
             const char *name;
         } builtin;
-        struct {
-            LispObject *params;            /* Full parameter list (for display) */
-            LispObject *required_params;   /* List of required parameter symbols */
-            LispObject *optional_params;   /* List of optional parameter symbols */
-            LispObject *rest_param;        /* Rest parameter symbol (or NULL) */
-            int required_count;            /* Number of required params */
-            int optional_count;            /* Number of optional params */
-            LispObject *body;              /* Body expressions */
-            Environment *closure;          /* Lexical environment */
-            char *name;                    /* Optional function name for debugging */
-            char *docstring;               /* Documentation string (CommonMark format) */
+        struct
+        {
+            LispObject *params;          /* Full parameter list (for display) */
+            LispObject *required_params; /* List of required parameter symbols */
+            LispObject *optional_params; /* List of optional parameter symbols */
+            LispObject *rest_param;      /* Rest parameter symbol (or NULL) */
+            int required_count;          /* Number of required params */
+            int optional_count;          /* Number of optional params */
+            LispObject *body;            /* Body expressions */
+            Environment *closure;        /* Lexical environment */
+            char *name;                  /* Optional function name for debugging */
+            char *docstring;             /* Documentation string (CommonMark format) */
         } lambda;
-        struct {
+        struct
+        {
             LispObject *params;
             LispObject *body;
             Environment *closure;
-            char *name;       /* Optional macro name for debugging */
-            char *docstring;  /* Documentation string (CommonMark format) */
+            char *name;      /* Optional macro name for debugging */
+            char *docstring; /* Documentation string (CommonMark format) */
         } macro;
         char *error;
         FILE *file;
-        struct {
+        struct
+        {
             LispObject **items;
             size_t size;
             size_t capacity;
         } vector;
-        struct {
+        struct
+        {
             void *buckets; // Array of hash entry lists
             size_t bucket_count;
             size_t entry_count;
             size_t capacity;
         } hash_table;
-        struct {
-            LispObject *error_type;     /* Symbol: 'error, 'division-by-zero, etc. */
-            char *message;              /* Human-readable error message */
-            LispObject *data;           /* Optional arbitrary data (can be NIL) */
-            LispObject *stack_trace;    /* List of function names */
-            int caught;                  /* Flag: if true, error won't propagate (caught by condition-case) */
+        struct
+        {
+            LispObject *error_type;  /* Symbol: 'error, 'division-by-zero, etc. */
+            char *message;           /* Human-readable error message */
+            LispObject *data;        /* Optional arbitrary data (can be NIL) */
+            LispObject *stack_trace; /* List of function names */
+            int caught;              /* Flag: if true, error won't propagate (caught by condition-case) */
         } error_with_stack;
-        struct {
-            LispObject *func;  /* Function to call in tail position */
-            LispObject *args;  /* Already-evaluated arguments */
+        struct
+        {
+            LispObject *func; /* Function to call in tail position */
+            LispObject *args; /* Already-evaluated arguments */
         } tail_call;
-        struct {
-            char *buffer;      /* The string data */
-            size_t byte_len;   /* Total byte length (cached) */
-            size_t char_len;   /* Total character count (cached) */
-            size_t byte_pos;   /* Current byte position */
-            size_t char_pos;   /* Current character position */
+        struct
+        {
+            char *buffer;    /* The string data */
+            size_t byte_len; /* Total byte length (cached) */
+            size_t char_len; /* Total character count (cached) */
+            size_t byte_pos; /* Current byte position */
+            size_t char_pos; /* Current character position */
         } string_port;
     } value;
 };
 
 /* Environment structure for variable bindings */
-struct Environment {
-    struct Binding {
+struct Environment
+{
+    struct Binding
+    {
         char *name;
         LispObject *value;
         struct Binding *next;
     } *bindings;
     Environment *parent;
-    CallStackFrame *call_stack; /* Current call stack */
+    CallStackFrame *call_stack;    /* Current call stack */
     HandlerContext *handler_stack; /* Active condition-case handlers */
 };
 
@@ -198,8 +217,8 @@ LispObject *lisp_make_error(const char *message);
 LispObject *lisp_make_builtin(BuiltinFunc func, const char *name);
 LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *closure, const char *name);
 LispObject *lisp_make_lambda_ext(LispObject *params, LispObject *required_params, LispObject *optional_params,
-                                  LispObject *rest_param, int required_count, int optional_count,
-                                  LispObject *body, Environment *closure, const char *name);
+                                 LispObject *rest_param, int required_count, int optional_count,
+                                 LispObject *body, Environment *closure, const char *name);
 LispObject *lisp_make_macro(LispObject *params, LispObject *body, Environment *closure, const char *name);
 LispObject *lisp_make_file_stream(FILE *file);
 LispObject *lisp_make_vector(size_t capacity);
@@ -236,7 +255,8 @@ extern LispObject *sym_rest;
 extern LispObject *sym_error;
 
 /* Hash table entry structure */
-struct HashEntry {
+struct HashEntry
+{
     char *key;
     LispObject *value;
     struct HashEntry *next;
@@ -271,7 +291,8 @@ LispObject *lisp_make_typed_error(LispObject *error_type, const char *message, L
 LispObject *lisp_make_typed_error_simple(const char *error_type_name, const char *message, Environment *env);
 
 /* Completion context for position-aware completion */
-typedef enum {
+typedef enum
+{
     LISP_COMPLETE_ALL,      /* Any symbol */
     LISP_COMPLETE_CALLABLE, /* Functions, macros, special forms only */
     LISP_COMPLETE_VARIABLE  /* Variables only (not callable) */

@@ -1,7 +1,7 @@
 #include "../include/lisp.h"
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 static void skip_whitespace(const char **input);
 static LispObject *read_atom(const char **input);
@@ -14,7 +14,8 @@ static LispObject *read_unquote_splicing(const char **input);
 static LispObject *read_vector(const char **input);
 static LispObject *read_character(const char **input);
 
-static void skip_whitespace(const char **input) {
+static void skip_whitespace(const char **input)
+{
     while (**input && (isspace(**input) || **input == ';')) {
         if (**input == ';') {
             /* Skip comment until end of line */
@@ -27,7 +28,8 @@ static void skip_whitespace(const char **input) {
     }
 }
 
-static LispObject *read_string(const char **input) {
+static LispObject *read_string(const char **input)
+{
     (*input)++; /* Skip opening quote */
 
     size_t capacity = 64;
@@ -72,7 +74,8 @@ static LispObject *read_string(const char **input) {
             case '4':
             case '5':
             case '6':
-            case '7': {
+            case '7':
+            {
                 /* Octal escape sequence: \0, \00, \000 (1-3 digits) */
                 int octal_value = 0;
                 int digit_count = 0;
@@ -104,7 +107,8 @@ static LispObject *read_string(const char **input) {
     return obj;
 }
 
-static LispObject *read_atom(const char **input) {
+static LispObject *read_atom(const char **input)
+{
     const char *start = *input;
 
     /* Check for number */
@@ -164,7 +168,8 @@ static LispObject *read_atom(const char **input) {
     return obj;
 }
 
-static LispObject *read_list(const char **input) {
+static LispObject *read_list(const char **input)
+{
     (*input)++; /* Skip opening paren */
     skip_whitespace(input);
 
@@ -234,7 +239,8 @@ static LispObject *read_list(const char **input) {
     return head;
 }
 
-static LispObject *read_vector(const char **input) {
+static LispObject *read_vector(const char **input)
+{
     (*input)++; /* Skip # */
     (*input)++; /* Skip ( */
     skip_whitespace(input);
@@ -284,7 +290,8 @@ static LispObject *read_vector(const char **input) {
     return vec;
 }
 
-static int hex_digit_value(char c) {
+static int hex_digit_value(char c)
+{
     if (c >= '0' && c <= '9')
         return c - '0';
     if (c >= 'a' && c <= 'f')
@@ -294,7 +301,8 @@ static int hex_digit_value(char c) {
     return -1;
 }
 
-static LispObject *read_character(const char **input) {
+static LispObject *read_character(const char **input)
+{
     (*input) += 2; /* Skip #\ */
 
     if (**input == '\0') {
@@ -386,7 +394,8 @@ static LispObject *read_character(const char **input) {
     return lisp_make_error(errbuf);
 }
 
-static LispObject *read_quote(const char **input) {
+static LispObject *read_quote(const char **input)
+{
     (*input)++; /* Skip quote character */
     LispObject *quoted = lisp_read(input);
     if (quoted == NULL) {
@@ -398,7 +407,8 @@ static LispObject *read_quote(const char **input) {
     return lisp_make_cons(sym_quote, quoted_list);
 }
 
-static LispObject *read_backquote(const char **input) {
+static LispObject *read_backquote(const char **input)
+{
     (*input)++; /* Skip backquote character */
     LispObject *expr = lisp_read(input);
     if (expr == NULL) {
@@ -410,7 +420,8 @@ static LispObject *read_backquote(const char **input) {
     return lisp_make_cons(sym_quasiquote, expr_list);
 }
 
-static LispObject *read_unquote(const char **input) {
+static LispObject *read_unquote(const char **input)
+{
     (*input)++; /* Skip comma character */
     LispObject *expr = lisp_read(input);
     if (expr == NULL) {
@@ -422,7 +433,8 @@ static LispObject *read_unquote(const char **input) {
     return lisp_make_cons(sym_unquote, expr_list);
 }
 
-static LispObject *read_unquote_splicing(const char **input) {
+static LispObject *read_unquote_splicing(const char **input)
+{
     (*input) += 2; /* Skip ,@ characters */
     LispObject *expr = lisp_read(input);
     if (expr == NULL) {
@@ -434,7 +446,8 @@ static LispObject *read_unquote_splicing(const char **input) {
     return lisp_make_cons(sym_unquote_splicing, expr_list);
 }
 
-LispObject *lisp_read(const char **input) {
+LispObject *lisp_read(const char **input)
+{
     skip_whitespace(input);
 
     if (**input == '\0') {

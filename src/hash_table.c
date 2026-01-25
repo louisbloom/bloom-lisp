@@ -1,9 +1,10 @@
 #include "../include/lisp.h"
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Simple hash function (FNV-1a) */
-static size_t hash_string(const char *str, size_t bucket_count) {
+static size_t hash_string(const char *str, size_t bucket_count)
+{
     unsigned long hash = 2166136261UL;
     const unsigned char *p = (const unsigned char *)str;
 
@@ -17,7 +18,8 @@ static size_t hash_string(const char *str, size_t bucket_count) {
 }
 
 /* Get entry from hash table */
-struct HashEntry *hash_table_get_entry(LispObject *table, const char *key) {
+struct HashEntry *hash_table_get_entry(LispObject *table, const char *key)
+{
     if (table->type != LISP_HASH_TABLE) {
         return NULL;
     }
@@ -37,7 +39,8 @@ struct HashEntry *hash_table_get_entry(LispObject *table, const char *key) {
 }
 
 /* Set value in hash table */
-struct HashEntry *hash_table_set_entry(LispObject *table, const char *key, LispObject *value) {
+struct HashEntry *hash_table_set_entry(LispObject *table, const char *key, LispObject *value)
+{
     if (table->type != LISP_HASH_TABLE) {
         return NULL;
     }
@@ -70,7 +73,8 @@ struct HashEntry *hash_table_set_entry(LispObject *table, const char *key, LispO
 }
 
 /* Remove entry from hash table */
-int hash_table_remove_entry(LispObject *table, const char *key) {
+int hash_table_remove_entry(LispObject *table, const char *key)
+{
     if (table->type != LISP_HASH_TABLE) {
         return 0;
     }
@@ -99,7 +103,8 @@ int hash_table_remove_entry(LispObject *table, const char *key) {
 }
 
 /* Clear all entries from hash table */
-void hash_table_clear(LispObject *table) {
+void hash_table_clear(LispObject *table)
+{
     if (table->type != LISP_HASH_TABLE) {
         return;
     }

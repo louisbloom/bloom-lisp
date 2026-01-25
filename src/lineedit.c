@@ -15,47 +15,48 @@
 #define isatty _isatty
 #define fileno _fileno
 #else
+#include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
-#include <sys/ioctl.h>
 #endif
 
 #include "lineedit.h"
 
 /* Configuration */
-#define DEFAULT_HISTORY_SIZE 100
-#define DEFAULT_LINE_SIZE 4096
+#define DEFAULT_HISTORY_SIZE    100
+#define DEFAULT_LINE_SIZE       4096
 #define MAX_COMPLETIONS_DISPLAY 20
 
 /* Key codes */
-#define KEY_CTRL_A 1
-#define KEY_CTRL_B 2
-#define KEY_CTRL_C 3
-#define KEY_CTRL_D 4
-#define KEY_CTRL_E 5
-#define KEY_CTRL_F 6
-#define KEY_CTRL_K 11
-#define KEY_CTRL_L 12
-#define KEY_CTRL_N 14
-#define KEY_CTRL_P 16
-#define KEY_CTRL_U 21
-#define KEY_CTRL_W 23
-#define KEY_TAB 9
-#define KEY_ENTER 13
-#define KEY_ESC 27
+#define KEY_CTRL_A    1
+#define KEY_CTRL_B    2
+#define KEY_CTRL_C    3
+#define KEY_CTRL_D    4
+#define KEY_CTRL_E    5
+#define KEY_CTRL_F    6
+#define KEY_CTRL_K    11
+#define KEY_CTRL_L    12
+#define KEY_CTRL_N    14
+#define KEY_CTRL_P    16
+#define KEY_CTRL_U    21
+#define KEY_CTRL_W    23
+#define KEY_TAB       9
+#define KEY_ENTER     13
+#define KEY_ESC       27
 #define KEY_BACKSPACE 127
 
 /* ANSI escape sequences */
-#define ANSI_CLEAR_RIGHT "\033[K"
-#define ANSI_MOVE_LEFT "\033[D"
-#define ANSI_MOVE_RIGHT "\033[C"
-#define ANSI_CURSOR_HIDE "\033[?25l"
-#define ANSI_CURSOR_SHOW "\033[?25h"
-#define ANSI_SAVE_CURSOR "\033[s"
+#define ANSI_CLEAR_RIGHT    "\033[K"
+#define ANSI_MOVE_LEFT      "\033[D"
+#define ANSI_MOVE_RIGHT     "\033[C"
+#define ANSI_CURSOR_HIDE    "\033[?25l"
+#define ANSI_CURSOR_SHOW    "\033[?25h"
+#define ANSI_SAVE_CURSOR    "\033[s"
 #define ANSI_RESTORE_CURSOR "\033[u"
 
 /* Line editor state */
-struct LineEditState {
+struct LineEditState
+{
     /* Line buffer */
     char *buf;
     int len;
@@ -94,7 +95,8 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt);
 /*
  * Create a new line editor state.
  */
-LineEditState *lineedit_create(void) {
+LineEditState *lineedit_create(void)
+{
     LineEditState *state = calloc(1, sizeof(LineEditState));
     if (!state)
         return NULL;
@@ -136,7 +138,8 @@ LineEditState *lineedit_create(void) {
 /*
  * Destroy a line editor state.
  */
-void lineedit_destroy(LineEditState *state) {
+void lineedit_destroy(LineEditState *state)
+{
     if (!state)
         return;
 
@@ -156,7 +159,8 @@ void lineedit_destroy(LineEditState *state) {
 /*
  * Set completion callback.
  */
-void lineedit_set_completer(LineEditState *state, lineedit_completer_fn fn, void *userdata) {
+void lineedit_set_completer(LineEditState *state, lineedit_completer_fn fn, void *userdata)
+{
     if (!state)
         return;
     state->completer = fn;
@@ -166,7 +170,8 @@ void lineedit_set_completer(LineEditState *state, lineedit_completer_fn fn, void
 /*
  * Set history size.
  */
-void lineedit_set_history_size(LineEditState *state, int max_size) {
+void lineedit_set_history_size(LineEditState *state, int max_size)
+{
     if (!state || max_size < 1)
         return;
 
@@ -188,7 +193,8 @@ void lineedit_set_history_size(LineEditState *state, int max_size) {
 /*
  * Free completions array.
  */
-void lineedit_free_completions(char **completions) {
+void lineedit_free_completions(char **completions)
+{
     if (!completions)
         return;
 
@@ -201,7 +207,8 @@ void lineedit_free_completions(char **completions) {
 /*
  * Add line to history.
  */
-void lineedit_history_add(LineEditState *state, const char *line) {
+void lineedit_history_add(LineEditState *state, const char *line)
+{
     if (!state || !line || !*line)
         return;
 
@@ -227,7 +234,8 @@ void lineedit_history_add(LineEditState *state, const char *line) {
 /*
  * Clear history.
  */
-void lineedit_history_clear(LineEditState *state) {
+void lineedit_history_clear(LineEditState *state)
+{
     if (!state)
         return;
 
@@ -241,7 +249,8 @@ void lineedit_history_clear(LineEditState *state) {
 /*
  * Enable raw terminal mode (Unix).
  */
-static void enable_raw_mode(LineEditState *state) {
+static void enable_raw_mode(LineEditState *state)
+{
 #ifndef _WIN32
     if (state->raw_mode || !isatty(STDIN_FILENO))
         return;
@@ -271,7 +280,8 @@ static void enable_raw_mode(LineEditState *state) {
 /*
  * Disable raw terminal mode (Unix).
  */
-static void disable_raw_mode(LineEditState *state) {
+static void disable_raw_mode(LineEditState *state)
+{
 #ifndef _WIN32
     if (state->raw_mode) {
         tcsetattr(fileno(stdin), TCSAFLUSH, &state->orig_termios);
@@ -285,7 +295,8 @@ static void disable_raw_mode(LineEditState *state) {
 /*
  * Get terminal width.
  */
-static int get_terminal_width(void) {
+static int get_terminal_width(void)
+{
 #ifdef _WIN32
     /* Windows: use console info */
     CONSOLE_SCREEN_BUFFER_INFO csbi;
@@ -317,7 +328,8 @@ static int get_terminal_width(void) {
 /*
  * Read a single character (handles escape sequences).
  */
-static int lineedit_getchar(LineEditState *state) {
+static int lineedit_getchar(LineEditState *state)
+{
     (void)state;
 
 #ifdef _WIN32
@@ -397,7 +409,8 @@ static int lineedit_getchar(LineEditState *state) {
 /*
  * Refresh the line display.
  */
-static void lineedit_refresh(LineEditState *state, const char *prompt) {
+static void lineedit_refresh(LineEditState *state, const char *prompt)
+{
     /* Move cursor to start of line and clear */
     printf("\r" ANSI_CLEAR_RIGHT);
 
@@ -420,7 +433,8 @@ static void lineedit_refresh(LineEditState *state, const char *prompt) {
 /*
  * Insert character at cursor position.
  */
-static void lineedit_insert(LineEditState *state, char c) {
+static void lineedit_insert(LineEditState *state, char c)
+{
     /* Ensure capacity */
     if (state->len + 1 >= state->capacity) {
         int new_cap = state->capacity * 2;
@@ -443,7 +457,8 @@ static void lineedit_insert(LineEditState *state, char c) {
 /*
  * Delete character at cursor position.
  */
-static void lineedit_delete(LineEditState *state) {
+static void lineedit_delete(LineEditState *state)
+{
     if (state->pos < state->len) {
         memmove(state->buf + state->pos, state->buf + state->pos + 1, state->len - state->pos);
         state->len--;
@@ -453,7 +468,8 @@ static void lineedit_delete(LineEditState *state) {
 /*
  * Delete character before cursor (backspace).
  */
-static void lineedit_backspace(LineEditState *state) {
+static void lineedit_backspace(LineEditState *state)
+{
     if (state->pos > 0) {
         state->pos--;
         lineedit_delete(state);
@@ -463,7 +479,8 @@ static void lineedit_backspace(LineEditState *state) {
 /*
  * Clear completions.
  */
-static void lineedit_clear_completions(LineEditState *state) {
+static void lineedit_clear_completions(LineEditState *state)
+{
     lineedit_free_completions(state->completions);
     state->completions = NULL;
     state->completion_count = 0;
@@ -473,7 +490,8 @@ static void lineedit_clear_completions(LineEditState *state) {
 /*
  * Find the start of the word being completed.
  */
-static int find_word_start(const char *buf, int pos) {
+static int find_word_start(const char *buf, int pos)
+{
     int start = pos;
     while (start > 0 && buf[start - 1] != ' ' && buf[start - 1] != '(' && buf[start - 1] != ')' &&
            buf[start - 1] != '\t' && buf[start - 1] != '\'' && buf[start - 1] != '`') {
@@ -486,7 +504,8 @@ static int find_word_start(const char *buf, int pos) {
  * Find the longest common prefix among all completions.
  * Returns malloc'd string (caller must free).
  */
-static char *find_common_prefix(char **completions, int count) {
+static char *find_common_prefix(char **completions, int count)
+{
     if (!completions || count == 0 || !completions[0])
         return strdup("");
 
@@ -515,7 +534,8 @@ static char *find_common_prefix(char **completions, int count) {
 /*
  * Apply a completion string at current position.
  */
-static void apply_completion(LineEditState *state, const char *completion) {
+static void apply_completion(LineEditState *state, const char *completion)
+{
     int word_start = find_word_start(state->buf, state->pos);
 
     /* Remove current word */
@@ -548,7 +568,8 @@ static void apply_completion(LineEditState *state, const char *completion) {
  * First Tab: complete to longest common prefix
  * Second Tab: show all completions
  */
-static void lineedit_complete(LineEditState *state, const char *prompt) {
+static void lineedit_complete(LineEditState *state, const char *prompt)
+{
     if (!state->completer)
         return;
 
@@ -601,7 +622,8 @@ static void lineedit_complete(LineEditState *state, const char *prompt) {
 }
 
 /* Helper function to count visual width of UTF-8 string */
-static int utf8_visual_width(const char *str) {
+static int utf8_visual_width(const char *str)
+{
     int width = 0;
     unsigned char *p = (unsigned char *)str;
 
@@ -617,7 +639,8 @@ static int utf8_visual_width(const char *str) {
 /*
  * Show all completions.
  */
-static void lineedit_show_completions(LineEditState *state, const char *prompt) {
+static void lineedit_show_completions(LineEditState *state, const char *prompt)
+{
     if (!state->completions || state->completion_count == 0)
         return;
 
@@ -695,7 +718,8 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
 /*
  * Navigate history.
  */
-static void lineedit_history_navigate(LineEditState *state, int direction) {
+static void lineedit_history_navigate(LineEditState *state, int direction)
+{
     if (state->history_size == 0)
         return;
 
@@ -735,7 +759,8 @@ static void lineedit_history_navigate(LineEditState *state, int direction) {
 /*
  * Read a line of input.
  */
-char *lineedit_readline(LineEditState *state, const char *prompt) {
+char *lineedit_readline(LineEditState *state, const char *prompt)
+{
     if (!state)
         return NULL;
 

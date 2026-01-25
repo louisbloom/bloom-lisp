@@ -2,13 +2,13 @@
 #include <config.h>
 #endif
 
-#include "lisp.h"
 #include "file_utils.h"
 #include "lineedit.h"
+#include "lisp.h"
+#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <locale.h>
 
 /* Version information - fallback if not defined by autoconf */
 #ifndef BLOOM_LISP_VERSION
@@ -24,7 +24,8 @@ static Environment *g_env = NULL;
  * (i.e., function/macro position), LISP_COMPLETE_VARIABLE if we're in the first
  * argument of set!, otherwise LISP_COMPLETE_ALL.
  */
-static LispCompleteContext detect_context(const char *buffer, int cursor_pos) {
+static LispCompleteContext detect_context(const char *buffer, int cursor_pos)
+{
     /* Scan backwards from cursor, skipping the word being typed */
     int i = cursor_pos - 1;
 
@@ -78,7 +79,8 @@ static LispCompleteContext detect_context(const char *buffer, int cursor_pos) {
 /*
  * Find the start of the word being typed (for extracting prefix).
  */
-static int find_word_start(const char *buffer, int cursor_pos) {
+static int find_word_start(const char *buffer, int cursor_pos)
+{
     int i = cursor_pos;
     while (i > 0 && buffer[i - 1] != ' ' && buffer[i - 1] != '\t' && buffer[i - 1] != '(' && buffer[i - 1] != ')' &&
            buffer[i - 1] != '\'' && buffer[i - 1] != '`') {
@@ -91,7 +93,8 @@ static int find_word_start(const char *buffer, int cursor_pos) {
  * Completion callback for lineedit.
  * Returns NULL-terminated array of completion strings.
  */
-static char **repl_completer(const char *buffer, int cursor_pos, void *userdata) {
+static char **repl_completer(const char *buffer, int cursor_pos, void *userdata)
+{
     Environment *env = (Environment *)userdata;
     if (!env || !buffer)
         return NULL;
@@ -117,7 +120,8 @@ static char **repl_completer(const char *buffer, int cursor_pos, void *userdata)
     return completions;
 }
 
-static void print_welcome(void) {
+static void print_welcome(void)
+{
     printf("Bloom Lisp Interpreter v%s\n", BLOOM_LISP_VERSION);
     printf("Type expressions to evaluate, :quit to exit, :load <file> to load a file\n");
     printf("Tab for completion, Up/Down for history\n\n");
@@ -127,7 +131,8 @@ static void print_welcome(void) {
  * Build a Lisp list of strings from argv[start] to argv[end-1].
  * Returns NIL if start >= end.
  */
-static LispObject *argv_to_list(int start, int end, char **argv) {
+static LispObject *argv_to_list(int start, int end, char **argv)
+{
     LispObject *result = NIL;
     for (int i = end - 1; i >= start; i--) {
         LispObject *str = lisp_make_string(argv[i]);
@@ -136,7 +141,8 @@ static LispObject *argv_to_list(int start, int end, char **argv) {
     return result;
 }
 
-static void print_help(void) {
+static void print_help(void)
+{
     printf("Bloom Lisp Interpreter v%s\n", BLOOM_LISP_VERSION);
     printf("\n");
     printf("Usage:\n");
@@ -170,7 +176,8 @@ static void print_help(void) {
     printf("See LANGUAGE_REFERENCE.md for complete language documentation.\n");
 }
 
-static int handle_command(const char *input, Environment *env) {
+static int handle_command(const char *input, Environment *env)
+{
     /* Skip leading whitespace */
     while (*input == ' ' || *input == '\t')
         input++;
@@ -208,7 +215,8 @@ static int handle_command(const char *input, Environment *env) {
     return -1; /* Not a command */
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
     /* Set locale for UTF-8 support */
     setlocale(LC_ALL, "");
 
@@ -358,7 +366,7 @@ int main(int argc, char **argv) {
     lineedit_set_completer(le, repl_completer, env);
 
     /* Buffer for multi-line expressions */
-    static char expr_buffer[8192] = {0};
+    static char expr_buffer[8192] = { 0 };
     static int expr_pos = 0;
 
     const char *prompt = ">>> ";

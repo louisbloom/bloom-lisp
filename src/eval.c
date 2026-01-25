@@ -3,7 +3,8 @@
 #include <string.h>
 
 /* Helper function to check if an error should propagate */
-static int should_propagate_error(LispObject *obj) {
+static int should_propagate_error(LispObject *obj)
+{
     return (obj->type == LISP_ERROR && !obj->value.error_with_stack.caught);
 }
 
@@ -30,7 +31,8 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
 static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in_tail_position);
 
 /* Public eval function - adds trampoline loop for tail call optimization */
-LispObject *lisp_eval(LispObject *expr, Environment *env) {
+LispObject *lisp_eval(LispObject *expr, Environment *env)
+{
     LispObject *result = lisp_eval_internal(expr, env, 1);
 
     /* Trampoline loop: keep unwrapping tail calls */
@@ -46,7 +48,8 @@ LispObject *lisp_eval(LispObject *expr, Environment *env) {
 }
 
 /* Internal eval function with tail position tracking */
-static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in_tail_position) {
+static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in_tail_position)
+{
     if (expr == NULL || expr == NIL) {
         return NIL;
     }
@@ -72,7 +75,8 @@ static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in
     case LISP_ERROR:
         return expr;
 
-    case LISP_SYMBOL: {
+    case LISP_SYMBOL:
+    {
         LispObject *value = env_lookup(env, expr->value.symbol->name);
         if (value == NULL) {
             char error[256];
@@ -93,7 +97,8 @@ static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in
     return lisp_make_error("Unknown expression type");
 }
 
-static LispObject *eval_list(LispObject *list, Environment *env, int in_tail_position) {
+static LispObject *eval_list(LispObject *list, Environment *env, int in_tail_position)
+{
     if (list == NIL) {
         return NIL;
     }
@@ -227,7 +232,8 @@ static LispObject *eval_list(LispObject *list, Environment *env, int in_tail_pos
     return apply(func, evaled_args, env, in_tail_position);
 }
 
-static LispObject *eval_if(LispObject *args, Environment *env, int in_tail_position) {
+static LispObject *eval_if(LispObject *args, Environment *env, int in_tail_position)
+{
     if (args == NIL) {
         return lisp_make_error("if requires at least 2 arguments");
     }
@@ -257,7 +263,8 @@ static LispObject *eval_if(LispObject *args, Environment *env, int in_tail_posit
     }
 }
 
-static LispObject *eval_define(LispObject *args, Environment *env) {
+static LispObject *eval_define(LispObject *args, Environment *env)
+{
     if (args == NIL) {
         return lisp_make_error("define requires 2 arguments");
     }
@@ -296,7 +303,8 @@ static LispObject *eval_define(LispObject *args, Environment *env) {
     return value;
 }
 
-static LispObject *eval_set_bang(LispObject *args, Environment *env) {
+static LispObject *eval_set_bang(LispObject *args, Environment *env)
+{
     if (args == NIL) {
         return lisp_make_error("set! requires 2 arguments");
     }
@@ -339,9 +347,15 @@ static LispObject *eval_set_bang(LispObject *args, Environment *env) {
  */
 static int parse_lambda_params(LispObject *params, LispObject **required_out, LispObject **optional_out,
                                LispObject **rest_out, int *required_count_out, int *optional_count_out,
-                               char **error_msg_out) {
+                               char **error_msg_out)
+{
     /* States for parameter parsing */
-    enum { REQUIRED, OPTIONAL, REST } state = REQUIRED;
+    enum
+    {
+        REQUIRED,
+        OPTIONAL,
+        REST
+    } state = REQUIRED;
 
     /* Build lists using cons cells (reversed, will reverse at end) */
     LispObject *required_list = NIL;
@@ -467,7 +481,8 @@ static int parse_lambda_params(LispObject *params, LispObject **required_out, Li
     return 0;
 }
 
-static LispObject *eval_lambda(LispObject *args, Environment *env) {
+static LispObject *eval_lambda(LispObject *args, Environment *env)
+{
     if (args == NIL) {
         return lisp_make_error("lambda requires at least 2 arguments");
     }
@@ -518,7 +533,8 @@ static LispObject *eval_lambda(LispObject *args, Environment *env) {
     return lambda;
 }
 
-static LispObject *eval_defmacro(LispObject *args, Environment *env) {
+static LispObject *eval_defmacro(LispObject *args, Environment *env)
+{
     if (args == NIL) {
         return lisp_make_error("defmacro requires at least 3 arguments");
     }
@@ -570,7 +586,8 @@ static LispObject *eval_defmacro(LispObject *args, Environment *env) {
     return macro;
 }
 
-static LispObject *eval_quasiquote(LispObject *expr, Environment *env) {
+static LispObject *eval_quasiquote(LispObject *expr, Environment *env)
+{
     /* Base cases: atoms are returned as-is */
     if (expr == NIL || expr->type != LISP_CONS) {
         return expr;
@@ -652,7 +669,8 @@ static LispObject *eval_quasiquote(LispObject *expr, Environment *env) {
     return lisp_make_cons(car_result, cdr_result);
 }
 
-static LispObject *expand_macro(LispObject *macro, LispObject *args, Environment *env) {
+static LispObject *expand_macro(LispObject *macro, LispObject *args, Environment *env)
+{
     (void)env; /* Unused - macros use their own closure environment */
     /* Create new environment with macro's closure as parent */
     Environment *new_env = env_create(macro->value.macro.closure);
@@ -700,7 +718,8 @@ static LispObject *expand_macro(LispObject *macro, LispObject *args, Environment
     return eval_progn(macro->value.macro.body, new_env, 0);
 }
 
-static LispObject *eval_let(LispObject *args, Environment *env, int in_tail_position) {
+static LispObject *eval_let(LispObject *args, Environment *env, int in_tail_position)
+{
     if (args == NIL) {
         return lisp_make_error("let requires at least 2 arguments");
     }
@@ -748,7 +767,8 @@ static LispObject *eval_let(LispObject *args, Environment *env, int in_tail_posi
     return eval_progn(body, new_env, in_tail_position);
 }
 
-static LispObject *eval_let_star(LispObject *args, Environment *env, int in_tail_position) {
+static LispObject *eval_let_star(LispObject *args, Environment *env, int in_tail_position)
+{
     if (args == NIL) {
         return lisp_make_error("let* requires at least 2 arguments");
     }
@@ -798,7 +818,8 @@ static LispObject *eval_let_star(LispObject *args, Environment *env, int in_tail
     return eval_progn(body, new_env, in_tail_position);
 }
 
-static LispObject *eval_progn(LispObject *args, Environment *env, int in_tail_position) {
+static LispObject *eval_progn(LispObject *args, Environment *env, int in_tail_position)
+{
     if (args == NIL) {
         return NIL;
     }
@@ -825,7 +846,8 @@ static LispObject *eval_progn(LispObject *args, Environment *env, int in_tail_po
     return result;
 }
 
-static LispObject *eval_do(LispObject *args, Environment *env) {
+static LispObject *eval_do(LispObject *args, Environment *env)
+{
     if (args == NIL) {
         return lisp_make_error("do requires at least 2 arguments");
     }
@@ -939,7 +961,8 @@ static LispObject *eval_do(LispObject *args, Environment *env) {
     }
 }
 
-static LispObject *eval_cond(LispObject *args, Environment *env, int in_tail_position) {
+static LispObject *eval_cond(LispObject *args, Environment *env, int in_tail_position)
+{
     if (args == NIL) {
         return NIL;
     }
@@ -984,7 +1007,8 @@ static LispObject *eval_cond(LispObject *args, Environment *env, int in_tail_pos
     return NIL;
 }
 
-static int objects_equal(LispObject *a, LispObject *b) {
+static int objects_equal(LispObject *a, LispObject *b)
+{
     if (a->type != b->type) {
         return 0;
     }
@@ -1005,7 +1029,8 @@ static int objects_equal(LispObject *a, LispObject *b) {
     }
 }
 
-static LispObject *eval_case(LispObject *args, Environment *env, int in_tail_position) {
+static LispObject *eval_case(LispObject *args, Environment *env, int in_tail_position)
+{
     if (args == NIL) {
         return lisp_make_error("case requires at least 1 argument");
     }
@@ -1066,7 +1091,8 @@ static LispObject *eval_case(LispObject *args, Environment *env, int in_tail_pos
     return NIL;
 }
 
-static LispObject *eval_and(LispObject *args, Environment *env, int in_tail_position) {
+static LispObject *eval_and(LispObject *args, Environment *env, int in_tail_position)
+{
     /* (and) => #t */
     if (args == NIL) {
         return LISP_TRUE;
@@ -1102,7 +1128,8 @@ static LispObject *eval_and(LispObject *args, Environment *env, int in_tail_posi
     return LISP_TRUE;
 }
 
-static LispObject *eval_or(LispObject *args, Environment *env, int in_tail_position) {
+static LispObject *eval_or(LispObject *args, Environment *env, int in_tail_position)
+{
     /* (or) => #f */
     if (args == NIL) {
         return NIL;
@@ -1138,7 +1165,8 @@ static LispObject *eval_or(LispObject *args, Environment *env, int in_tail_posit
     return NIL;
 }
 
-static LispObject *apply(LispObject *func, LispObject *args, Environment *env, int in_tail_position) {
+static LispObject *apply(LispObject *func, LispObject *args, Environment *env, int in_tail_position)
+{
     if (func->type == LISP_BUILTIN) {
         /* Builtins are never tail-called (C boundary) */
         /* Push call frame for builtin */
@@ -1380,7 +1408,8 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
  * Evaluates BODYFORM, then always executes CLEANUP-FORMS regardless of errors.
  * Returns the result of BODYFORM (even if it's an error).
  */
-static LispObject *eval_unwind_protect(LispObject *args, Environment *env, int in_tail_position) {
+static LispObject *eval_unwind_protect(LispObject *args, Environment *env, int in_tail_position)
+{
     (void)in_tail_position; /* Body is never in tail position - cleanup must run */
 
     if (args == NIL) {
@@ -1407,7 +1436,8 @@ static LispObject *eval_unwind_protect(LispObject *args, Environment *env, int i
  * Evaluates BODYFORM. If an error occurs, finds matching handler by error type.
  * Binds error to VAR in handler environment, executes handler body.
  */
-static LispObject *eval_condition_case(LispObject *args, Environment *env, int in_tail_position) {
+static LispObject *eval_condition_case(LispObject *args, Environment *env, int in_tail_position)
+{
     /* Parse: (condition-case VAR BODYFORM HANDLER...) */
     if (args == NIL) {
         return lisp_make_error_with_stack("condition-case requires at least 3 arguments", env);

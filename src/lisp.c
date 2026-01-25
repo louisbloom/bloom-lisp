@@ -1,15 +1,15 @@
 #include "../include/lisp.h"
 #include "../include/file_utils.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 /* Global NIL object */
-LispObject nil_obj = {.type = LISP_NIL};
+LispObject nil_obj = { .type = LISP_NIL };
 LispObject *NIL = &nil_obj;
 
 /* Global boolean objects */
-LispObject true_obj = {.type = LISP_BOOLEAN, .value = {.boolean = 1}};
+LispObject true_obj = { .type = LISP_BOOLEAN, .value = { .boolean = 1 } };
 LispObject *LISP_TRUE = &true_obj;
 
 /* Global symbol intern table */
@@ -41,28 +41,32 @@ LispObject *sym_rest = NULL;
 LispObject *sym_error = NULL;
 
 /* Object creation functions */
-LispObject *lisp_make_number(double value) {
+LispObject *lisp_make_number(double value)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_NUMBER;
     obj->value.number = value;
     return obj;
 }
 
-LispObject *lisp_make_integer(long long value) {
+LispObject *lisp_make_integer(long long value)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_INTEGER;
     obj->value.integer = value;
     return obj;
 }
 
-LispObject *lisp_make_char(unsigned int codepoint) {
+LispObject *lisp_make_char(unsigned int codepoint)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_CHAR;
     obj->value.character = codepoint;
     return obj;
 }
 
-LispObject *lisp_make_boolean(int value) {
+LispObject *lisp_make_boolean(int value)
+{
     /* Return interned boolean objects */
     if (value) {
         return LISP_TRUE;
@@ -71,14 +75,16 @@ LispObject *lisp_make_boolean(int value) {
     }
 }
 
-LispObject *lisp_make_string(const char *value) {
+LispObject *lisp_make_string(const char *value)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_STRING;
     obj->value.string = GC_strdup(value);
     return obj;
 }
 
-LispObject *lisp_intern(const char *name) {
+LispObject *lisp_intern(const char *name)
+{
     /* Initialize symbol table on first use */
     if (symbol_table == NULL) {
         symbol_table = lisp_make_hash_table();
@@ -107,11 +113,13 @@ LispObject *lisp_intern(const char *name) {
 }
 
 /* Keep old name for backward compatibility, but redirect to intern */
-LispObject *lisp_make_symbol(const char *name) {
+LispObject *lisp_make_symbol(const char *name)
+{
     return lisp_intern(name);
 }
 
-LispObject *lisp_make_cons(LispObject *car, LispObject *cdr) {
+LispObject *lisp_make_cons(LispObject *car, LispObject *cdr)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_CONS;
     obj->value.cons.car = car;
@@ -120,7 +128,8 @@ LispObject *lisp_make_cons(LispObject *car, LispObject *cdr) {
 }
 
 /* New typed error creation function */
-LispObject *lisp_make_typed_error(LispObject *error_type, const char *message, LispObject *data, Environment *env) {
+LispObject *lisp_make_typed_error(LispObject *error_type, const char *message, LispObject *data, Environment *env)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_ERROR;
     obj->value.error_with_stack.error_type = error_type;
@@ -132,21 +141,25 @@ LispObject *lisp_make_typed_error(LispObject *error_type, const char *message, L
 }
 
 /* Convenience function for creating typed errors from strings */
-LispObject *lisp_make_typed_error_simple(const char *error_type_name, const char *message, Environment *env) {
+LispObject *lisp_make_typed_error_simple(const char *error_type_name, const char *message, Environment *env)
+{
     return lisp_make_typed_error(lisp_intern(error_type_name), message, NIL, env);
 }
 
 /* Backward-compatible error creation (uses 'error type) */
-LispObject *lisp_make_error(const char *message) {
+LispObject *lisp_make_error(const char *message)
+{
     return lisp_make_typed_error(sym_error, message, NIL, NULL);
 }
 
 /* Backward-compatible error creation with stack trace */
-LispObject *lisp_make_error_with_stack(const char *message, Environment *env) {
+LispObject *lisp_make_error_with_stack(const char *message, Environment *env)
+{
     return lisp_make_typed_error(sym_error, message, NIL, env);
 }
 
-LispObject *lisp_attach_stack_trace(LispObject *error, Environment *env) {
+LispObject *lisp_attach_stack_trace(LispObject *error, Environment *env)
+{
     if (error->type == LISP_ERROR) {
         if (error->value.error_with_stack.stack_trace == NIL || error->value.error_with_stack.stack_trace == NULL) {
             error->value.error_with_stack.stack_trace = capture_call_stack(env);
@@ -155,7 +168,8 @@ LispObject *lisp_attach_stack_trace(LispObject *error, Environment *env) {
     return error;
 }
 
-LispObject *lisp_make_builtin(BuiltinFunc func, const char *name) {
+LispObject *lisp_make_builtin(BuiltinFunc func, const char *name)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_BUILTIN;
     obj->value.builtin.func = func;
@@ -163,7 +177,8 @@ LispObject *lisp_make_builtin(BuiltinFunc func, const char *name) {
     return obj;
 }
 
-LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *closure, const char *name) {
+LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *closure, const char *name)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_LAMBDA;
     obj->value.lambda.params = params;
@@ -181,7 +196,8 @@ LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *
 
 LispObject *lisp_make_lambda_ext(LispObject *params, LispObject *required_params, LispObject *optional_params,
                                  LispObject *rest_param, int required_count, int optional_count, LispObject *body,
-                                 Environment *closure, const char *name) {
+                                 Environment *closure, const char *name)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_LAMBDA;
     obj->value.lambda.params = params;
@@ -197,7 +213,8 @@ LispObject *lisp_make_lambda_ext(LispObject *params, LispObject *required_params
     return obj;
 }
 
-LispObject *lisp_make_macro(LispObject *params, LispObject *body, Environment *closure, const char *name) {
+LispObject *lisp_make_macro(LispObject *params, LispObject *body, Environment *closure, const char *name)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_MACRO;
     obj->value.macro.params = params;
@@ -208,7 +225,8 @@ LispObject *lisp_make_macro(LispObject *params, LispObject *body, Environment *c
     return obj;
 }
 
-LispObject *lisp_make_tail_call(LispObject *func, LispObject *args) {
+LispObject *lisp_make_tail_call(LispObject *func, LispObject *args)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_TAIL_CALL;
     obj->value.tail_call.func = func;
@@ -216,7 +234,8 @@ LispObject *lisp_make_tail_call(LispObject *func, LispObject *args) {
     return obj;
 }
 
-LispObject *lisp_make_string_port(const char *str) {
+LispObject *lisp_make_string_port(const char *str)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_STRING_PORT;
     obj->value.string_port.buffer = GC_strdup(str);
@@ -228,7 +247,8 @@ LispObject *lisp_make_string_port(const char *str) {
 }
 
 /* Object utilities */
-int lisp_is_truthy(LispObject *obj) {
+int lisp_is_truthy(LispObject *obj)
+{
     /* Traditional Lisp semantics: only nil is false, everything else is true */
     if (obj == NULL || obj == NIL) {
         return 0;
@@ -253,7 +273,8 @@ int lisp_is_truthy(LispObject *obj) {
     return 1;
 }
 
-int lisp_is_list(LispObject *obj) {
+int lisp_is_list(LispObject *obj)
+{
     if (obj == NIL)
         return 1;
     if (obj->type != LISP_CONS)
@@ -266,7 +287,8 @@ int lisp_is_list(LispObject *obj) {
     return (obj == NIL);
 }
 
-size_t lisp_list_length(LispObject *list) {
+size_t lisp_list_length(LispObject *list)
+{
     size_t len = 0;
     while (list != NIL && list->type == LISP_CONS) {
         len++;
@@ -275,7 +297,8 @@ size_t lisp_list_length(LispObject *list) {
     return len;
 }
 
-LispObject *lisp_make_vector(size_t capacity) {
+LispObject *lisp_make_vector(size_t capacity)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_VECTOR;
     obj->value.vector.capacity = capacity > 0 ? capacity : 8;
@@ -288,7 +311,8 @@ LispObject *lisp_make_vector(size_t capacity) {
     return obj;
 }
 
-LispObject *lisp_make_hash_table(void) {
+LispObject *lisp_make_hash_table(void)
+{
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_HASH_TABLE;
     obj->value.hash_table.capacity = 16;
@@ -303,7 +327,8 @@ LispObject *lisp_make_hash_table(void) {
 }
 
 /* List utilities */
-LispObject *lisp_car(LispObject *obj) {
+LispObject *lisp_car(LispObject *obj)
+{
     if (obj == NIL || obj == NULL)
         return NIL;
     if (obj->type != LISP_CONS)
@@ -311,7 +336,8 @@ LispObject *lisp_car(LispObject *obj) {
     return obj->value.cons.car;
 }
 
-LispObject *lisp_cdr(LispObject *obj) {
+LispObject *lisp_cdr(LispObject *obj)
+{
     if (obj == NIL || obj == NULL)
         return NIL;
     if (obj->type != LISP_CONS)
@@ -320,34 +346,41 @@ LispObject *lisp_cdr(LispObject *obj) {
 }
 
 /* c*r combination helpers */
-LispObject *lisp_caar(LispObject *obj) {
+LispObject *lisp_caar(LispObject *obj)
+{
     return lisp_car(lisp_car(obj));
 }
 
-LispObject *lisp_cadr(LispObject *obj) {
+LispObject *lisp_cadr(LispObject *obj)
+{
     return lisp_car(lisp_cdr(obj));
 }
 
-LispObject *lisp_cdar(LispObject *obj) {
+LispObject *lisp_cdar(LispObject *obj)
+{
     return lisp_cdr(lisp_car(obj));
 }
 
-LispObject *lisp_cddr(LispObject *obj) {
+LispObject *lisp_cddr(LispObject *obj)
+{
     return lisp_cdr(lisp_cdr(obj));
 }
 
-LispObject *lisp_caddr(LispObject *obj) {
+LispObject *lisp_caddr(LispObject *obj)
+{
     return lisp_car(lisp_cddr(obj));
 }
 
-LispObject *lisp_cadddr(LispObject *obj) {
+LispObject *lisp_cadddr(LispObject *obj)
+{
     return lisp_car(lisp_cdr(lisp_cddr(obj)));
 }
 
 /* Simple API */
 static Environment *global_env = NULL;
 
-int lisp_init(void) {
+int lisp_init(void)
+{
     /* Initialize Boehm GC */
     GC_INIT();
 
@@ -385,7 +418,8 @@ int lisp_init(void) {
     return 0;
 }
 
-LispObject *lisp_eval_string(const char *code, Environment *env) {
+LispObject *lisp_eval_string(const char *code, Environment *env)
+{
     if (env == NULL) {
         env = global_env;
     }
@@ -404,7 +438,8 @@ LispObject *lisp_eval_string(const char *code, Environment *env) {
     return lisp_eval(expr, env);
 }
 
-void lisp_cleanup(void) {
+void lisp_cleanup(void)
+{
     /* GC handles cleanup automatically */
     if (global_env != NULL) {
         env_free(global_env);
@@ -413,7 +448,8 @@ void lisp_cleanup(void) {
 }
 
 /* Load file */
-LispObject *lisp_load_file(const char *filename, Environment *env) {
+LispObject *lisp_load_file(const char *filename, Environment *env)
+{
     /* Use binary mode to avoid ftell/fread size mismatch with CRLF translation */
     FILE *file = file_open(filename, "rb");
     if (file == NULL) {

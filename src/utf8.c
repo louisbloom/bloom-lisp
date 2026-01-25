@@ -2,7 +2,8 @@
 #include <stdlib.h>
 
 /* Check if codepoint is a grapheme extender (variation selector, combining mark, ZWJ) */
-static int is_grapheme_extender(int cp) {
+static int is_grapheme_extender(int cp)
+{
     /* Variation selectors */
     if ((cp >= 0xFE00 && cp <= 0xFE0F) || /* Variation Selectors */
         (cp >= 0xE0100 && cp <= 0xE01EF)) /* Variation Selectors Supplement */
@@ -25,7 +26,8 @@ static int is_grapheme_extender(int cp) {
 
 /* Count UTF-8 code points in string (not bytes, not graphemes).
  * This matches the indexing used by string-ref and utf8_char_at. */
-size_t utf8_strlen(const char *str) {
+size_t utf8_strlen(const char *str)
+{
     if (str == NULL)
         return 0;
 
@@ -40,7 +42,8 @@ size_t utf8_strlen(const char *str) {
 }
 
 /* Get character at character index (not byte index) */
-const char *utf8_char_at(const char *str, size_t char_index) {
+const char *utf8_char_at(const char *str, size_t char_index)
+{
     if (str == NULL)
         return NULL;
 
@@ -66,7 +69,8 @@ const char *utf8_char_at(const char *str, size_t char_index) {
 }
 
 /* Advance pointer to next UTF-8 character */
-const char *utf8_next_char(const char *ptr) {
+const char *utf8_next_char(const char *ptr)
+{
     if (ptr == NULL || *ptr == '\0')
         return NULL;
 
@@ -83,7 +87,8 @@ const char *utf8_next_char(const char *ptr) {
 }
 
 /* Move pointer to previous UTF-8 character */
-const char *utf8_prev_char(const char *str, const char *ptr) {
+const char *utf8_prev_char(const char *str, const char *ptr)
+{
     if (str == NULL || ptr == NULL || ptr <= str)
         return str;
 
@@ -98,7 +103,8 @@ const char *utf8_prev_char(const char *str, const char *ptr) {
 }
 
 /* Validate UTF-8 sequence */
-int utf8_validate(const char *str) {
+int utf8_validate(const char *str)
+{
     if (str == NULL)
         return 1;
 
@@ -126,7 +132,8 @@ int utf8_validate(const char *str) {
 }
 
 /* Get byte offset to codepoint at char_index (codepoint-based indexing) */
-size_t utf8_byte_offset(const char *str, size_t char_index) {
+size_t utf8_byte_offset(const char *str, size_t char_index)
+{
     if (str == NULL)
         return 0;
 
@@ -146,7 +153,8 @@ size_t utf8_byte_offset(const char *str, size_t char_index) {
 
 /* Get byte offset to grapheme cluster at grapheme_index (grapheme-based indexing).
  * This counts visible characters, skipping variation selectors, combining marks, and ZWJ. */
-size_t utf8_grapheme_byte_offset(const char *str, size_t grapheme_index) {
+size_t utf8_grapheme_byte_offset(const char *str, size_t grapheme_index)
+{
     if (str == NULL)
         return 0;
 
@@ -175,7 +183,8 @@ size_t utf8_grapheme_byte_offset(const char *str, size_t grapheme_index) {
 
 /* Get byte length of grapheme cluster starting at ptr.
  * Returns the total bytes including any following extenders (VS, combining marks, ZWJ). */
-size_t utf8_grapheme_bytes(const char *ptr) {
+size_t utf8_grapheme_bytes(const char *ptr)
+{
     if (ptr == NULL || *ptr == '\0')
         return 0;
 
@@ -201,7 +210,8 @@ size_t utf8_grapheme_bytes(const char *ptr) {
 }
 
 /* Count bytes in UTF-8 character at ptr */
-int utf8_char_bytes(const char *ptr) {
+int utf8_char_bytes(const char *ptr)
+{
     if (ptr == NULL || *ptr == '\0')
         return 0;
 
@@ -218,7 +228,8 @@ int utf8_char_bytes(const char *ptr) {
 }
 
 /* Get Unicode codepoint from UTF-8 character */
-int utf8_get_codepoint(const char *ptr) {
+int utf8_get_codepoint(const char *ptr)
+{
     if (ptr == NULL || *ptr == '\0')
         return -1;
 
@@ -237,7 +248,8 @@ int utf8_get_codepoint(const char *ptr) {
 /* Encode Unicode codepoint as UTF-8 into buffer */
 /* Returns number of bytes written (1-4) or 0 if invalid */
 /* Buffer must have space for at least 5 bytes (4 UTF-8 bytes + null terminator) */
-int utf8_put_codepoint(unsigned int codepoint, char *buf) {
+int utf8_put_codepoint(unsigned int codepoint, char *buf)
+{
     if (buf == NULL)
         return 0;
 
@@ -274,7 +286,8 @@ int utf8_put_codepoint(unsigned int codepoint, char *buf) {
 }
 
 /* Get display width of a single codepoint */
-int utf8_codepoint_width(int cp) {
+int utf8_codepoint_width(int cp)
+{
     if (cp < 0)
         return 0;
 
@@ -327,7 +340,8 @@ int utf8_codepoint_width(int cp) {
 }
 
 /* Calculate display width of UTF-8 string in terminal columns */
-int utf8_display_width(const char *str) {
+int utf8_display_width(const char *str)
+{
     if (str == NULL)
         return 0;
 

@@ -34,16 +34,19 @@ See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for complete function lis
 Install the required dependencies:
 
 **Linux (Debian/Ubuntu):**
+
 ```bash
 sudo apt-get install libgc-dev libpcre2-dev autoconf automake
 ```
 
 **Linux (Fedora):**
+
 ```bash
 sudo dnf install gc-devel pcre2-devel autoconf automake
 ```
 
 **macOS:**
+
 ```bash
 brew install bdw-gc pcre2 autoconf automake
 ```
@@ -64,6 +67,7 @@ sudo make install
 ```
 
 This installs:
+
 - `bloom-repl` executable
 - `libbloomlisp.a` static library
 - Header files to `$(includedir)/bloom-lisp/`
