@@ -43,11 +43,10 @@ TESTS = \
     regression/tail_call_unwrap.lisp
 
 TEST_EXTENSIONS = .lisp
-LISP_LOG_DRIVER = env AM_TAP_AWK='$(AWK)' $(SHELL) $(srcdir)/run-test.sh
-LISP_LOG_COMPILER = $(top_builddir)/repl/bloom-repl
+LISP_LOG_COMPILER = $(srcdir)/run-test.sh
 
 AM_TESTS_ENVIRONMENT = \
-    BLOOM_REPL="$(top_builddir)/repl/bloom-repl"; \
+    BLOOM_REPL="$(abs_top_builddir)/repl/bloom-repl"; \
     export BLOOM_REPL;
 
 EXTRA_DIST = \

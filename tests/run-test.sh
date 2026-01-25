@@ -1,55 +1,47 @@
 #!/bin/sh
-# Test driver script for bloom-lisp tests
-# Usage: run-test.sh bloom-repl test-file.lisp
+# Test wrapper script for bloom-lisp tests
+# Runs tests from the project root so (load "tests/...") works
 
-BLOOM_REPL="${BLOOM_REPL:-./repl/bloom-repl}"
+# Get the directory containing this script
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Project root is one level up
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Called by automake test harness
-# Arguments: test-name, source-dir, log-file, trs-file, flags...
-if [ "$1" = "--test-name" ]; then
-    shift
-    test_name="$1"
-    shift
-    shift  # source-dir
-    log_file="$1"
-    shift
-    trs_file="$1"
-    shift
-    shift  # --color-tests
-    shift  # value
-    shift  # --enable-hard-errors
-    shift  # value
-    shift  # --expect-failure
-    shift  # value
-    shift  # --
-    test_file="$@"
-
-    # Run the test
-    output=$("$BLOOM_REPL" "$test_file" 2>&1)
-    exit_code=$?
-
-    # Write to log file
-    echo "$output" > "$log_file"
-
-    # Check result
-    if [ $exit_code -eq 0 ]; then
-        echo ":test-result: PASS $test_name" > "$trs_file"
-        echo "PASS: $test_name"
-        exit 0
-    else
-        echo ":test-result: FAIL $test_name" > "$trs_file"
-        echo "FAIL: $test_name"
-        echo "$output"
-        exit 1
-    fi
-fi
-
-# Direct invocation: run-test.sh test-file.lisp
-test_file="$1"
-if [ -z "$test_file" ]; then
-    echo "Usage: $0 test-file.lisp"
+# Find the bloom-repl binary
+if [ -n "$BLOOM_REPL" ] && [ -x "$BLOOM_REPL" ]; then
+    REPL="$BLOOM_REPL"
+elif [ -x "$PROJECT_ROOT/repl/bloom-repl" ]; then
+    REPL="$PROJECT_ROOT/repl/bloom-repl"
+else
+    echo "ERROR: bloom-repl not found" >&2
     exit 1
 fi
 
-"$BLOOM_REPL" "$test_file"
-exit $?
+# Get the test file path
+TEST_FILE="$1"
+if [ -z "$TEST_FILE" ]; then
+    echo "Usage: $0 <test-file.lisp>" >&2
+    exit 1
+fi
+
+# Convert to path relative to project root if it's under tests/
+case "$TEST_FILE" in
+    /*)
+        # Absolute path - convert to relative
+        TEST_FILE="tests/$(basename "$(dirname "$TEST_FILE")")/$(basename "$TEST_FILE")"
+        ;;
+    */*)
+        # Relative with directory - ensure it has tests/ prefix if needed
+        if [ ! -f "$PROJECT_ROOT/$TEST_FILE" ]; then
+            TEST_FILE="tests/$TEST_FILE"
+        fi
+        ;;
+    *)
+        # Just a filename - assume it's in tests/
+        TEST_FILE="tests/$TEST_FILE"
+        ;;
+esac
+
+# Run from project root
+cd "$PROJECT_ROOT" || exit 1
+exec "$REPL" "$TEST_FILE"

@@ -1,5 +1,7 @@
-# Build static library
-noinst_LIBRARIES = libbloomlisp.a liblineedit.a
+# Build static libraries
+# libbloomlisp.a is installed, liblineedit.a is not (internal use only)
+lib_LIBRARIES = libbloomlisp.a
+noinst_LIBRARIES = liblineedit.a
 
 # Main lisp library
 libbloomlisp_a_SOURCES = \
