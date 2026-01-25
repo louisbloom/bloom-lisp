@@ -7,5 +7,5 @@ Name: bloom-lisp
 Description: Embeddable Lisp interpreter library
 Version: @PACKAGE_VERSION@
 Requires: bdw-gc libpcre2-8
-Cflags: -I${includedir}/bloom-lisp
-Libs: -L${libdir} -lbloomlisp
+Cflags: -I${includedir}
+Libs: -L${libdir} -lbloomlisp -llineedit

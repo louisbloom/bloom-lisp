@@ -1,7 +1,5 @@
 # Build static libraries
-# libbloomlisp.a is installed, liblineedit.a is not (internal use only)
-lib_LIBRARIES = libbloomlisp.a
-noinst_LIBRARIES = liblineedit.a
+lib_LIBRARIES = libbloomlisp.a liblineedit.a
 
 # Main lisp library
 libbloomlisp_a_SOURCES = \
@@ -23,8 +21,7 @@ libbloomlisp_a_CPPFLAGS = \
 
 # Line editing library (for REPL)
 liblineedit_a_SOURCES = \
-    lineedit.c \
-    lineedit.h
+    lineedit.c
 
 liblineedit_a_CPPFLAGS = \
     -I$(top_srcdir)/include \

@@ -20,7 +20,7 @@
 #include <unistd.h>
 #endif
 
-#include "lineedit.h"
+#include "../include/lineedit.h"
 
 /* Configuration */
 #define DEFAULT_HISTORY_SIZE    100
@@ -266,7 +266,7 @@ static void enable_raw_mode(LineEditState *state)
     raw.c_cc[VMIN] = 1;
     raw.c_cc[VTIME] = 0;
 
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == 0) {
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) == 0) {
         state->raw_mode = 1;
         /* Ensure terminal is in a known state */
         printf(ANSI_CURSOR_SHOW);
@@ -672,7 +672,7 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt)
     printf(ANSI_SAVE_CURSOR);
 
     /* Move to next line (below prompt) and clear it */
-    printf("\n" ANSI_CLEAR_RIGHT);
+    printf("\r\n" ANSI_CLEAR_RIGHT);
 
     /* Print completions with proper formatting */
     for (int row = 0; row < rows; row++) {
@@ -817,14 +817,14 @@ char *lineedit_readline(LineEditState *state, const char *prompt)
         case KEY_ENTER:
         case '\n':
             /* Submit line */
-            printf("\n");
+            printf("\r\n");
             result = strdup(state->buf);
             done = 1;
             break;
 
         case KEY_CTRL_C:
             /* Cancel line */
-            printf("^C\n");
+            printf("^C\r\n");
             state->buf[0] = '\0';
             state->len = 0;
             state->pos = 0;
@@ -834,7 +834,7 @@ char *lineedit_readline(LineEditState *state, const char *prompt)
         case KEY_CTRL_D:
             /* EOF if line is empty */
             if (state->len == 0) {
-                printf("\n");
+                printf("\r\n");
                 done = 1;
             } else {
                 lineedit_delete(state);
