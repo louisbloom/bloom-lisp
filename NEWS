@@ -1,0 +1,12 @@
+Bloom Lisp 0.4
+==============
+
+Initial standalone release extracted from telnet-gui project.
+
+Features:
+- Complete Lisp interpreter with tail call optimization
+- Condition system for error handling
+- UTF-8 string support
+- PCRE2 regex integration
+- Hash tables, vectors, and other data structures
+- Interactive REPL with completion and history

@@ -1,0 +1,11 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: bloom-lisp
+Description: Embeddable Lisp interpreter library
+Version: @PACKAGE_VERSION@
+Requires: bdw-gc libpcre2-8
+Cflags: -I${includedir}/bloom-lisp
+Libs: -L${libdir} -lbloomlisp

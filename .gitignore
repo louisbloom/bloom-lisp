@@ -1,0 +1,42 @@
+# Autotools generated files
+/aclocal.m4
+/autom4te.cache/
+/build-aux/
+/config.h
+/config.h.in
+/config.h.in~
+/config.log
+/config.status
+/configure
+/stamp-h1
+Makefile
+Makefile.in
+
+# Compiled objects and libraries
+*.o
+*.a
+*.la
+*.lo
+.libs/
+.deps/
+
+# Executables
+/repl/bloom-repl
+
+# pkg-config generated
+/bloom-lisp.pc
+
+# Test outputs
+*.log
+*.trs
+/test-suite.log
+
+# Editor files
+*~
+*.swp
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
