@@ -74,6 +74,19 @@ void lineedit_set_completer(LineEditState *state, lineedit_completer_fn fn,
 void lineedit_set_history_size(LineEditState *state, int max_size);
 
 /*
+ * Set prompt visibility.
+ *
+ * Controls whether the prompt is rendered during line editing.
+ * When disabled (show=0), only the user's input is displayed.
+ * This is useful when connected to a server that provides its own prompt.
+ *
+ * Parameters:
+ *   state - Line editor state
+ *   show  - 1 to render prompt (default), 0 to suppress
+ */
+void lineedit_set_show_prompt(LineEditState *state, int show);
+
+/*
  * Read a line of input with editing support.
  *
  * Displays prompt, allows editing with arrow keys, supports history

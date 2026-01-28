@@ -77,6 +77,9 @@ struct LineEditState
     int completion_count;
     int completion_index;
 
+    /* Prompt display */
+    int show_prompt; /* 1 = render prompt (default), 0 = suppress */
+
 #ifndef _WIN32
     /* Terminal state (Unix) */
     struct termios orig_termios;
@@ -127,6 +130,8 @@ LineEditState *lineedit_create(void)
     state->completions = NULL;
     state->completion_count = 0;
     state->completion_index = -1;
+
+    state->show_prompt = 1; /* Default: render prompts */
 
 #ifndef _WIN32
     state->raw_mode = 0;
@@ -188,6 +193,16 @@ void lineedit_set_history_size(LineEditState *state, int max_size)
         state->history = new_history;
         state->history_capacity = max_size;
     }
+}
+
+/*
+ * Set prompt visibility.
+ */
+void lineedit_set_show_prompt(LineEditState *state, int show)
+{
+    if (!state)
+        return;
+    state->show_prompt = show ? 1 : 0;
 }
 
 /*
@@ -415,7 +430,11 @@ static void lineedit_refresh(LineEditState *state, const char *prompt)
     printf("\r" ANSI_CLEAR_RIGHT);
 
     /* Print prompt and buffer */
-    printf("%s%s", prompt, state->buf);
+    if (state->show_prompt) {
+        printf("%s%s", prompt, state->buf);
+    } else {
+        printf("%s", state->buf);
+    }
 
     /* Clear to end of line */
     printf(ANSI_CLEAR_RIGHT);
@@ -704,7 +723,11 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt)
 
     /* Clear the line and redraw prompt */
     printf("\r" ANSI_CLEAR_RIGHT);
-    printf("%s%s", prompt, state->buf);
+    if (state->show_prompt) {
+        printf("%s%s", prompt, state->buf);
+    } else {
+        printf("%s", state->buf);
+    }
 
     /* Move cursor to correct position */
     int cursor_offset = state->len - state->pos;
@@ -768,8 +791,10 @@ char *lineedit_readline(LineEditState *state, const char *prompt)
     if (!isatty(fileno(stdin))) {
         /* Non-interactive: use fgets */
         static char line[DEFAULT_LINE_SIZE];
-        printf("%s", prompt);
-        fflush(stdout);
+        if (state->show_prompt) {
+            printf("%s", prompt);
+            fflush(stdout);
+        }
         if (!fgets(line, sizeof(line), stdin))
             return NULL;
         /* Remove newline */
@@ -795,8 +820,10 @@ char *lineedit_readline(LineEditState *state, const char *prompt)
     printf("\r");
 
     /* Print prompt */
-    printf("%s", prompt);
-    fflush(stdout);
+    if (state->show_prompt) {
+        printf("%s", prompt);
+        fflush(stdout);
+    }
 
     int done = 0;
     char *result = NULL;
