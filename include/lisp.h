@@ -228,6 +228,7 @@ LispObject *lisp_make_string_port(const char *str);
 
 /* Symbol interning */
 LispObject *lisp_intern(const char *name);
+void lisp_set_docstring(const char *name, const char *docstring);
 
 /* Pre-interned special form symbols (for fast pointer comparison) */
 extern LispObject *sym_quote;

@@ -112,6 +112,12 @@ LispObject *lisp_intern(const char *name)
     return obj;
 }
 
+void lisp_set_docstring(const char *name, const char *docstring)
+{
+    LispObject *sym = lisp_intern(name);
+    sym->value.symbol->docstring = GC_strdup(docstring);
+}
+
 /* Keep old name for backward compatibility, but redirect to intern */
 LispObject *lisp_make_symbol(const char *name)
 {
