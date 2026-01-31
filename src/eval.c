@@ -868,10 +868,9 @@ static LispObject *eval_do(LispObject *args, Environment *env)
         return lisp_make_error("do test clause must be a list");
     }
 
-    /* Extract test condition and result expression */
+    /* Extract test condition and result expressions */
     LispObject *test_expr = lisp_car(test_clause);
     LispObject *result_rest = lisp_cdr(test_clause);
-    LispObject *result_expr = (result_rest != NIL) ? lisp_car(result_rest) : NIL;
 
     /* Create new environment for loop variables */
     Environment *loop_env = env_create(env);
@@ -914,12 +913,9 @@ static LispObject *eval_do(LispObject *args, Environment *env)
             return test_result;
         }
 
-        /* If test is true, evaluate and return result expression */
+        /* If test is true, evaluate result expressions like progn */
         if (lisp_is_truthy(test_result)) {
-            if (result_expr != NIL) {
-                return lisp_eval_internal(result_expr, loop_env, 0);
-            }
-            return NIL;
+            return eval_progn(result_rest, loop_env, 0);
         }
 
         /* Evaluate body expressions (for side effects) */

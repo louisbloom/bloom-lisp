@@ -45,4 +45,21 @@
  "early exit with do loop")
 ;; Immediate return (no increment, just test)
 (assert-equal (do ((x 5)) ((= x 5) x)) 5 "immediate return from do loop")
+;; Multiple result expressions in test clause (should behave like progn)
+(assert-equal (do ((i 0 (+ i 1))) ((= i 3) 1 2 3)) 3
+ "do returns last of multiple result expressions")
+
+(define side-effect-tracker nil)
+
+(assert-equal
+ (do ((i 0 (+ i 1))) ((= i 2) (set! side-effect-tracker "ran") 42)) 42
+ "do evaluates all result expressions for side effects")
+(assert-equal side-effect-tracker "ran"
+ "do result expression side effects are visible")
+;; Single result expression still works
+(assert-equal (do ((i 0 (+ i 1))) ((= i 1) "only")) "only"
+ "do with single result expression")
+;; No result expression returns nil
+(assert-equal (do ((i 0 (+ i 1))) ((= i 1))) nil
+ "do with no result expression returns nil")
 

@@ -145,7 +145,7 @@ Most code you write will be user functions. Macros are powerful but should be us
 - `let` - Local variable bindings (parallel evaluation, body has implicit progn)
 - `let*` - Local variable bindings (sequential evaluation, can reference previous bindings, body has implicit progn)
 - `progn` - Evaluate multiple expressions sequentially and return last value
-- `do` - Iteration loop with variable updates and exit condition
+- `do` - Iteration loop with variable bindings, step expressions, and exit condition (result expressions have implicit progn)
 - `cond` - Multi-way conditional with test clauses
 - `case` - Pattern matching with value-based dispatch
 - `and` - Logical AND with short-circuit evaluation (returns last truthy value or first falsy value)
@@ -2063,10 +2063,40 @@ Convert to tail recursion by:
 
 ### Do Loop (Iteration)
 
+**Syntax:**
+
+```lisp
+(do ((var init step) ...)
+    (test result-expr ...)
+  body ...)
+```
+
+**Components:**
+
+- **Variable bindings** `((var init step) ...)` — Each binding declares a loop variable with an initial value and an optional step expression. On each iteration, all step expressions are evaluated (using the current values), then all variables are updated simultaneously.
+- **Test clause** `(test result-expr ...)` — The test is evaluated at the start of each iteration. When it becomes truthy, the result expressions are evaluated sequentially like `progn` and the value of the last one is returned. If there are no result expressions, `nil` is returned.
+- **Body** `body ...` — Evaluated on each iteration (for side effects) when the test is falsy.
+
+**Examples:**
+
 ```lisp
 ; Simple counter from 0 to 9
 (do ((i 0 (+ i 1)))
     ((>= i 10) i))                   ; => 10
+
+; No result expression returns nil
+(do ((i 0 (+ i 1)))
+    ((= i 5)))                       ; => nil
+
+; Multiple result expressions (like progn, returns last)
+(do ((i 0 (+ i 1)))
+    ((= i 3) 1 2 3))                ; => 3
+
+; Result expressions evaluated for side effects
+(define tracker nil)
+(do ((i 0 (+ i 1)))
+    ((= i 2) (set! tracker "done") 42))  ; => 42
+tracker                                   ; => "done"
 
 ; Factorial using do loop
 (define factorial-do
@@ -2077,16 +2107,20 @@ Convert to tail recursion by:
 
 (factorial-do 5)                     ; => 120
 
-; Count down with side effects
+; Count down with side effects in body
 (do ((i 10 (- i 1)))
     ((<= i 0) "blastoff")
-  i)                                  ; prints 10, 9, 8, ..., 1
+  i)                                  ; => "blastoff"
 
-; Multiple variables updating in parallel
+; Multiple variables
 (do ((i 1 (+ i 1))
      (sum 0))
     ((> i 10) sum)
   (set! sum (+ sum i)))              ; => 55 (sum 1 to 10)
+
+; Variable without step expression (constant through loop)
+(do ((x 5))
+    ((= x 5) x))                    ; => 5 (immediate return)
 ```
 
 ### Cond and Case (Multi-way Conditionals)
