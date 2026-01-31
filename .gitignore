@@ -38,6 +38,10 @@ Makefile.in
 /compile_commands.json
 /.cache/
 
+# Crush (third-party tool config)
+/crush.json
+/.crushignore
+
 # Editor files
 *~
 *.swp
