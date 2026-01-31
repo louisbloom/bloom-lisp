@@ -1,5 +1,5 @@
 AC_PREREQ([2.69])
-AC_INIT([bloom-lisp], [0.4], [https://github.com/thomasc/bloom-lisp/issues])
+AC_INIT([bloom-lisp], [0.1.0], [https://github.com/thomasc/bloom-lisp/issues])
 AC_CONFIG_SRCDIR([src/lisp.c])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_AUX_DIR([build-aux])
