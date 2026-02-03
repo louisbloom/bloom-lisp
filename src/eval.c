@@ -62,6 +62,7 @@ static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in
     case LISP_INTEGER:
     case LISP_CHAR:
     case LISP_STRING:
+    case LISP_KEYWORD:
     case LISP_BOOLEAN:
     case LISP_BUILTIN:
     case LISP_LAMBDA:

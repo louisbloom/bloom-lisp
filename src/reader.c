@@ -161,6 +161,9 @@ static LispObject *read_atom(const char **input)
         obj = NIL;
     } else if (strcmp(token, "#t") == 0) {
         obj = LISP_TRUE;
+    } else if (token[0] == ':' && length > 1) {
+        /* Keyword: starts with : and has at least one character after */
+        obj = lisp_make_keyword(token);
     } else {
         obj = lisp_make_symbol(token);
     }

@@ -128,7 +128,8 @@ Most code you write will be user functions. Macros are powerful but should be us
 - **Lists**: Cons cells for linked lists
 - **Vectors**: Dynamic arrays with `#(elem ...)` literal syntax (grow/shrink)
 - **Hash Tables**: Key-value mappings
-- **Symbols**: Interned names with optional docstrings (used for variables, functions, keywords)
+- **Symbols**: Interned names with optional docstrings (used for variables, functions)
+- **Keywords**: Self-evaluating interned symbols starting with `:` (e.g., `:foo`, `:key`)
 - **Lambda Functions**: User-defined closures with lexical scoping
 
 ## Special Forms
@@ -1073,6 +1074,7 @@ Functions for transforming lists by applying a function to each element.
 - `vector?` - Check if vector
 - `hash-table?` - Check if hash table
 - `symbol?` - Check if symbol
+- `keyword?` - Check if value is a keyword
 - `list?` - Check if value is a list (nil or cons cell)
 - `pair?` - Check if value is a cons cell (pair), returns `#t` for cons cells, `#f` otherwise (note: `nil` is NOT a pair)
 - `error?` - Check if value is an error object
@@ -1107,6 +1109,36 @@ Symbols are interned objects with a name and an optional docstring. The same sym
 (define x 'test)
 (symbol? x)                 ; => 1
 (symbol->string x)          ; => "test"
+```
+
+### Keyword Operations
+
+Keywords are self-evaluating, interned symbols that start with a colon (`:`). They are commonly used for named arguments, hash table keys, and option flags.
+
+- `keyword?` - Check if value is a keyword
+- `keyword-name` - Get keyword name as string (without the colon)
+
+**Examples:**
+
+```lisp
+:foo                        ; => :foo (self-evaluating)
+(keyword? :foo)             ; => #t
+(keyword? 'foo)             ; => nil (symbol, not keyword)
+(keyword? "foo")            ; => nil (string)
+
+(keyword-name :foo)         ; => "foo"
+(keyword-name :bar-baz)     ; => "bar-baz"
+
+; Keywords are interned (same name = same object)
+(eq? :foo :foo)             ; => #t
+
+; Keywords vs symbols
+(eq? :foo 'foo)             ; => nil (different types)
+(equal? :foo 'foo)          ; => nil (different types)
+
+; Common use cases
+(hash-set! table :name "Alice")
+(hash-ref table :name)      ; => "Alice"
 ```
 
 ### Evaluation Functions

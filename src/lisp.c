@@ -15,6 +15,9 @@ LispObject *LISP_TRUE = &true_obj;
 /* Global symbol intern table */
 LispObject *symbol_table = NULL;
 
+/* Global keyword intern table */
+static LispObject *keyword_table = NULL;
+
 /* Pre-interned special form symbols for fast comparison */
 LispObject *sym_quote = NULL;
 LispObject *sym_quasiquote = NULL;
@@ -122,6 +125,35 @@ void lisp_set_docstring(const char *name, const char *docstring)
 LispObject *lisp_make_symbol(const char *name)
 {
     return lisp_intern(name);
+}
+
+LispObject *lisp_make_keyword(const char *name)
+{
+    /* Initialize keyword table on first use */
+    if (keyword_table == NULL) {
+        keyword_table = lisp_make_hash_table();
+    }
+
+    /* Look up keyword in intern table */
+    struct HashEntry *entry = hash_table_get_entry(keyword_table, name);
+    if (entry != NULL) {
+        return entry->value; /* Return existing keyword */
+    }
+
+    /* Create new symbol struct for keyword (reuses Symbol struct) */
+    Symbol *sym = GC_malloc(sizeof(Symbol));
+    sym->name = GC_strdup(name);
+    sym->docstring = NULL;
+
+    /* Create LispObject wrapper with LISP_KEYWORD type */
+    LispObject *obj = GC_malloc(sizeof(LispObject));
+    obj->type = LISP_KEYWORD;
+    obj->value.symbol = sym;
+
+    /* Add to intern table */
+    hash_table_set_entry(keyword_table, name, obj);
+
+    return obj;
 }
 
 LispObject *lisp_make_cons(LispObject *car, LispObject *cdr)

@@ -92,6 +92,10 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         append_str(buffer, size, pos, obj->value.symbol->name);
         break;
 
+    case LISP_KEYWORD:
+        append_str(buffer, size, pos, obj->value.symbol->name);
+        break;
+
     case LISP_CONS:
         print_list(obj, buffer, size, pos);
         break;
@@ -302,6 +306,10 @@ static void princ_object(LispObject *obj)
         break;
 
     case LISP_SYMBOL:
+        printf("%s", obj->value.symbol->name);
+        break;
+
+    case LISP_KEYWORD:
         printf("%s", obj->value.symbol->name);
         break;
 

@@ -542,7 +542,11 @@ static LispObject *builtin_vector_question(LispObject *args, Environment *env);
 static LispObject *builtin_hash_table_question(LispObject *args, Environment *env);
 static LispObject *builtin_string_question(LispObject *args, Environment *env);
 static LispObject *builtin_symbol_question(LispObject *args, Environment *env);
+static LispObject *builtin_keyword_question(LispObject *args, Environment *env);
 static LispObject *builtin_list_question(LispObject *args, Environment *env);
+
+/* Keyword operations */
+static LispObject *builtin_keyword_name(LispObject *args, Environment *env);
 
 /* Symbol operations */
 static LispObject *builtin_symbol_to_string(LispObject *args, Environment *env);
@@ -1014,6 +1018,46 @@ static const char *doc_symbol_question = "Check if a value is a symbol.\n"
                                          "(symbol? \"foo\")      ; => #f (string)\n"
                                          "(symbol? 42)         ; => #f\n"
                                          "```";
+
+static const char *doc_keyword_question = "Check if a value is a keyword.\n"
+                                          "\n"
+                                          "Keywords are self-evaluating symbols that start with a colon (`:`).\n"
+                                          "\n"
+                                          "## Parameters\n"
+                                          "- `value` - Any value to test\n"
+                                          "\n"
+                                          "## Returns\n"
+                                          "`#t` if the value is a keyword, `nil` otherwise.\n"
+                                          "\n"
+                                          "## Examples\n"
+                                          "```lisp\n"
+                                          "(keyword? :foo)      ; => #t\n"
+                                          "(keyword? :bar-baz)  ; => #t\n"
+                                          "(keyword? 'foo)      ; => nil (symbol, not keyword)\n"
+                                          "(keyword? \"foo\")     ; => nil (string)\n"
+                                          "```\n"
+                                          "\n"
+                                          "## See Also\n"
+                                          "- `keyword-name` - Get keyword name without colon\n"
+                                          "- `symbol?` - Check for symbols";
+
+static const char *doc_keyword_name = "Get the name of a keyword without the leading colon.\n"
+                                      "\n"
+                                      "## Parameters\n"
+                                      "- `keyword` - A keyword value\n"
+                                      "\n"
+                                      "## Returns\n"
+                                      "A string containing the keyword's name without the colon prefix.\n"
+                                      "\n"
+                                      "## Examples\n"
+                                      "```lisp\n"
+                                      "(keyword-name :foo)      ; => \"foo\"\n"
+                                      "(keyword-name :bar-baz)  ; => \"bar-baz\"\n"
+                                      "```\n"
+                                      "\n"
+                                      "## See Also\n"
+                                      "- `keyword?` - Check if value is keyword\n"
+                                      "- `symbol->string` - Convert symbol to string";
 
 static const char *doc_boolean_question = "Check if a value is a boolean (#t or #f).\n"
                                           "\n"
@@ -2988,7 +3032,11 @@ void register_builtins(Environment *env)
     REGISTER("hash-table?", builtin_hash_table_question, doc_hash_table_question);
     REGISTER("string?", builtin_string_question, doc_string_question);
     REGISTER("symbol?", builtin_symbol_question, doc_symbol_question);
+    REGISTER("keyword?", builtin_keyword_question, doc_keyword_question);
     REGISTER("list?", builtin_list_question, doc_list_question);
+
+    /* Keyword operations */
+    REGISTER("keyword-name", builtin_keyword_name, doc_keyword_name);
 
     /* Symbol operations */
     REGISTER("symbol->string", builtin_symbol_to_string, doc_symbol_to_string);
@@ -6355,6 +6403,34 @@ static LispObject *builtin_list_question(LispObject *args, Environment *env)
     LispObject *arg = lisp_car(args);
     /* A list is either NIL or a cons cell */
     return (arg == NIL || arg->type == LISP_CONS) ? LISP_TRUE : NIL;
+}
+
+static LispObject *builtin_keyword_question(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("keyword? requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    return (arg->type == LISP_KEYWORD) ? LISP_TRUE : NIL;
+}
+
+static LispObject *builtin_keyword_name(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("keyword-name requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    if (arg->type != LISP_KEYWORD) {
+        return lisp_make_error("keyword-name requires a keyword argument");
+    }
+    /* Return name without the leading colon */
+    const char *name = arg->value.symbol->name;
+    if (name[0] == ':') {
+        return lisp_make_string(name + 1);
+    }
+    return lisp_make_string(name);
 }
 
 static LispObject *builtin_pair_question(LispObject *args, Environment *env)

@@ -73,6 +73,7 @@ typedef enum
     LISP_CHAR,
     LISP_STRING,
     LISP_SYMBOL,
+    LISP_KEYWORD,
     LISP_BOOLEAN,
     LISP_CONS,
     LISP_BUILTIN,
@@ -229,6 +230,9 @@ LispObject *lisp_make_string_port(const char *str);
 /* Symbol interning */
 LispObject *lisp_intern(const char *name);
 void lisp_set_docstring(const char *name, const char *docstring);
+
+/* Keyword interning */
+LispObject *lisp_make_keyword(const char *name);
 
 /* Pre-interned special form symbols (for fast pointer comparison) */
 extern LispObject *sym_quote;

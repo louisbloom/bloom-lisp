@@ -10,6 +10,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Find the bloom-repl binary
 if [ -n "$BLOOM_REPL" ] && [ -x "$BLOOM_REPL" ]; then
 	REPL="$BLOOM_REPL"
+elif [ -x "$PROJECT_ROOT/build/repl/bloom-repl" ]; then
+	REPL="$PROJECT_ROOT/build/repl/bloom-repl"
 elif [ -x "$PROJECT_ROOT/repl/bloom-repl" ]; then
 	REPL="$PROJECT_ROOT/repl/bloom-repl"
 else
