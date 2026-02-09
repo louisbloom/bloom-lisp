@@ -1,4 +1,4 @@
-;; Tests for session introspection and save-session
+;; Tests for session introspection and session-save
 (load "tests/test-helpers.lisp")
 
 ;; Helper: read all lines from a file into a list
@@ -88,7 +88,7 @@
    "environment-bindings value correct"))
 
 ;; ============================================
-;; save-session roundtrip tests
+;; session-save roundtrip tests
 ;; ============================================
 (define session-file "tests/advanced/_test_session.lisp")
 
@@ -129,7 +129,7 @@
 
 ;; Save the session
 (unwind-protect
-  (progn (save-session session-file)
+  (progn (session-save session-file)
     ;; Verify the file exists and is loadable by reading it
     (define session-content (read-all-lines session-file))
     ;; The file should have content
@@ -163,7 +163,7 @@
 (defmacro mac-with-quotes (x) "A macro with \"quotes\" inside." `(+ ,x 1))
 
 (unwind-protect
-  (progn (save-session docstring-test-file)
+  (progn (session-save docstring-test-file)
     ;; The saved file should be loadable (no parse errors from unescaped quotes)
     (let ((content (read-file-string docstring-test-file)))
       ;; Verify escaped quotes appear in the output
@@ -185,7 +185,7 @@
 (unwind-protect
   (progn (define my-plus +) (define + 42)
     (assert-equal + 42 "shadowed + is 42")
-    (save-session test-shadow-file)
+    (session-save test-shadow-file)
     ;; Verify the file contains the shadow
     (let ((content (read-file-string test-shadow-file)))
       (assert-true (regex-match? "\\(define \\+ 42\\)" content)

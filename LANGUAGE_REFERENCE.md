@@ -1319,7 +1319,7 @@ The condition system provides Emacs Lisp-style error handling with typed errors,
 - `read-json` - Read JSON from file (filename or file stream) - returns Lisp data structures (objects → hash tables, arrays → vectors, etc.)
 - `delete-file` - Delete a file from the filesystem (filename) - returns nil on success, error if file doesn't exist or cannot be deleted
 - `load` - Load and evaluate a Lisp file (filename) - returns the result of the last expression evaluated, or an error if loading fails
-- `save-session` - Save user-defined bindings to a file as valid Lisp source (filename) - only saves bindings from the current environment frame (not builtins or stdlib). The output file can be loaded with `(load filename)`.
+- `session-save` - Save user-defined bindings to a file as valid Lisp source (filename) - only saves bindings from the current environment frame (not builtins or stdlib). The output file can be loaded with `(load filename)`.
 
 ```lisp
 ;; Define some things in a session
@@ -1327,7 +1327,7 @@ The condition system provides Emacs Lisp-style error handling with typed errors,
 (define greet (lambda (name) (concat "Hello, " name)))
 
 ;; Save the session
-(save-session "my-session.lisp")
+(session-save "my-session.lisp")
 
 ;; Later, in a new session:
 (load "my-session.lisp")  ; Restores x and greet

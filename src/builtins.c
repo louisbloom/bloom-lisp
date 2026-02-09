@@ -517,7 +517,7 @@ static LispObject *builtin_read_sexp(LispObject *args, Environment *env);
 static LispObject *builtin_read_json(LispObject *args, Environment *env);
 static LispObject *builtin_delete_file(LispObject *args, Environment *env);
 static LispObject *builtin_load(LispObject *args, Environment *env);
-static LispObject *builtin_save_session(LispObject *args, Environment *env);
+static LispObject *builtin_session_save(LispObject *args, Environment *env);
 
 /* String port operations */
 static LispObject *builtin_open_input_string(LispObject *args, Environment *env);
@@ -1231,7 +1231,7 @@ static const char *doc_environment_bindings =
     "(environment-bindings)  ; => ((x . 42) (y . \"hello\"))\n"
     "```";
 
-static const char *doc_save_session =
+static const char *doc_session_save =
     "Save user-defined bindings to a file as valid Lisp source.\n"
     "\n"
     "## Parameters\n"
@@ -1244,7 +1244,7 @@ static const char *doc_save_session =
     "```lisp\n"
     "(define x 42)\n"
     "(define greet (lambda (name) (concat \"Hello, \" name)))\n"
-    "(save-session \"my-session.lisp\")\n"
+    "(session-save \"my-session.lisp\")\n"
     ";; Later: (load \"my-session.lisp\") to restore\n"
     "```\n"
     "\n"
@@ -3126,7 +3126,7 @@ void register_builtins(Environment *env)
     REGISTER("read-json", builtin_read_json, doc_read_json);
     REGISTER("delete-file", builtin_delete_file, doc_delete_file);
     REGISTER("load", builtin_load, doc_load);
-    REGISTER("save-session", builtin_save_session, doc_save_session);
+    REGISTER("session-save", builtin_session_save, doc_session_save);
 
     /* String port functions for O(1) sequential character access */
     REGISTER("open-input-string", builtin_open_input_string,
@@ -6235,26 +6235,26 @@ static void write_value_expr(FILE *f, LispObject *val)
 }
 
 /* Save user session bindings to a file */
-static LispObject *builtin_save_session(LispObject *args, Environment *env)
+static LispObject *builtin_session_save(LispObject *args, Environment *env)
 {
     if (args == NIL) {
-        return lisp_make_error("save-session requires 1 argument");
+        return lisp_make_error("session-save requires 1 argument");
     }
 
     LispObject *filename_obj = lisp_car(args);
     if (filename_obj->type != LISP_STRING) {
-        return lisp_make_error("save-session requires a string filename");
+        return lisp_make_error("session-save requires a string filename");
     }
 
     FILE *f = file_open(filename_obj->value.string, "w");
     if (f == NULL) {
         char error[512];
-        snprintf(error, sizeof(error), "save-session: cannot open '%s': %s", filename_obj->value.string,
+        snprintf(error, sizeof(error), "session-save: cannot open '%s': %s", filename_obj->value.string,
                  strerror(errno));
         return lisp_make_error(error);
     }
 
-    fprintf(f, ";; Bloom Lisp session saved by save-session\n");
+    fprintf(f, ";; Bloom Lisp session saved by session-save\n");
     fprintf(f, ";; Load with: (load \"%s\")\n\n", filename_obj->value.string);
 
     /* Collect bindings from current frame, reverse for definition order */

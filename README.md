@@ -142,7 +142,7 @@ int main() {
 
 **Session Management (two-layer environment):**
 
-For applications that want to separate system bindings from user bindings (enabling `save-session` / `environment-bindings`), use the two-layer pattern:
+For applications that want to separate system bindings from user bindings (enabling `session-save` / `environment-bindings`), use the two-layer pattern:
 
 ```c
 lisp_init();
@@ -150,7 +150,7 @@ Environment* global = env_create_global();
 // Register app-specific builtins into global...
 Environment* user = env_create_session(global);
 // Use `user` for eval — user bindings stay in this frame
-// save-session / environment-bindings operate on this frame
+// session-save / environment-bindings operate on this frame
 ```
 
 Note: Memory is managed by Boehm GC. Call `lisp_cleanup()` once at program exit.
