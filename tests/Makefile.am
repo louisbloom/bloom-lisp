@@ -34,6 +34,7 @@ TESTS = \
     advanced/progn.lisp \
     advanced/quasiquote.lisp \
     advanced/regex.lisp \
+    advanced/session-save.lisp \
     advanced/tail_recursion.lisp \
     advanced/utf8.lisp \
     regression/cond_case_multi_expr.lisp \

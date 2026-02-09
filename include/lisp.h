@@ -285,6 +285,7 @@ LispObject *env_lookup(Environment *env, const char *name);
 int env_set(Environment *env, const char *name, LispObject *value);
 void env_free(Environment *env);
 Environment *env_create_global(void);
+Environment *env_create_session(Environment *global);
 
 /* Call stack functions */
 void push_call_frame(Environment *env, const char *function_name);

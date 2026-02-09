@@ -517,6 +517,7 @@ static LispObject *builtin_read_sexp(LispObject *args, Environment *env);
 static LispObject *builtin_read_json(LispObject *args, Environment *env);
 static LispObject *builtin_delete_file(LispObject *args, Environment *env);
 static LispObject *builtin_load(LispObject *args, Environment *env);
+static LispObject *builtin_save_session(LispObject *args, Environment *env);
 
 /* String port operations */
 static LispObject *builtin_open_input_string(LispObject *args, Environment *env);
@@ -544,6 +545,14 @@ static LispObject *builtin_string_question(LispObject *args, Environment *env);
 static LispObject *builtin_symbol_question(LispObject *args, Environment *env);
 static LispObject *builtin_keyword_question(LispObject *args, Environment *env);
 static LispObject *builtin_list_question(LispObject *args, Environment *env);
+static LispObject *builtin_function_question(LispObject *args, Environment *env);
+static LispObject *builtin_macro_question(LispObject *args, Environment *env);
+static LispObject *builtin_builtin_question(LispObject *args, Environment *env);
+static LispObject *builtin_callable_question(LispObject *args, Environment *env);
+static LispObject *builtin_function_params(LispObject *args, Environment *env);
+static LispObject *builtin_function_body(LispObject *args, Environment *env);
+static LispObject *builtin_function_name(LispObject *args, Environment *env);
+static LispObject *builtin_environment_bindings(LispObject *args, Environment *env);
 
 /* Keyword operations */
 static LispObject *builtin_keyword_name(LispObject *args, Environment *env);
@@ -1105,6 +1114,143 @@ static const char *doc_vector_question = "Check if a value is a vector.\n"
                                          "(vector? #())                ; => #t (empty vector literal)\n"
                                          "(vector? '(1 2 3))           ; => #f (list)\n"
                                          "```";
+
+static const char *doc_function_question = "Check if a value is a lambda (user-defined function).\n"
+                                           "\n"
+                                           "## Parameters\n"
+                                           "- `value` - Any value to test\n"
+                                           "\n"
+                                           "## Returns\n"
+                                           "`#t` if the value is a lambda, `#f` otherwise.\n"
+                                           "\n"
+                                           "## Examples\n"
+                                           "```lisp\n"
+                                           "(function? (lambda (x) x))  ; => #t\n"
+                                           "(function? +)               ; => #f (builtin)\n"
+                                           "(function? 42)              ; => #f\n"
+                                           "```";
+
+static const char *doc_macro_question = "Check if a value is a macro.\n"
+                                        "\n"
+                                        "## Parameters\n"
+                                        "- `value` - Any value to test\n"
+                                        "\n"
+                                        "## Returns\n"
+                                        "`#t` if the value is a macro, `#f` otherwise.\n"
+                                        "\n"
+                                        "## Examples\n"
+                                        "```lisp\n"
+                                        "(macro? when)    ; => #t\n"
+                                        "(macro? +)       ; => #f\n"
+                                        "```";
+
+static const char *doc_builtin_question = "Check if a value is a builtin function.\n"
+                                          "\n"
+                                          "## Parameters\n"
+                                          "- `value` - Any value to test\n"
+                                          "\n"
+                                          "## Returns\n"
+                                          "`#t` if the value is a builtin, `#f` otherwise.\n"
+                                          "\n"
+                                          "## Examples\n"
+                                          "```lisp\n"
+                                          "(builtin? +)                  ; => #t\n"
+                                          "(builtin? (lambda (x) x))    ; => #f\n"
+                                          "```";
+
+static const char *doc_callable_question = "Check if a value is callable (lambda, macro, or builtin).\n"
+                                           "\n"
+                                           "## Parameters\n"
+                                           "- `value` - Any value to test\n"
+                                           "\n"
+                                           "## Returns\n"
+                                           "`#t` if the value is callable, `#f` otherwise.\n"
+                                           "\n"
+                                           "## Examples\n"
+                                           "```lisp\n"
+                                           "(callable? +)                  ; => #t\n"
+                                           "(callable? (lambda (x) x))    ; => #t\n"
+                                           "(callable? when)              ; => #t\n"
+                                           "(callable? 42)                ; => #f\n"
+                                           "```";
+
+static const char *doc_function_params = "Return the parameter list of a lambda or macro.\n"
+                                         "\n"
+                                         "## Parameters\n"
+                                         "- `func` - A lambda or macro\n"
+                                         "\n"
+                                         "## Returns\n"
+                                         "The parameter list of the function.\n"
+                                         "\n"
+                                         "## Examples\n"
+                                         "```lisp\n"
+                                         "(function-params (lambda (x y) (+ x y)))  ; => (x y)\n"
+                                         "```";
+
+static const char *doc_function_body = "Return the body expression list of a lambda or macro.\n"
+                                       "\n"
+                                       "## Parameters\n"
+                                       "- `func` - A lambda or macro\n"
+                                       "\n"
+                                       "## Returns\n"
+                                       "The body expressions as a list.\n"
+                                       "\n"
+                                       "## Examples\n"
+                                       "```lisp\n"
+                                       "(function-body (lambda (x) (+ x 1)))  ; => ((+ x 1))\n"
+                                       "```";
+
+static const char *doc_function_name = "Return the name of a lambda, macro, or builtin, or nil.\n"
+                                       "\n"
+                                       "## Parameters\n"
+                                       "- `func` - A lambda, macro, or builtin\n"
+                                       "\n"
+                                       "## Returns\n"
+                                       "The name as a string, or nil if anonymous.\n"
+                                       "\n"
+                                       "## Examples\n"
+                                       "```lisp\n"
+                                       "(function-name +)              ; => \"+\"\n"
+                                       "(function-name (lambda (x) x)) ; => nil\n"
+                                       "```";
+
+static const char *doc_environment_bindings =
+    "Return an alist of bindings in the current (user) environment frame.\n"
+    "\n"
+    "## Parameters\n"
+    "None.\n"
+    "\n"
+    "## Returns\n"
+    "An association list of `(symbol . value)` pairs for bindings\n"
+    "in the current frame only (does not include parent frames).\n"
+    "\n"
+    "## Examples\n"
+    "```lisp\n"
+    "(define x 42)\n"
+    "(define y \"hello\")\n"
+    "(environment-bindings)  ; => ((x . 42) (y . \"hello\"))\n"
+    "```";
+
+static const char *doc_save_session =
+    "Save user-defined bindings to a file as valid Lisp source.\n"
+    "\n"
+    "## Parameters\n"
+    "- `filename` - Path to write (string)\n"
+    "\n"
+    "## Returns\n"
+    "`#t` on success.\n"
+    "\n"
+    "## Examples\n"
+    "```lisp\n"
+    "(define x 42)\n"
+    "(define greet (lambda (name) (concat \"Hello, \" name)))\n"
+    "(save-session \"my-session.lisp\")\n"
+    ";; Later: (load \"my-session.lisp\") to restore\n"
+    "```\n"
+    "\n"
+    "## Notes\n"
+    "Only bindings in the user frame are saved (not builtins or stdlib).\n"
+    "The output file can be loaded with `(load filename)`.";
 
 /* Comparison operators */
 static const char *doc_gt = "Test if numbers are in strictly decreasing order.\n"
@@ -2980,6 +3126,7 @@ void register_builtins(Environment *env)
     REGISTER("read-json", builtin_read_json, doc_read_json);
     REGISTER("delete-file", builtin_delete_file, doc_delete_file);
     REGISTER("load", builtin_load, doc_load);
+    REGISTER("save-session", builtin_save_session, doc_save_session);
 
     /* String port functions for O(1) sequential character access */
     REGISTER("open-input-string", builtin_open_input_string,
@@ -3034,6 +3181,18 @@ void register_builtins(Environment *env)
     REGISTER("symbol?", builtin_symbol_question, doc_symbol_question);
     REGISTER("keyword?", builtin_keyword_question, doc_keyword_question);
     REGISTER("list?", builtin_list_question, doc_list_question);
+    REGISTER("function?", builtin_function_question, doc_function_question);
+    REGISTER("macro?", builtin_macro_question, doc_macro_question);
+    REGISTER("builtin?", builtin_builtin_question, doc_builtin_question);
+    REGISTER("callable?", builtin_callable_question, doc_callable_question);
+
+    /* Function introspection */
+    REGISTER("function-params", builtin_function_params, doc_function_params);
+    REGISTER("function-body", builtin_function_body, doc_function_body);
+    REGISTER("function-name", builtin_function_name, doc_function_name);
+
+    /* Environment introspection */
+    REGISTER("environment-bindings", builtin_environment_bindings, doc_environment_bindings);
 
     /* Keyword operations */
     REGISTER("keyword-name", builtin_keyword_name, doc_keyword_name);
@@ -5897,6 +6056,223 @@ static LispObject *builtin_load(LispObject *args, Environment *env)
     return result ? result : NIL;
 }
 
+/* Check if a value needs constructor forms (not just lisp_print + quote) */
+static int needs_constructor(LispObject *obj)
+{
+    if (obj == NULL || obj == NIL)
+        return 0;
+    switch (obj->type) {
+    case LISP_LAMBDA:
+    case LISP_MACRO:
+    case LISP_BUILTIN:
+    case LISP_HASH_TABLE:
+        return 1;
+    case LISP_CONS:
+    {
+        LispObject *cur = obj;
+        while (cur != NIL && cur->type == LISP_CONS) {
+            if (needs_constructor(lisp_car(cur)))
+                return 1;
+            cur = lisp_cdr(cur);
+        }
+        if (cur != NIL && needs_constructor(cur))
+            return 1;
+        return 0;
+    }
+    case LISP_VECTOR:
+        for (size_t i = 0; i < obj->value.vector.size; i++) {
+            if (needs_constructor(obj->value.vector.items[i]))
+                return 1;
+        }
+        return 0;
+    default:
+        return 0;
+    }
+}
+
+/* Write a value expression to the file, using constructor forms if needed */
+static void write_value_expr(FILE *f, LispObject *val)
+{
+    if (val == NULL || val == NIL) {
+        fprintf(f, "nil");
+        return;
+    }
+    switch (val->type) {
+    case LISP_LAMBDA:
+    {
+        fprintf(f, "(lambda %s", lisp_print(val->value.lambda.params));
+        /* Emit docstring if present */
+        if (val->value.lambda.docstring) {
+            fprintf(f, " \"%s\"", val->value.lambda.docstring);
+        }
+        LispObject *body = val->value.lambda.body;
+        while (body != NIL && body->type == LISP_CONS) {
+            fprintf(f, " %s", lisp_print(lisp_car(body)));
+            body = lisp_cdr(body);
+        }
+        fprintf(f, ")");
+        break;
+    }
+    case LISP_MACRO:
+    {
+        /* Macros are handled at the define level, but if we get here
+           (e.g. nested in a list), emit as a lambda-like form */
+        fprintf(f, "(lambda %s", lisp_print(val->value.macro.params));
+        if (val->value.macro.docstring) {
+            fprintf(f, " \"%s\"", val->value.macro.docstring);
+        }
+        LispObject *body = val->value.macro.body;
+        while (body != NIL && body->type == LISP_CONS) {
+            fprintf(f, " %s", lisp_print(lisp_car(body)));
+            body = lisp_cdr(body);
+        }
+        fprintf(f, ")");
+        break;
+    }
+    case LISP_BUILTIN:
+        /* Emit the builtin's name as a symbol reference */
+        fprintf(f, "%s", val->value.builtin.name);
+        break;
+    case LISP_HASH_TABLE:
+    {
+        fprintf(f, "(let ((ht (make-hash-table)))");
+        struct HashEntry **buckets = (struct HashEntry **)val->value.hash_table.buckets;
+        size_t bucket_count = val->value.hash_table.bucket_count;
+        for (size_t i = 0; i < bucket_count; i++) {
+            struct HashEntry *entry = buckets[i];
+            while (entry != NULL) {
+                fprintf(f, " (hash-set! ht \"%s\" ", entry->key);
+                write_value_expr(f, entry->value);
+                fprintf(f, ")");
+                entry = entry->next;
+            }
+        }
+        fprintf(f, " ht)");
+        break;
+    }
+    case LISP_CONS:
+    {
+        if (needs_constructor(val)) {
+            /* Use (list ...) constructor form */
+            fprintf(f, "(list");
+            LispObject *cur = val;
+            while (cur != NIL && cur->type == LISP_CONS) {
+                fprintf(f, " ");
+                write_value_expr(f, lisp_car(cur));
+                cur = lisp_cdr(cur);
+            }
+            if (cur != NIL) {
+                /* Dotted pair - can't use list, fall back to cons */
+                /* This is a rare edge case */
+                fprintf(f, " . ");
+                write_value_expr(f, cur);
+            }
+            fprintf(f, ")");
+        } else {
+            fprintf(f, "'%s", lisp_print(val));
+        }
+        break;
+    }
+    case LISP_VECTOR:
+    {
+        if (needs_constructor(val)) {
+            fprintf(f, "(vector");
+            for (size_t i = 0; i < val->value.vector.size; i++) {
+                fprintf(f, " ");
+                write_value_expr(f, val->value.vector.items[i]);
+            }
+            fprintf(f, ")");
+        } else {
+            fprintf(f, "%s", lisp_print(val));
+        }
+        break;
+    }
+    case LISP_BOOLEAN:
+        fprintf(f, "%s", val->value.boolean ? "#t" : "#f");
+        break;
+    case LISP_SYMBOL:
+        /* Quote the symbol to prevent evaluation */
+        fprintf(f, "'%s", lisp_print(val));
+        break;
+    default:
+        /* Numbers, integers, chars, strings, keywords — lisp_print roundtrips */
+        fprintf(f, "%s", lisp_print(val));
+        break;
+    }
+}
+
+/* Save user session bindings to a file */
+static LispObject *builtin_save_session(LispObject *args, Environment *env)
+{
+    if (args == NIL) {
+        return lisp_make_error("save-session requires 1 argument");
+    }
+
+    LispObject *filename_obj = lisp_car(args);
+    if (filename_obj->type != LISP_STRING) {
+        return lisp_make_error("save-session requires a string filename");
+    }
+
+    FILE *f = file_open(filename_obj->value.string, "w");
+    if (f == NULL) {
+        char error[512];
+        snprintf(error, sizeof(error), "save-session: cannot open '%s': %s", filename_obj->value.string,
+                 strerror(errno));
+        return lisp_make_error(error);
+    }
+
+    fprintf(f, ";; Bloom Lisp session saved by save-session\n");
+    fprintf(f, ";; Load with: (load \"%s\")\n\n", filename_obj->value.string);
+
+    /* Collect bindings from current frame, reverse for definition order */
+    LispObject *bindings = NIL;
+    struct Binding *binding = env->bindings;
+    while (binding != NULL) {
+        LispObject *pair = lisp_make_cons(lisp_make_string(binding->name), binding->value);
+        bindings = lisp_make_cons(pair, bindings);
+        binding = binding->next;
+    }
+
+    /* Iterate in definition order */
+    LispObject *cur = bindings;
+    while (cur != NIL && cur->type == LISP_CONS) {
+        LispObject *pair = lisp_car(cur);
+        const char *name = lisp_car(pair)->value.string;
+        LispObject *val = lisp_cdr(pair);
+
+        /* Skip non-serializable types */
+        if (val != NULL && (val->type == LISP_FILE_STREAM || val->type == LISP_STRING_PORT)) {
+            fprintf(f, ";; Skipped %s (non-serializable %s)\n", name,
+                    val->type == LISP_FILE_STREAM ? "file-stream" : "string-port");
+            cur = lisp_cdr(cur);
+            continue;
+        }
+
+        if (val != NULL && val->type == LISP_MACRO) {
+            /* Emit defmacro form */
+            fprintf(f, "(defmacro %s %s", name, lisp_print(val->value.macro.params));
+            if (val->value.macro.docstring) {
+                fprintf(f, "\n  \"%s\"", val->value.macro.docstring);
+            }
+            LispObject *body = val->value.macro.body;
+            while (body != NIL && body->type == LISP_CONS) {
+                fprintf(f, "\n  %s", lisp_print(lisp_car(body)));
+                body = lisp_cdr(body);
+            }
+            fprintf(f, ")\n\n");
+        } else {
+            fprintf(f, "(define %s ", name);
+            write_value_expr(f, val);
+            fprintf(f, ")\n\n");
+        }
+
+        cur = lisp_cdr(cur);
+    }
+
+    fclose(f);
+    return LISP_TRUE;
+}
+
 /* Delete a file */
 static LispObject *builtin_delete_file(LispObject *args, Environment *env)
 {
@@ -6413,6 +6789,116 @@ static LispObject *builtin_keyword_question(LispObject *args, Environment *env)
     }
     LispObject *arg = lisp_car(args);
     return (arg->type == LISP_KEYWORD) ? LISP_TRUE : NIL;
+}
+
+/* Session introspection builtins */
+
+static LispObject *builtin_function_question(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("function? requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    return (arg->type == LISP_LAMBDA) ? LISP_TRUE : NIL;
+}
+
+static LispObject *builtin_macro_question(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("macro? requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    return (arg->type == LISP_MACRO) ? LISP_TRUE : NIL;
+}
+
+static LispObject *builtin_builtin_question(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("builtin? requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    return (arg->type == LISP_BUILTIN) ? LISP_TRUE : NIL;
+}
+
+static LispObject *builtin_callable_question(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("callable? requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    return (arg->type == LISP_LAMBDA || arg->type == LISP_MACRO || arg->type == LISP_BUILTIN) ? LISP_TRUE : NIL;
+}
+
+static LispObject *builtin_function_params(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("function-params requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    if (arg->type == LISP_LAMBDA) {
+        return arg->value.lambda.params ? arg->value.lambda.params : NIL;
+    }
+    if (arg->type == LISP_MACRO) {
+        return arg->value.macro.params ? arg->value.macro.params : NIL;
+    }
+    return lisp_make_error("function-params requires a lambda or macro");
+}
+
+static LispObject *builtin_function_body(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("function-body requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    if (arg->type == LISP_LAMBDA) {
+        return arg->value.lambda.body ? arg->value.lambda.body : NIL;
+    }
+    if (arg->type == LISP_MACRO) {
+        return arg->value.macro.body ? arg->value.macro.body : NIL;
+    }
+    return lisp_make_error("function-body requires a lambda or macro");
+}
+
+static LispObject *builtin_function_name(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("function-name requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    if (arg->type == LISP_LAMBDA) {
+        return arg->value.lambda.name ? lisp_make_string(arg->value.lambda.name) : NIL;
+    }
+    if (arg->type == LISP_MACRO) {
+        return arg->value.macro.name ? lisp_make_string(arg->value.macro.name) : NIL;
+    }
+    if (arg->type == LISP_BUILTIN) {
+        return arg->value.builtin.name ? lisp_make_string(arg->value.builtin.name) : NIL;
+    }
+    return lisp_make_error("function-name requires a lambda, macro, or builtin");
+}
+
+static LispObject *builtin_environment_bindings(LispObject *args, Environment *env)
+{
+    (void)args;
+    /* Collect bindings from the current frame only (not parent) */
+    LispObject *result = NIL;
+    struct Binding *binding = env->bindings;
+    while (binding != NULL) {
+        LispObject *sym = lisp_intern(binding->name);
+        LispObject *pair = lisp_make_cons(sym, binding->value);
+        result = lisp_make_cons(pair, result);
+        binding = binding->next;
+    }
+    /* result is already in reverse-definition order (since bindings are prepended),
+       so this gives definition order */
+    return result;
 }
 
 static LispObject *builtin_keyword_name(LispObject *args, Environment *env)

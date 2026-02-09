@@ -292,3 +292,11 @@ Environment *env_create_global(void)
 
     return env;
 }
+
+Environment *env_create_session(Environment *global)
+{
+    Environment *env = env_create(global);
+    env->call_stack = global->call_stack;
+    env->handler_stack = global->handler_stack;
+    return env;
+}

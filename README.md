@@ -140,6 +140,19 @@ int main() {
 }
 ```
 
+**Session Management (two-layer environment):**
+
+For applications that want to separate system bindings from user bindings (enabling `save-session` / `environment-bindings`), use the two-layer pattern:
+
+```c
+lisp_init();
+Environment* global = env_create_global();
+// Register app-specific builtins into global...
+Environment* user = env_create_session(global);
+// Use `user` for eval — user bindings stay in this frame
+// save-session / environment-bindings operate on this frame
+```
+
 Note: Memory is managed by Boehm GC. Call `lisp_cleanup()` once at program exit.
 
 ## Quick Start
@@ -199,12 +212,13 @@ Note: Memory is managed by Boehm GC. Call `lisp_cleanup()` once at program exit.
 
 ### Environment Management
 
-| Function                       | Description                              |
-| ------------------------------ | ---------------------------------------- |
-| `env_create(parent)`           | Create new environment                   |
-| `env_create_global()`          | Create global environment with built-ins |
-| `env_define(env, name, value)` | Define variable                          |
-| `env_lookup(env, name)`        | Look up variable                         |
+| Function                       | Description                                |
+| ------------------------------ | ------------------------------------------ |
+| `env_create(parent)`           | Create new environment                     |
+| `env_create_global()`          | Create global environment with built-ins   |
+| `env_create_session(global)`   | Create user session frame on top of global |
+| `env_define(env, name, value)` | Define variable                            |
+| `env_lookup(env, name)`        | Look up variable                           |
 
 ## License
 

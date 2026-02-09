@@ -1078,6 +1078,29 @@ Functions for transforming lists by applying a function to each element.
 - `list?` - Check if value is a list (nil or cons cell)
 - `pair?` - Check if value is a cons cell (pair), returns `#t` for cons cells, `#f` otherwise (note: `nil` is NOT a pair)
 - `error?` - Check if value is an error object
+- `function?` - Check if value is a lambda (user-defined function)
+- `macro?` - Check if value is a macro
+- `builtin?` - Check if value is a builtin function
+- `callable?` - Check if value is callable (lambda, macro, or builtin)
+
+### Introspection Functions
+
+Functions for inspecting lambdas, macros, builtins, and the environment.
+
+- `function-params` - Return the parameter list of a lambda or macro
+- `function-body` - Return the body expression list of a lambda or macro
+- `function-name` - Return the name of a lambda, macro, or builtin (string or nil)
+- `environment-bindings` - Return alist of `(symbol . value)` pairs for the current environment frame only (does not include parent frames)
+
+```lisp
+(define add (lambda (x y) (+ x y)))
+(function-params add)   ; => (x y)
+(function-body add)     ; => ((+ x y))
+(function-name +)       ; => "+"
+
+(define x 42)
+(environment-bindings)  ; => ((x . 42) (add . #<lambda add (x y)>) ...)
+```
 
 ### Symbol Operations
 
@@ -1296,6 +1319,19 @@ The condition system provides Emacs Lisp-style error handling with typed errors,
 - `read-json` - Read JSON from file (filename or file stream) - returns Lisp data structures (objects → hash tables, arrays → vectors, etc.)
 - `delete-file` - Delete a file from the filesystem (filename) - returns nil on success, error if file doesn't exist or cannot be deleted
 - `load` - Load and evaluate a Lisp file (filename) - returns the result of the last expression evaluated, or an error if loading fails
+- `save-session` - Save user-defined bindings to a file as valid Lisp source (filename) - only saves bindings from the current environment frame (not builtins or stdlib). The output file can be loaded with `(load filename)`.
+
+```lisp
+;; Define some things in a session
+(define x 42)
+(define greet (lambda (name) (concat "Hello, " name)))
+
+;; Save the session
+(save-session "my-session.lisp")
+
+;; Later, in a new session:
+(load "my-session.lisp")  ; Restores x and greet
+```
 
 ### String Port Functions
 

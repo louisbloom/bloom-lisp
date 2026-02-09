@@ -228,7 +228,8 @@ int main(int argc, char **argv)
 
     /* Initialize interpreter */
     lisp_init();
-    Environment *env = env_create_global();
+    Environment *global = env_create_global();
+    Environment *env = env_create_session(global);
     g_env = env; /* Store globally for completion callback */
 
     /* Always define *command-line-args* - will be updated if script args provided via -- */
