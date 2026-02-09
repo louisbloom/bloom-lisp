@@ -6091,6 +6091,35 @@ static int needs_constructor(LispObject *obj)
 }
 
 /* Write a value expression to the file, using constructor forms if needed */
+/* Write a string to FILE with proper escaping for Lisp readability */
+static void write_escaped_string(FILE *f, const char *str)
+{
+    fputc('"', f);
+    for (const char *p = str; *p; p++) {
+        switch (*p) {
+        case '\\':
+            fputs("\\\\", f);
+            break;
+        case '"':
+            fputs("\\\"", f);
+            break;
+        case '\n':
+            fputs("\\n", f);
+            break;
+        case '\t':
+            fputs("\\t", f);
+            break;
+        case '\r':
+            fputs("\\r", f);
+            break;
+        default:
+            fputc(*p, f);
+            break;
+        }
+    }
+    fputc('"', f);
+}
+
 static void write_value_expr(FILE *f, LispObject *val)
 {
     if (val == NULL || val == NIL) {
@@ -6103,7 +6132,8 @@ static void write_value_expr(FILE *f, LispObject *val)
         fprintf(f, "(lambda %s", lisp_print(val->value.lambda.params));
         /* Emit docstring if present */
         if (val->value.lambda.docstring) {
-            fprintf(f, " \"%s\"", val->value.lambda.docstring);
+            fprintf(f, " ");
+            write_escaped_string(f, val->value.lambda.docstring);
         }
         LispObject *body = val->value.lambda.body;
         while (body != NIL && body->type == LISP_CONS) {
@@ -6119,7 +6149,8 @@ static void write_value_expr(FILE *f, LispObject *val)
            (e.g. nested in a list), emit as a lambda-like form */
         fprintf(f, "(lambda %s", lisp_print(val->value.macro.params));
         if (val->value.macro.docstring) {
-            fprintf(f, " \"%s\"", val->value.macro.docstring);
+            fprintf(f, " ");
+            write_escaped_string(f, val->value.macro.docstring);
         }
         LispObject *body = val->value.macro.body;
         while (body != NIL && body->type == LISP_CONS) {
@@ -6141,7 +6172,9 @@ static void write_value_expr(FILE *f, LispObject *val)
         for (size_t i = 0; i < bucket_count; i++) {
             struct HashEntry *entry = buckets[i];
             while (entry != NULL) {
-                fprintf(f, " (hash-set! ht \"%s\" ", entry->key);
+                fprintf(f, " (hash-set! ht ");
+                write_escaped_string(f, entry->key);
+                fprintf(f, " ");
                 write_value_expr(f, entry->value);
                 fprintf(f, ")");
                 entry = entry->next;
@@ -6252,7 +6285,8 @@ static LispObject *builtin_save_session(LispObject *args, Environment *env)
             /* Emit defmacro form */
             fprintf(f, "(defmacro %s %s", name, lisp_print(val->value.macro.params));
             if (val->value.macro.docstring) {
-                fprintf(f, "\n  \"%s\"", val->value.macro.docstring);
+                fprintf(f, "\n  ");
+                write_escaped_string(f, val->value.macro.docstring);
             }
             LispObject *body = val->value.macro.body;
             while (body != NIL && body->type == LISP_CONS) {

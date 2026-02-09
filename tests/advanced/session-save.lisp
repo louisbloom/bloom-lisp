@@ -152,13 +152,38 @@
   (delete-file session-file))
 
 ;; ============================================
+;; Docstrings with special characters roundtrip
+;; ============================================
+(define docstring-test-file "tests/advanced/_test_docstrings.lisp")
+
+(defun fn-with-quotes (x)
+  "A function that mentions \"hello\" and backslash \\ and newline."
+  (+ x 1))
+
+(defmacro mac-with-quotes (x) "A macro with \"quotes\" inside." `(+ ,x 1))
+
+(unwind-protect
+  (progn (save-session docstring-test-file)
+    ;; The saved file should be loadable (no parse errors from unescaped quotes)
+    (let ((content (read-file-string docstring-test-file)))
+      ;; Verify escaped quotes appear in the output
+      (assert-true (string-contains? content "\\\"hello\\\"")
+       "docstring quotes are escaped in saved session")
+      (assert-true (string-contains? content "\\\\")
+       "docstring backslashes are escaped in saved session"))
+    ;; Verify the file is loadable by actually loading it
+    (load docstring-test-file)
+    (assert-equal (fn-with-quotes 5) 6
+     "function with quoted docstring works after reload"))
+  (delete-file docstring-test-file))
+
+;; ============================================
 ;; User redefining a builtin
 ;; ============================================
 (define test-shadow-file "tests/advanced/_test_shadow.lisp")
 
 (unwind-protect
-  (progn ;; Shadow + with a value
-           (define my-plus +) (define + 42)
+  (progn (define my-plus +) (define + 42)
     (assert-equal + 42 "shadowed + is 42")
     (save-session test-shadow-file)
     ;; Verify the file contains the shadow
