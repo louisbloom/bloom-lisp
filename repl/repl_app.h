@@ -20,8 +20,6 @@ typedef struct
 {
     int terminal_width;
     int terminal_height;
-    TuiCompletionCallback completer;
-    void *completer_data;
 } ReplAppConfig;
 
 /* ReplApp model - composes viewport + textinput */

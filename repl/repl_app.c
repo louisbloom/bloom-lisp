@@ -43,11 +43,7 @@ ReplAppModel *repl_app_create(const ReplAppConfig *config)
     /* Configure layout */
     repl_app_set_terminal_size(app, app->terminal_width, app->terminal_height);
 
-    if (config) {
-        if (config->completer) {
-            tui_textinput_set_completer(app->textinput, config->completer, config->completer_data);
-        }
-    }
+    tui_textinput_set_word_delimiters(app->textinput, " \t()'`");
 
     return app;
 }

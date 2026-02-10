@@ -6,6 +6,7 @@
 #include "lisp.h"
 #include "repl_app.h"
 #include <bloom-boba/ansi_sequences.h>
+#include <bloom-boba/cmd.h>
 #include <bloom-boba/dynamic_buffer.h>
 #include <bloom-boba/input_parser.h>
 #include <fcntl.h>
@@ -187,28 +188,6 @@ static int find_word_start(const char *buffer, int cursor_pos)
     return i;
 }
 
-static char **repl_completer(const char *buffer, int cursor_pos, void *userdata)
-{
-    Environment *env = (Environment *)userdata;
-    if (!env || !buffer)
-        return NULL;
-
-    int word_start = find_word_start(buffer, cursor_pos);
-    int prefix_len = cursor_pos - word_start;
-
-    char *prefix = malloc(prefix_len + 1);
-    if (!prefix)
-        return NULL;
-    strncpy(prefix, buffer + word_start, prefix_len);
-    prefix[prefix_len] = '\0';
-
-    LispCompleteContext ctx = detect_context(buffer, cursor_pos);
-    char **completions = lisp_get_completions(env, prefix, ctx);
-
-    free(prefix);
-    return completions;
-}
-
 /* --- Echo helper for viewport --- */
 
 static void echo_to_viewport(const char *text)
@@ -309,8 +288,6 @@ static void run_interactive_repl(Environment *env)
     ReplAppConfig config = {
         .terminal_width = g_term_cols,
         .terminal_height = g_term_rows,
-        .completer = repl_completer,
-        .completer_data = env,
     };
     g_app = repl_app_create(&config);
 
@@ -540,6 +517,91 @@ static void run_interactive_repl(Environment *env)
                     expr_pos = 0;
                     expr_buffer[0] = '\0';
                     repl_app_set_prompt(g_app, ">>> ");
+                } else if (result.cmd->type == TUI_CMD_TAB_COMPLETE) {
+                    char *prefix = result.cmd->payload.tab_complete.prefix;
+                    int word_start = result.cmd->payload.tab_complete.word_start;
+
+                    /* Get the full input buffer for context detection */
+                    const char *buffer = tui_textinput_text(g_app->textinput);
+                    int cursor_pos = (int)tui_textinput_cursor(g_app->textinput);
+
+                    LispCompleteContext ctx = detect_context(buffer, cursor_pos);
+                    char **completions = lisp_get_completions(env, prefix, ctx);
+
+                    if (completions && completions[0]) {
+                        int count = 0;
+                        while (completions[count])
+                            count++;
+
+                        if (count == 1) {
+                            /* Single match — insert directly */
+                            tui_textinput_insert_completion(g_app->textinput,
+                                                            word_start, completions[0]);
+                        } else {
+                            /* Compute longest common prefix */
+                            const char *first = completions[0];
+                            int common_len = (int)strlen(first);
+                            for (int c = 1; c < count; c++) {
+                                int j = 0;
+                                while (j < common_len && completions[c][j] == first[j])
+                                    j++;
+                                common_len = j;
+                            }
+
+                            int prefix_len = (int)strlen(prefix);
+                            if (common_len > prefix_len) {
+                                /* Common prefix extends input — insert it */
+                                char *common = malloc(common_len + 1);
+                                if (common) {
+                                    memcpy(common, first, common_len);
+                                    common[common_len] = '\0';
+                                    tui_textinput_insert_completion(
+                                        g_app->textinput, word_start, common);
+                                    free(common);
+                                }
+                            } else {
+                                /* No extension — display tabular list */
+                                int max_len = 0;
+                                for (int c = 0; c < count; c++) {
+                                    int len = (int)strlen(completions[c]);
+                                    if (len > max_len)
+                                        max_len = len;
+                                }
+                                int col_width = max_len + 2;
+                                int cols = g_term_cols / col_width;
+                                if (cols < 1)
+                                    cols = 1;
+
+                                char list_buf[8192];
+                                int pos = 0;
+                                for (int c = 0; c < count; c++) {
+                                    int last_in_row = ((c + 1) % cols == 0) || (c == count - 1);
+                                    int n;
+                                    if (last_in_row) {
+                                        n = snprintf(list_buf + pos,
+                                                     sizeof(list_buf) - pos,
+                                                     "%s\n", completions[c]);
+                                    } else {
+                                        n = snprintf(list_buf + pos,
+                                                     sizeof(list_buf) - pos,
+                                                     "%-*s", col_width,
+                                                     completions[c]);
+                                    }
+                                    if (n > 0 && pos + n < (int)sizeof(list_buf))
+                                        pos += n;
+                                }
+                                list_buf[pos] = '\0';
+                                echo_to_viewport(list_buf);
+                            }
+                        }
+
+                        /* Free completions */
+                        for (int c = 0; c < count; c++)
+                            free(completions[c]);
+                        free(completions);
+                    }
+
+                    tui_cmd_free(result.cmd);
                 } else {
                     tui_cmd_free(result.cmd);
                 }
