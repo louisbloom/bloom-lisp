@@ -173,18 +173,31 @@ struct LispObject
 };
 
 /* Environment structure for variable bindings */
+#define ENV_INLINE_BUCKETS 8
+
+struct Binding
+{
+    Symbol *symbol; /* Interned symbol (pointer comparison for lookup) */
+    LispObject *value;
+    struct Binding *next; /* Next binding in same hash bucket */
+};
+
 struct Environment
 {
-    struct Binding
-    {
-        Symbol *symbol; /* Interned symbol (pointer comparison for lookup) */
-        LispObject *value;
-        struct Binding *next;
-    } *bindings;
+    struct Binding *inline_buckets[ENV_INLINE_BUCKETS];
+    struct Binding **buckets; /* Points to inline_buckets or heap-allocated */
+    size_t bucket_count;
+    size_t binding_count;
     Environment *parent;
     CallStackFrame *call_stack;    /* Current call stack */
     HandlerContext *handler_stack; /* Active condition-case handlers */
 };
+
+/* Iterate all bindings in an environment frame */
+#define ENV_FOR_EACH_BINDING(env, binding)                            \
+    for (size_t _efi = 0; _efi < (env)->bucket_count; _efi++)         \
+        for (struct Binding *binding = (env)->buckets[_efi]; binding; \
+             binding = binding->next)
 
 /* Global NIL object */
 extern LispObject *NIL;

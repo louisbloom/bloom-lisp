@@ -6259,11 +6259,10 @@ static LispObject *builtin_session_save(LispObject *args, Environment *env)
 
     /* Collect bindings from current frame, reverse for definition order */
     LispObject *bindings = NIL;
-    struct Binding *binding = env->bindings;
-    while (binding != NULL) {
+    ENV_FOR_EACH_BINDING(env, binding)
+    {
         LispObject *pair = lisp_make_cons(lisp_make_string(binding->symbol->name), binding->value);
         bindings = lisp_make_cons(pair, bindings);
-        binding = binding->next;
     }
 
     /* Iterate in definition order */
@@ -6923,12 +6922,11 @@ static LispObject *builtin_environment_bindings(LispObject *args, Environment *e
     (void)args;
     /* Collect bindings from the current frame only (not parent) */
     LispObject *result = NIL;
-    struct Binding *binding = env->bindings;
-    while (binding != NULL) {
+    ENV_FOR_EACH_BINDING(env, binding)
+    {
         LispObject *sym = lisp_intern(binding->symbol->name);
         LispObject *pair = lisp_make_cons(sym, binding->value);
         result = lisp_make_cons(pair, result);
-        binding = binding->next;
     }
     /* result is already in reverse-definition order (since bindings are prepended),
        so this gives definition order */
@@ -8346,7 +8344,8 @@ char **lisp_get_completions(Environment *env, const char *prefix, LispCompleteCo
 
     /* Traverse environment chain */
     for (Environment *e = env; e != NULL; e = e->parent) {
-        for (struct Binding *b = e->bindings; b != NULL; b = b->next) {
+        ENV_FOR_EACH_BINDING(e, b)
+        {
             const char *bname = b->symbol->name;
 
             /* Check prefix match */

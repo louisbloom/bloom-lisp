@@ -64,10 +64,40 @@ void profile_reset(void)
     g_profile_state.start_time_ns = 0;
 }
 
+static inline size_t hash_symbol(Symbol *sym, size_t bucket_count)
+{
+    uintptr_t h = (uintptr_t)sym;
+    h = (h >> 4) * 2654435761u;
+    return h & (bucket_count - 1);
+}
+
+static void env_resize(Environment *env)
+{
+    size_t new_count = env->bucket_count * 2;
+    struct Binding **new_buckets = GC_malloc(new_count * sizeof(struct Binding *));
+    /* GC_malloc zeroes memory, so all buckets start as NULL */
+
+    for (size_t i = 0; i < env->bucket_count; i++) {
+        struct Binding *b = env->buckets[i];
+        while (b != NULL) {
+            struct Binding *next = b->next;
+            size_t idx = hash_symbol(b->symbol, new_count);
+            b->next = new_buckets[idx];
+            new_buckets[idx] = b;
+            b = next;
+        }
+    }
+    env->buckets = new_buckets;
+    env->bucket_count = new_count;
+}
+
 Environment *env_create(Environment *parent)
 {
     Environment *env = GC_malloc(sizeof(Environment));
-    env->bindings = NULL;
+    /* GC_malloc zeroes memory, so inline_buckets are all NULL */
+    env->buckets = env->inline_buckets;
+    env->bucket_count = ENV_INLINE_BUCKETS;
+    env->binding_count = 0;
     env->parent = parent;
     env->call_stack = NULL;
     env->handler_stack = NULL;
@@ -76,8 +106,9 @@ Environment *env_create(Environment *parent)
 
 void env_define_sym(Environment *env, Symbol *sym, LispObject *value)
 {
+    size_t idx = hash_symbol(sym, env->bucket_count);
     /* Check if binding already exists (pointer comparison) */
-    struct Binding *binding = env->bindings;
+    struct Binding *binding = env->buckets[idx];
     while (binding != NULL) {
         if (binding->symbol == sym) {
             binding->value = value;
@@ -86,18 +117,26 @@ void env_define_sym(Environment *env, Symbol *sym, LispObject *value)
         binding = binding->next;
     }
 
+    /* Resize if load factor exceeded (> 3/4) */
+    if (env->binding_count * 4 >= env->bucket_count * 3) {
+        env_resize(env);
+        idx = hash_symbol(sym, env->bucket_count);
+    }
+
     /* Create new binding */
     binding = GC_malloc(sizeof(struct Binding));
     binding->symbol = sym;
     binding->value = value;
-    binding->next = env->bindings;
-    env->bindings = binding;
+    binding->next = env->buckets[idx];
+    env->buckets[idx] = binding;
+    env->binding_count++;
 }
 
 LispObject *env_lookup_sym(Environment *env, Symbol *sym)
 {
     while (env != NULL) {
-        struct Binding *binding = env->bindings;
+        size_t idx = hash_symbol(sym, env->bucket_count);
+        struct Binding *binding = env->buckets[idx];
         while (binding != NULL) {
             if (binding->symbol == sym) {
                 return binding->value;
@@ -113,7 +152,8 @@ int env_set_sym(Environment *env, Symbol *sym, LispObject *value)
 {
     /* Look for binding in current or parent environments */
     while (env != NULL) {
-        struct Binding *binding = env->bindings;
+        size_t idx = hash_symbol(sym, env->bucket_count);
+        struct Binding *binding = env->buckets[idx];
         while (binding != NULL) {
             if (binding->symbol == sym) {
                 binding->value = value;
