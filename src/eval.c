@@ -1210,9 +1210,11 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
             if (lambda_params != NIL && lambda_params->type == LISP_CONS && lisp_car(lambda_params) != NULL &&
                 lisp_car(lambda_params)->type == LISP_SYMBOL) {
                 snprintf(lambda_name, sizeof(lambda_name), "lambda/%s", lisp_car(lambda_params)->value.symbol->name);
-                frame_name = lambda_name;
+                func->value.lambda.name = GC_strdup(lambda_name);
+                frame_name = func->value.lambda.name;
             } else {
-                frame_name = "lambda";
+                func->value.lambda.name = "lambda";
+                frame_name = func->value.lambda.name;
             }
         }
 
@@ -1313,9 +1315,11 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
                        lisp_car(tail_lambda_params) != NULL && lisp_car(tail_lambda_params)->type == LISP_SYMBOL) {
                 snprintf(tail_lambda_name, sizeof(tail_lambda_name), "lambda/%s",
                          lisp_car(tail_lambda_params)->value.symbol->name);
-                tail_frame_name = tail_lambda_name;
+                tail_func->value.lambda.name = GC_strdup(tail_lambda_name);
+                tail_frame_name = tail_func->value.lambda.name;
             } else {
-                tail_frame_name = "lambda";
+                tail_func->value.lambda.name = "lambda";
+                tail_frame_name = tail_func->value.lambda.name;
             }
 
             /* Push call frame for tail-called lambda */

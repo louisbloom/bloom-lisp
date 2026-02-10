@@ -43,10 +43,26 @@ LispObject *sym_optional = NULL;
 LispObject *sym_rest = NULL;
 LispObject *sym_error = NULL;
 
+/* Small integer cache: -1 through 255 (257 objects) */
+#define SMALL_INT_MIN   (-1)
+#define SMALL_INT_MAX   255
+#define SMALL_INT_COUNT (SMALL_INT_MAX - SMALL_INT_MIN + 1)
+static LispObject small_integers[SMALL_INT_COUNT];
+static int small_integers_initialized = 0;
+
+static void init_small_integers(void)
+{
+    for (int i = 0; i < SMALL_INT_COUNT; i++) {
+        small_integers[i].type = LISP_INTEGER;
+        small_integers[i].value.integer = SMALL_INT_MIN + i;
+    }
+    small_integers_initialized = 1;
+}
+
 /* Object creation functions */
 LispObject *lisp_make_number(double value)
 {
-    LispObject *obj = GC_malloc(sizeof(LispObject));
+    LispObject *obj = GC_malloc_atomic(sizeof(LispObject));
     obj->type = LISP_NUMBER;
     obj->value.number = value;
     return obj;
@@ -54,7 +70,10 @@ LispObject *lisp_make_number(double value)
 
 LispObject *lisp_make_integer(long long value)
 {
-    LispObject *obj = GC_malloc(sizeof(LispObject));
+    if (small_integers_initialized && value >= SMALL_INT_MIN && value <= SMALL_INT_MAX) {
+        return &small_integers[value - SMALL_INT_MIN];
+    }
+    LispObject *obj = GC_malloc_atomic(sizeof(LispObject));
     obj->type = LISP_INTEGER;
     obj->value.integer = value;
     return obj;
@@ -62,7 +81,7 @@ LispObject *lisp_make_integer(long long value)
 
 LispObject *lisp_make_char(unsigned int codepoint)
 {
-    LispObject *obj = GC_malloc(sizeof(LispObject));
+    LispObject *obj = GC_malloc_atomic(sizeof(LispObject));
     obj->type = LISP_CHAR;
     obj->value.character = codepoint;
     return obj;
@@ -265,11 +284,11 @@ LispObject *lisp_make_macro(LispObject *params, LispObject *body, Environment *c
 
 LispObject *lisp_make_tail_call(LispObject *func, LispObject *args)
 {
-    LispObject *obj = GC_malloc(sizeof(LispObject));
-    obj->type = LISP_TAIL_CALL;
-    obj->value.tail_call.func = func;
-    obj->value.tail_call.args = args;
-    return obj;
+    static LispObject tail_call_obj;
+    tail_call_obj.type = LISP_TAIL_CALL;
+    tail_call_obj.value.tail_call.func = func;
+    tail_call_obj.value.tail_call.args = args;
+    return &tail_call_obj;
 }
 
 LispObject *lisp_make_string_port(const char *str)
@@ -421,6 +440,9 @@ int lisp_init(void)
 {
     /* Initialize Boehm GC */
     GC_INIT();
+
+    /* Initialize small integer cache */
+    init_small_integers();
 
     /* Initialize symbol intern table */
     symbol_table = lisp_make_hash_table();
