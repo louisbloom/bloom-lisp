@@ -630,7 +630,7 @@ int main(int argc, char **argv)
     Environment *env = env_create_session(global);
     g_env = env;
 
-    env_define(env, "*command-line-args*", NIL);
+    env_define_sym(env, lisp_intern("*command-line-args*")->value.symbol, NIL);
 
     /* Handle -e/--eval/-c flag */
     if (argc > 2 && (strcmp(argv[1], "-e") == 0 || strcmp(argv[1], "--eval") == 0 || strcmp(argv[1], "-c") == 0)) {
@@ -682,7 +682,7 @@ int main(int argc, char **argv)
 
         if (separator_pos > 0) {
             LispObject *args_list = argv_to_list(separator_pos + 1, argc, argv);
-            env_set(env, "*command-line-args*", args_list);
+            env_set_sym(env, lisp_intern("*command-line-args*")->value.symbol, args_list);
         }
 
         for (int i = 1; i < file_end; i++) {

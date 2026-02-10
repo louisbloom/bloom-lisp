@@ -74,12 +74,12 @@ Environment *env_create(Environment *parent)
     return env;
 }
 
-void env_define(Environment *env, const char *name, LispObject *value)
+void env_define_sym(Environment *env, Symbol *sym, LispObject *value)
 {
-    /* Check if binding already exists */
+    /* Check if binding already exists (pointer comparison) */
     struct Binding *binding = env->bindings;
     while (binding != NULL) {
-        if (strcmp(binding->name, name) == 0) {
+        if (binding->symbol == sym) {
             binding->value = value;
             return;
         }
@@ -88,18 +88,18 @@ void env_define(Environment *env, const char *name, LispObject *value)
 
     /* Create new binding */
     binding = GC_malloc(sizeof(struct Binding));
-    binding->name = GC_strdup(name);
+    binding->symbol = sym;
     binding->value = value;
     binding->next = env->bindings;
     env->bindings = binding;
 }
 
-LispObject *env_lookup(Environment *env, const char *name)
+LispObject *env_lookup_sym(Environment *env, Symbol *sym)
 {
     while (env != NULL) {
         struct Binding *binding = env->bindings;
         while (binding != NULL) {
-            if (strcmp(binding->name, name) == 0) {
+            if (binding->symbol == sym) {
                 return binding->value;
             }
             binding = binding->next;
@@ -109,13 +109,13 @@ LispObject *env_lookup(Environment *env, const char *name)
     return NULL;
 }
 
-int env_set(Environment *env, const char *name, LispObject *value)
+int env_set_sym(Environment *env, Symbol *sym, LispObject *value)
 {
     /* Look for binding in current or parent environments */
     while (env != NULL) {
         struct Binding *binding = env->bindings;
         while (binding != NULL) {
-            if (strcmp(binding->name, name) == 0) {
+            if (binding->symbol == sym) {
                 binding->value = value;
                 return 1; /* Successfully updated */
             }
@@ -125,6 +125,27 @@ int env_set(Environment *env, const char *name, LispObject *value)
     }
     return 0; /* Variable not found */
 }
+
+/* Deprecated wrappers — intern name then delegate to _sym variant */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
+void env_define(Environment *env, const char *name, LispObject *value)
+{
+    env_define_sym(env, lisp_intern(name)->value.symbol, value);
+}
+
+LispObject *env_lookup(Environment *env, const char *name)
+{
+    return env_lookup_sym(env, lisp_intern(name)->value.symbol);
+}
+
+int env_set(Environment *env, const char *name, LispObject *value)
+{
+    return env_set_sym(env, lisp_intern(name)->value.symbol, value);
+}
+
+#pragma GCC diagnostic pop
 
 void env_free(Environment *env)
 {

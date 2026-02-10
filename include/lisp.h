@@ -177,7 +177,7 @@ struct Environment
 {
     struct Binding
     {
-        char *name;
+        Symbol *symbol; /* Interned symbol (pointer comparison for lookup) */
         LispObject *value;
         struct Binding *next;
     } *bindings;
@@ -280,12 +280,18 @@ size_t lisp_list_length(LispObject *list);
 
 /* Environment functions */
 Environment *env_create(Environment *parent);
-void env_define(Environment *env, const char *name, LispObject *value);
-LispObject *env_lookup(Environment *env, const char *name);
-int env_set(Environment *env, const char *name, LispObject *value);
+void env_define_sym(Environment *env, Symbol *sym, LispObject *value);
+LispObject *env_lookup_sym(Environment *env, Symbol *sym);
+int env_set_sym(Environment *env, Symbol *sym, LispObject *value);
 void env_free(Environment *env);
 Environment *env_create_global(void);
 Environment *env_create_session(Environment *global);
+
+/* Deprecated — use _sym variants with lisp_intern()->value.symbol instead */
+__attribute__((deprecated("use env_define_sym"))) void env_define(Environment *env, const char *name,
+                                                                  LispObject *value);
+__attribute__((deprecated("use env_lookup_sym"))) LispObject *env_lookup(Environment *env, const char *name);
+__attribute__((deprecated("use env_set_sym"))) int env_set(Environment *env, const char *name, LispObject *value);
 
 /* Call stack functions */
 void push_call_frame(Environment *env, const char *function_name);

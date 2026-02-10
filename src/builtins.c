@@ -2999,12 +2999,12 @@ static LispObject *create_bloom_lisp_version_alist(void)
 }
 
 /* Helper macro to register a builtin and set its symbol's docstring */
-#define REGISTER(name, func, doc)                             \
-    do {                                                      \
-        LispObject *sym = lisp_intern(name);                  \
-        if ((doc) != NULL)                                    \
-            sym->value.symbol->docstring = (char *)(doc);     \
-        env_define(env, name, lisp_make_builtin(func, name)); \
+#define REGISTER(name, func, doc)                                              \
+    do {                                                                       \
+        LispObject *sym = lisp_intern(name);                                   \
+        if ((doc) != NULL)                                                     \
+            sym->value.symbol->docstring = (char *)(doc);                      \
+        env_define_sym(env, sym->value.symbol, lisp_make_builtin(func, name)); \
     } while (0)
 
 void register_builtins(Environment *env)
@@ -3293,7 +3293,7 @@ void register_builtins(Environment *env)
              "Clears accumulated profiling data without stopping the profiler.\n");
 
     /* Define version information variable */
-    env_define(env, "bloom-lisp-version", create_bloom_lisp_version_alist());
+    env_define_sym(env, lisp_intern("bloom-lisp-version")->value.symbol, create_bloom_lisp_version_alist());
 }
 
 #undef REGISTER
@@ -6261,7 +6261,7 @@ static LispObject *builtin_session_save(LispObject *args, Environment *env)
     LispObject *bindings = NIL;
     struct Binding *binding = env->bindings;
     while (binding != NULL) {
-        LispObject *pair = lisp_make_cons(lisp_make_string(binding->name), binding->value);
+        LispObject *pair = lisp_make_cons(lisp_make_string(binding->symbol->name), binding->value);
         bindings = lisp_make_cons(pair, bindings);
         binding = binding->next;
     }
@@ -6925,7 +6925,7 @@ static LispObject *builtin_environment_bindings(LispObject *args, Environment *e
     LispObject *result = NIL;
     struct Binding *binding = env->bindings;
     while (binding != NULL) {
-        LispObject *sym = lisp_intern(binding->name);
+        LispObject *sym = lisp_intern(binding->symbol->name);
         LispObject *pair = lisp_make_cons(sym, binding->value);
         result = lisp_make_cons(pair, result);
         binding = binding->next;
@@ -7728,7 +7728,7 @@ static LispObject *builtin_map(LispObject *args, Environment *env)
             }
 
             /* Bind the parameter to the item */
-            env_define(lambda_env, param->value.symbol->name, item);
+            env_define_sym(lambda_env, param->value.symbol, item);
 
             /* Check for extra parameters (should only have one for map) */
             if (lisp_cdr(params) != NIL) {
@@ -7818,7 +7818,7 @@ static LispObject *builtin_filter(LispObject *args, Environment *env)
             }
 
             /* Bind the parameter to the item */
-            env_define(lambda_env, param->value.symbol->name, item);
+            env_define_sym(lambda_env, param->value.symbol, item);
 
             /* Evaluate lambda body */
             LispObject *body = func->value.lambda.body;
@@ -7901,10 +7901,10 @@ static LispObject *builtin_apply(LispObject *args, Environment *env)
                 }
                 if (param->type == LISP_SYMBOL) {
                     if (arg_list != NIL && arg_list != NULL && arg_list->type == LISP_CONS) {
-                        env_define(lambda_env, param->value.symbol->name, lisp_car(arg_list));
+                        env_define_sym(lambda_env, param->value.symbol, lisp_car(arg_list));
                         arg_list = lisp_cdr(arg_list);
                     } else {
-                        env_define(lambda_env, param->value.symbol->name, NIL);
+                        env_define_sym(lambda_env, param->value.symbol, NIL);
                     }
                 }
                 params = lisp_cdr(params);
@@ -7918,7 +7918,7 @@ static LispObject *builtin_apply(LispObject *args, Environment *env)
             if (params != NIL && params->type == LISP_CONS) {
                 LispObject *rest_param = lisp_car(params);
                 if (rest_param->type == LISP_SYMBOL) {
-                    env_define(lambda_env, rest_param->value.symbol->name, arg_list);
+                    env_define_sym(lambda_env, rest_param->value.symbol, arg_list);
                 }
             }
             break;
@@ -7930,7 +7930,7 @@ static LispObject *builtin_apply(LispObject *args, Environment *env)
                 env_free(lambda_env);
                 return lisp_make_error("apply: too few arguments");
             }
-            env_define(lambda_env, param->value.symbol->name, lisp_car(arg_list));
+            env_define_sym(lambda_env, param->value.symbol, lisp_car(arg_list));
             arg_list = lisp_cdr(arg_list);
         }
 
@@ -8119,7 +8119,7 @@ static LispObject *builtin_bound_p(LispObject *args, Environment *env)
     }
 
     /* Check if the symbol is bound */
-    LispObject *value = env_lookup(env, symbol->value.symbol->name);
+    LispObject *value = env_lookup_sym(env, symbol->value.symbol);
 
     return value != NULL ? LISP_TRUE : NIL;
 }
@@ -8347,14 +8347,16 @@ char **lisp_get_completions(Environment *env, const char *prefix, LispCompleteCo
     /* Traverse environment chain */
     for (Environment *e = env; e != NULL; e = e->parent) {
         for (struct Binding *b = e->bindings; b != NULL; b = b->next) {
+            const char *bname = b->symbol->name;
+
             /* Check prefix match */
-            if (!prefix_match(b->name, prefix))
+            if (!prefix_match(bname, prefix))
                 continue;
 
             /* Check if already seen (shadowed) */
             int already_seen = 0;
             for (int i = 0; i < seen_count; i++) {
-                if (strcmp(seen[i], b->name) == 0) {
+                if (strcmp(seen[i], bname) == 0) {
                     already_seen = 1;
                     break;
                 }
@@ -8364,7 +8366,7 @@ char **lisp_get_completions(Environment *env, const char *prefix, LispCompleteCo
 
             /* Check callable filter */
             if (ctx == LISP_COMPLETE_CALLABLE) {
-                if (!is_callable(b->value) && !is_special_form(b->name))
+                if (!is_callable(b->value) && !is_special_form(bname))
                     continue;
             }
 
@@ -8398,7 +8400,7 @@ char **lisp_get_completions(Environment *env, const char *prefix, LispCompleteCo
                 capacity = new_capacity;
             }
 
-            results[count] = strdup(b->name);
+            results[count] = strdup(bname);
             seen[seen_count++] = results[count]; /* Point to same string */
             count++;
         }
