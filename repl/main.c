@@ -3,33 +3,143 @@
 #endif
 
 #include "file_utils.h"
-#include "lineedit.h"
 #include "lisp.h"
+#include "repl_app.h"
+#include <bloom-boba/ansi_sequences.h>
+#include <bloom-boba/dynamic_buffer.h>
+#include <bloom-boba/input_parser.h>
+#include <fcntl.h>
 #include <locale.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/select.h>
+#include <termios.h>
+#include <unistd.h>
 
 /* Version information - fallback if not defined by autoconf */
 #ifndef BLOOM_LISP_VERSION
 #define BLOOM_LISP_VERSION "unknown"
 #endif
 
-/* Global environment for completion callback */
+/* Global state */
 static Environment *g_env = NULL;
+static ReplAppModel *g_app = NULL;
+static TuiInputParser *g_input_parser = NULL;
+static DynamicBuffer *g_render_buf = NULL;
+static volatile sig_atomic_t g_quit_requested = 0;
+static volatile sig_atomic_t g_resize_requested = 0;
+static int g_term_rows = 24;
+static int g_term_cols = 80;
+static struct termios g_orig_termios;
+static int g_raw_mode = 0;
 
-/*
- * Detect completion context by scanning backwards from cursor position.
- * Returns LISP_COMPLETE_CALLABLE if we're completing the first element after '('
- * (i.e., function/macro position), LISP_COMPLETE_VARIABLE if we're in the first
- * argument of set!, otherwise LISP_COMPLETE_ALL.
- */
+/* --- Terminal handling --- */
+
+static void enable_raw_mode(void)
+{
+    if (g_raw_mode)
+        return;
+    tcgetattr(STDIN_FILENO, &g_orig_termios);
+    struct termios raw = g_orig_termios;
+    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    raw.c_oflag &= ~(OPOST);
+    raw.c_cflag |= (CS8);
+    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    raw.c_cc[VMIN] = 0;
+    raw.c_cc[VTIME] = 1;
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+    g_raw_mode = 1;
+}
+
+static void disable_raw_mode(void)
+{
+    if (g_raw_mode) {
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, &g_orig_termios);
+        g_raw_mode = 0;
+    }
+}
+
+static void update_terminal_size(void)
+{
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0 && ws.ws_row > 0) {
+        g_term_cols = ws.ws_col;
+        g_term_rows = ws.ws_row;
+    }
+}
+
+/* --- Signal handlers --- */
+
+static void handle_sigint(int sig)
+{
+    (void)sig;
+    g_quit_requested = 1;
+}
+
+static void handle_sigwinch(int sig)
+{
+    (void)sig;
+    g_resize_requested = 1;
+}
+
+/* --- Rendering --- */
+
+static void render_full_screen(void)
+{
+    if (!g_app || !g_render_buf)
+        return;
+
+    dynamic_buffer_clear(g_render_buf);
+
+    /* Hide cursor during render */
+    dynamic_buffer_append_str(g_render_buf, CSI "?25l");
+
+    repl_app_view(g_app, g_render_buf);
+
+    /* Show cursor */
+    dynamic_buffer_append_str(g_render_buf, CSI "?25h");
+
+    fwrite(g_render_buf->data, 1, g_render_buf->len, stdout);
+    fflush(stdout);
+}
+
+/* --- Cleanup --- */
+
+static void cleanup(void)
+{
+    disable_raw_mode();
+
+    /* Disable mouse mode */
+    fprintf(stdout, CSI "?1006l" CSI "?1000l");
+
+    /* Exit alternate screen */
+    fprintf(stdout, CSI "?1049l");
+    fflush(stdout);
+
+    if (g_app) {
+        repl_app_free(g_app);
+        g_app = NULL;
+    }
+    if (g_input_parser) {
+        tui_input_parser_free(g_input_parser);
+        g_input_parser = NULL;
+    }
+    if (g_render_buf) {
+        dynamic_buffer_destroy(g_render_buf);
+        g_render_buf = NULL;
+    }
+}
+
+/* --- Completion --- */
+
 static LispCompleteContext detect_context(const char *buffer, int cursor_pos)
 {
-    /* Scan backwards from cursor, skipping the word being typed */
     int i = cursor_pos - 1;
 
-    /* Skip current word (non-separator characters) */
+    /* Skip current word */
     while (i >= 0 && buffer[i] != ' ' && buffer[i] != '\t' && buffer[i] != '(' && buffer[i] != ')' &&
            buffer[i] != '\'' && buffer[i] != '`') {
         i--;
@@ -40,18 +150,13 @@ static LispCompleteContext detect_context(const char *buffer, int cursor_pos)
         i--;
     }
 
-    /* Check what's before the whitespace */
     if (i >= 0 && buffer[i] == '(') {
-        /* We're right after an open paren - function position */
         return LISP_COMPLETE_CALLABLE;
     }
 
-    /* Check if we're in the first argument of a special form like set! */
-    /* Look for pattern: "(set! " before our position */
+    /* Check for (set! ...) pattern */
     int j = i;
-    /* We already skipped whitespace, now check for function name */
     if (j >= 0) {
-        /* Find start of the function name */
         int func_end = j + 1;
         while (j >= 0 && buffer[j] != ' ' && buffer[j] != '\t' && buffer[j] != '(') {
             j--;
@@ -59,26 +164,19 @@ static LispCompleteContext detect_context(const char *buffer, int cursor_pos)
         int func_start = j + 1;
         int func_len = func_end - func_start;
 
-        /* Check if it's set! */
         if (func_len == 4 && strncmp(buffer + func_start, "set!", 4) == 0) {
-            /* Skip whitespace before function name */
             while (j >= 0 && (buffer[j] == ' ' || buffer[j] == '\t')) {
                 j--;
             }
-            /* Check if there's an open paren */
             if (j >= 0 && buffer[j] == '(') {
                 return LISP_COMPLETE_VARIABLE;
             }
         }
     }
 
-    /* Otherwise, we're in argument position or top-level */
     return LISP_COMPLETE_ALL;
 }
 
-/*
- * Find the start of the word being typed (for extracting prefix).
- */
 static int find_word_start(const char *buffer, int cursor_pos)
 {
     int i = cursor_pos;
@@ -89,48 +187,39 @@ static int find_word_start(const char *buffer, int cursor_pos)
     return i;
 }
 
-/*
- * Completion callback for lineedit.
- * Returns NULL-terminated array of completion strings.
- */
 static char **repl_completer(const char *buffer, int cursor_pos, void *userdata)
 {
     Environment *env = (Environment *)userdata;
     if (!env || !buffer)
         return NULL;
 
-    /* Find the prefix being typed */
     int word_start = find_word_start(buffer, cursor_pos);
     int prefix_len = cursor_pos - word_start;
 
-    /* Extract prefix */
     char *prefix = malloc(prefix_len + 1);
     if (!prefix)
         return NULL;
     strncpy(prefix, buffer + word_start, prefix_len);
     prefix[prefix_len] = '\0';
 
-    /* Detect context */
     LispCompleteContext ctx = detect_context(buffer, cursor_pos);
-
-    /* Get completions */
     char **completions = lisp_get_completions(env, prefix, ctx);
 
     free(prefix);
     return completions;
 }
 
-static void print_welcome(void)
+/* --- Echo helper for viewport --- */
+
+static void echo_to_viewport(const char *text)
 {
-    printf("Bloom Lisp Interpreter v%s\n", BLOOM_LISP_VERSION);
-    printf("Type expressions to evaluate, :quit to exit, :load <file> to load a file\n");
-    printf("Tab for completion, Up/Down for history\n\n");
+    if (g_app && text) {
+        repl_app_echo(g_app, text, strlen(text));
+    }
 }
 
-/*
- * Build a Lisp list of strings from argv[start] to argv[end-1].
- * Returns NIL if start >= end.
- */
+/* --- Non-interactive helpers (unchanged from original) --- */
+
 static LispObject *argv_to_list(int start, int end, char **argv)
 {
     LispObject *result = NIL;
@@ -163,27 +252,16 @@ static void print_help(void)
     printf("  :quit             Exit the REPL\n");
     printf("  :load <filename>  Load and execute a Lisp file\n");
     printf("\n");
-    printf("Editing Keys:\n");
-    printf("  Tab               Complete symbol\n");
-    printf("  Tab Tab           Show all completions\n");
-    printf("  Up/Down           Navigate history\n");
-    printf("  Left/Right        Move cursor\n");
-    printf("  Ctrl+A/Ctrl+E     Beginning/End of line\n");
-    printf("  Ctrl+U            Clear line\n");
-    printf("  Ctrl+L            Clear screen\n");
-    printf("  Ctrl+D            Exit (on empty line)\n");
-    printf("\n");
     printf("See LANGUAGE_REFERENCE.md for complete language documentation.\n");
 }
 
 static int handle_command(const char *input, Environment *env)
 {
-    /* Skip leading whitespace */
     while (*input == ' ' || *input == '\t')
         input++;
 
     if (strncmp(input, ":quit", 5) == 0) {
-        return 1; /* Exit */
+        return 1;
     }
 
     if (strncmp(input, ":load", 5) == 0) {
@@ -192,32 +270,290 @@ static int handle_command(const char *input, Environment *env)
             filename++;
 
         if (*filename == '\0') {
-            printf("ERROR: :load requires a filename\n");
+            echo_to_viewport("ERROR: :load requires a filename\n");
             return 0;
         }
 
-        /* Copy filename (already trimmed, no newline from lineedit) */
         char *fname = GC_strdup(filename);
-
         LispObject *result = lisp_load_file(fname, env);
 
         if (result->type == LISP_ERROR) {
             char *err_str = lisp_print(result);
-            printf("ERROR: %s\n", err_str);
+            char buf[4096];
+            snprintf(buf, sizeof(buf), "ERROR: %s\n", err_str);
+            echo_to_viewport(buf);
         } else {
             char *output = lisp_print(result);
-            printf("%s\n", output);
+            char buf[4096];
+            snprintf(buf, sizeof(buf), "%s\n", output);
+            echo_to_viewport(buf);
         }
 
         return 0;
     }
 
-    return -1; /* Not a command */
+    return -1;
 }
+
+/* --- Interactive REPL --- */
+
+static void run_interactive_repl(Environment *env)
+{
+    /* Get terminal size */
+    update_terminal_size();
+
+    /* Create boba components */
+    g_input_parser = tui_input_parser_create();
+    g_render_buf = dynamic_buffer_create(4096);
+
+    ReplAppConfig config = {
+        .terminal_width = g_term_cols,
+        .terminal_height = g_term_rows,
+        .completer = repl_completer,
+        .completer_data = env,
+    };
+    g_app = repl_app_create(&config);
+
+    if (!g_app || !g_input_parser || !g_render_buf) {
+        fprintf(stderr, "ERROR: Failed to create TUI components\n");
+        return;
+    }
+
+    /* Register cleanup */
+    atexit(cleanup);
+
+    /* Signal handlers */
+    signal(SIGINT, handle_sigint);
+    signal(SIGWINCH, handle_sigwinch);
+
+    /* Enter alternate screen, clear, home cursor */
+    fprintf(stdout, CSI "?1049h" CSI "2J" CSI "H");
+
+    /* Enable mouse (SGR extended mode) */
+    fprintf(stdout, CSI "?1000h" CSI "?1006h");
+    fflush(stdout);
+
+    /* Enter raw mode */
+    enable_raw_mode();
+
+    /* Welcome message */
+    char welcome[256];
+    snprintf(welcome, sizeof(welcome),
+             "Bloom Lisp Interpreter v%s\n"
+             "Type expressions to evaluate, :quit to exit, :load <file> to load a file\n"
+             "Tab for completion, Up/Down for history, PageUp/PageDown to scroll\n\n",
+             BLOOM_LISP_VERSION);
+    repl_app_echo(g_app, welcome, strlen(welcome));
+
+    /* Initial render */
+    render_full_screen();
+
+    /* Multi-line expression buffer */
+    static char expr_buffer[8192] = { 0 };
+    static int expr_pos = 0;
+
+    /* Event loop */
+    while (!g_quit_requested) {
+        /* Handle pending resize */
+        if (g_resize_requested) {
+            g_resize_requested = 0;
+            update_terminal_size();
+            repl_app_set_terminal_size(g_app, g_term_cols, g_term_rows);
+            render_full_screen();
+        }
+
+        /* Wait for stdin with timeout (100ms for signal responsiveness) */
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(STDIN_FILENO, &readfds);
+        struct timeval tv = { 0, 100000 };
+
+        int ready = select(STDIN_FILENO + 1, &readfds, NULL, NULL, &tv);
+        if (ready <= 0)
+            continue;
+
+        /* Read available bytes from stdin */
+        unsigned char buf[256];
+        ssize_t nread = read(STDIN_FILENO, buf, sizeof(buf));
+        if (nread <= 0)
+            continue;
+
+        /* Feed each byte to input parser */
+        for (ssize_t i = 0; i < nread; i++) {
+            TuiMsg msg;
+            if (!tui_input_parser_feed(g_input_parser, buf[i], &msg))
+                continue;
+
+            /* Mouse wheel → scroll viewport */
+            if (msg.type == TUI_MSG_MOUSE) {
+                if (msg.data.mouse.button == TUI_MOUSE_WHEEL_UP) {
+                    repl_app_scroll_up(g_app, 3);
+                    render_full_screen();
+                    continue;
+                }
+                if (msg.data.mouse.button == TUI_MOUSE_WHEEL_DOWN) {
+                    repl_app_scroll_down(g_app, 3);
+                    render_full_screen();
+                    continue;
+                }
+                continue;
+            }
+
+            /* PageUp/PageDown → page viewport */
+            if (msg.type == TUI_MSG_KEY_PRESS) {
+                if (msg.data.key.key == TUI_KEY_PAGE_UP) {
+                    repl_app_page_up(g_app);
+                    render_full_screen();
+                    continue;
+                }
+                if (msg.data.key.key == TUI_KEY_PAGE_DOWN) {
+                    repl_app_page_down(g_app);
+                    render_full_screen();
+                    continue;
+                }
+            }
+
+            /* Route to app update */
+            TuiUpdateResult result = repl_app_update(g_app, msg);
+
+            /* Handle commands from textinput */
+            if (result.cmd) {
+                if (result.cmd->type == TUI_CMD_LINE_SUBMIT) {
+                    char *line = result.cmd->payload.line;
+
+                    /* Skip empty lines if not accumulating */
+                    if ((!line || line[0] == '\0') && expr_pos == 0) {
+                        tui_cmd_free(result.cmd);
+                        render_full_screen();
+                        continue;
+                    }
+
+                    /* Echo the input line to viewport */
+                    {
+                        const char *prompt = expr_pos > 0 ? "... " : ">>> ";
+                        char echo_buf[8320];
+                        snprintf(echo_buf, sizeof(echo_buf), "%s%s\n", prompt, line ? line : "");
+                        echo_to_viewport(echo_buf);
+                    }
+
+                    /* Handle commands on first line */
+                    if (expr_pos == 0 && line) {
+                        int cmd_result = handle_command(line, env);
+                        if (cmd_result == 1) {
+                            tui_cmd_free(result.cmd);
+                            g_quit_requested = 1;
+                            break;
+                        } else if (cmd_result == 0) {
+                            tui_cmd_free(result.cmd);
+                            render_full_screen();
+                            continue;
+                        }
+                    }
+
+                    /* Add to history (first line only, non-empty) */
+                    if (line && line[0] != '\0' && expr_pos == 0) {
+                        tui_textinput_history_add(g_app->textinput, line);
+                    }
+
+                    /* Accumulate input for multi-line expressions */
+                    size_t line_len = line ? strlen(line) : 0;
+                    if (line_len > 0 && expr_pos + line_len < sizeof(expr_buffer) - 2) {
+                        if (expr_pos > 0) {
+                            expr_buffer[expr_pos++] = ' ';
+                        }
+                        strcpy(expr_buffer + expr_pos, line);
+                        expr_pos += line_len;
+                    }
+
+                    tui_cmd_free(result.cmd);
+
+                    /* Try to parse */
+                    const char *input_ptr = expr_buffer;
+                    LispObject *expr = lisp_read(&input_ptr);
+
+                    /* Unclosed expression → continue reading */
+                    if (expr != NULL && expr->type == LISP_ERROR && strstr(expr->value.error, "Unclosed") != NULL) {
+                        repl_app_set_prompt(g_app, "... ");
+                        render_full_screen();
+                        continue;
+                    }
+
+                    if (expr == NULL) {
+                        if (expr_pos == 0) {
+                            render_full_screen();
+                            continue;
+                        }
+                        repl_app_set_prompt(g_app, "... ");
+                        render_full_screen();
+                        continue;
+                    }
+
+                    if (expr->type == LISP_ERROR) {
+                        char err_buf[4096];
+                        snprintf(err_buf, sizeof(err_buf), "ERROR: %s\n", expr->value.error);
+                        echo_to_viewport(err_buf);
+                        expr_pos = 0;
+                        expr_buffer[0] = '\0';
+                        repl_app_set_prompt(g_app, ">>> ");
+                        render_full_screen();
+                        continue;
+                    }
+
+                    /* Capture stdout during eval */
+                    int pipefd[2];
+                    pipe(pipefd);
+                    int saved_stdout = dup(STDOUT_FILENO);
+                    dup2(pipefd[1], STDOUT_FILENO);
+
+                    LispObject *eval_result = lisp_eval(expr, env);
+                    fflush(stdout);
+
+                    /* Restore stdout */
+                    dup2(saved_stdout, STDOUT_FILENO);
+                    close(saved_stdout);
+                    close(pipefd[1]);
+
+                    /* Read captured output */
+                    fcntl(pipefd[0], F_SETFL, O_NONBLOCK);
+                    char captured[4096];
+                    ssize_t n;
+                    while ((n = read(pipefd[0], captured, sizeof(captured) - 1)) > 0) {
+                        captured[n] = '\0';
+                        echo_to_viewport(captured);
+                    }
+                    close(pipefd[0]);
+
+                    /* Display result */
+                    if (eval_result->type == LISP_ERROR && !eval_result->value.error_with_stack.caught) {
+                        char *err_str = lisp_print(eval_result);
+                        char err_buf[4096];
+                        snprintf(err_buf, sizeof(err_buf), "ERROR: %s\n", err_str);
+                        echo_to_viewport(err_buf);
+                    } else {
+                        char *output = lisp_print(eval_result);
+                        char out_buf[4096];
+                        snprintf(out_buf, sizeof(out_buf), "%s\n", output);
+                        echo_to_viewport(out_buf);
+                    }
+
+                    /* Reset buffer */
+                    expr_pos = 0;
+                    expr_buffer[0] = '\0';
+                    repl_app_set_prompt(g_app, ">>> ");
+                } else {
+                    tui_cmd_free(result.cmd);
+                }
+            }
+
+            render_full_screen();
+        }
+    }
+}
+
+/* --- Main --- */
 
 int main(int argc, char **argv)
 {
-    /* Set locale for UTF-8 support */
     setlocale(LC_ALL, "");
 
     /* Handle help flag */
@@ -230,25 +566,21 @@ int main(int argc, char **argv)
     lisp_init();
     Environment *global = env_create_global();
     Environment *env = env_create_session(global);
-    g_env = env; /* Store globally for completion callback */
+    g_env = env;
 
-    /* Always define *command-line-args* - will be updated if script args provided via -- */
     env_define(env, "*command-line-args*", NIL);
 
-    /* Handle -e/--eval/-c flag for executing code from command line */
+    /* Handle -e/--eval/-c flag */
     if (argc > 2 && (strcmp(argv[1], "-e") == 0 || strcmp(argv[1], "--eval") == 0 || strcmp(argv[1], "-c") == 0)) {
         const char *code = argv[2];
         const char *input = code;
 
         while (*input) {
-            /* Parse expression - let lisp_read handle whitespace and comments */
             const char *parse_start = input;
             LispObject *expr = lisp_read(&input);
 
-            /* If input didn't advance or NULL, we're done */
-            if (expr == NULL || input == parse_start) {
+            if (expr == NULL || input == parse_start)
                 break;
-            }
 
             if (expr->type == LISP_ERROR) {
                 char *err_str = lisp_print(expr);
@@ -259,7 +591,6 @@ int main(int argc, char **argv)
 
             LispObject *result = lisp_eval(expr, env);
 
-            /* Only report uncaught errors (caught errors are just values) */
             if (result->type == LISP_ERROR && !result->value.error_with_stack.caught) {
                 char *err_str = lisp_print(result);
                 fprintf(stderr, "ERROR: %s\n", err_str);
@@ -271,14 +602,12 @@ int main(int argc, char **argv)
             printf("%s\n", output);
         }
 
-        /* Exit after running code */
         lisp_cleanup();
         return 0;
     }
 
-    /* If file argument provided, load and execute it */
+    /* File execution mode */
     if (argc > 1) {
-        /* Find "--" separator for script arguments */
         int separator_pos = -1;
         for (int i = 1; i < argc; i++) {
             if (strcmp(argv[i], "--") == 0) {
@@ -287,24 +616,20 @@ int main(int argc, char **argv)
             }
         }
 
-        /* Determine which files to execute and set up script args */
         int file_end = (separator_pos > 0) ? separator_pos : argc;
 
-        /* Update *command-line-args* if there are args after -- */
         if (separator_pos > 0) {
             LispObject *args_list = argv_to_list(separator_pos + 1, argc, argv);
             env_set(env, "*command-line-args*", args_list);
         }
 
         for (int i = 1; i < file_end; i++) {
-            /* Use binary mode to avoid ftell/fread size mismatch with CRLF translation */
             FILE *file = file_open(argv[i], "rb");
             if (file == NULL) {
                 fprintf(stderr, "ERROR: Cannot open file: %s\n", argv[i]);
                 return 1;
             }
 
-            /* Read entire file */
             fseek(file, 0, SEEK_END);
             long size = ftell(file);
             fseek(file, 0, SEEK_SET);
@@ -314,19 +639,14 @@ int main(int argc, char **argv)
             buffer[actual_read] = '\0';
             fclose(file);
 
-            /* Evaluate and print each expression */
             const char *input = buffer;
 
             while (*input) {
-                /* Parse expression - let lisp_read handle whitespace and comments
-                 */
                 const char *parse_start = input;
                 LispObject *expr = lisp_read(&input);
 
-                /* If input didn't advance or NULL, we're done */
-                if (expr == NULL || input == parse_start) {
+                if (expr == NULL || input == parse_start)
                     break;
-                }
 
                 if (expr->type == LISP_ERROR) {
                     char *err_str = lisp_print(expr);
@@ -336,130 +656,21 @@ int main(int argc, char **argv)
 
                 LispObject *result = lisp_eval(expr, env);
 
-                /* Only report uncaught errors (caught errors are just values) */
                 if (result->type == LISP_ERROR && !result->value.error_with_stack.caught) {
                     char *err_str = lisp_print(result);
                     fprintf(stderr, "ERROR in %s: %s\n", argv[i], err_str);
                     return 1;
                 }
-                /* Script mode: don't print results (only errors above) */
             }
         }
 
-        /* Exit after running files */
         lisp_cleanup();
         return 0;
     }
 
-    /* Interactive REPL with line editing */
-    print_welcome();
+    /* Interactive REPL */
+    run_interactive_repl(env);
 
-    /* Create line editor */
-    LineEditState *le = lineedit_create();
-    if (!le) {
-        fprintf(stderr, "ERROR: Failed to create line editor\n");
-        env_free(env);
-        lisp_cleanup();
-        return 1;
-    }
-
-    /* Set up completion */
-    lineedit_set_completer(le, repl_completer, env);
-
-    /* Buffer for multi-line expressions */
-    static char expr_buffer[8192] = { 0 };
-    static int expr_pos = 0;
-
-    const char *prompt = ">>> ";
-    const char *cont_prompt = "... ";
-
-    char *line;
-    while ((line = lineedit_readline(le, expr_pos > 0 ? cont_prompt : prompt)) != NULL) {
-
-        /* Skip empty lines only if not accumulating */
-        if (line[0] == '\0' && expr_pos == 0) {
-            free(line);
-            continue;
-        }
-
-        /* Handle commands only on first line of input */
-        if (expr_pos == 0) {
-            int cmd_result = handle_command(line, env);
-            if (cmd_result == 1) {
-                free(line);
-                break; /* Exit */
-            } else if (cmd_result == 0) {
-                free(line);
-                continue; /* Command handled */
-            }
-        }
-
-        /* Add non-empty lines to history */
-        if (line[0] != '\0' && expr_pos == 0) {
-            lineedit_history_add(le, line);
-        }
-
-        /* Read and accumulate input until expression is complete */
-        size_t line_len = strlen(line);
-        if (line_len > 0 && expr_pos + line_len < sizeof(expr_buffer) - 2) {
-            if (expr_pos > 0) {
-                expr_buffer[expr_pos++] = ' ';
-            }
-            strcpy(expr_buffer + expr_pos, line);
-            expr_pos += line_len;
-        }
-
-        free(line);
-
-        /* Try to parse the buffer */
-        const char *input_ptr = expr_buffer;
-        LispObject *expr = lisp_read(&input_ptr);
-
-        /* If we got an error and it's an unclosed list, continue reading */
-        if (expr != NULL && expr->type == LISP_ERROR && strstr(expr->value.error, "Unclosed") != NULL) {
-            /* Need more input, continue reading */
-            continue;
-        }
-
-        if (expr == NULL) {
-            /* Empty input or incomplete, continue reading if buffer has content
-             */
-            if (expr_pos == 0) {
-                continue;
-            }
-            /* We're accumulating, so continue reading */
-            continue;
-        }
-
-        if (expr->type == LISP_ERROR) {
-            printf("ERROR: %s\n", expr->value.error);
-            expr_pos = 0;
-            expr_buffer[0] = '\0';
-            continue;
-        }
-
-        LispObject *result = lisp_eval(expr, env);
-
-        /* Only report uncaught errors (caught errors are just values) */
-        if (result->type == LISP_ERROR && !result->value.error_with_stack.caught) {
-            char *err_str = lisp_print(result);
-            printf("ERROR: %s\n", err_str);
-            /* Reset buffer on error too */
-            expr_pos = 0;
-            expr_buffer[0] = '\0';
-        } else {
-            char *output = lisp_print(result);
-            printf("%s\n", output);
-            /* Reset buffer after successful evaluation */
-            expr_pos = 0;
-            expr_buffer[0] = '\0';
-        }
-    }
-
-    printf("\nGoodbye!\n");
-
-    /* Cleanup */
-    lineedit_destroy(le);
     env_free(env);
     lisp_cleanup();
 

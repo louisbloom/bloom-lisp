@@ -22,6 +22,9 @@ PKG_CHECK_MODULES([GC], [bdw-gc], [],
 PKG_CHECK_MODULES([PCRE2], [libpcre2-8], [],
     [AC_MSG_ERROR([PCRE2 is required. Install with: apt install libpcre2-dev (Debian/Ubuntu), dnf install pcre2-devel (Fedora), or brew install pcre2 (macOS)])])
 
+PKG_CHECK_MODULES([BOBA], [bloom-boba], [],
+    [AC_MSG_ERROR([bloom-boba is required. Build and install bloom-boba first.])])
+
 # Check for math library
 AC_SEARCH_LIBS([floor], [m], [],
     [AC_MSG_ERROR([Math library not found])])

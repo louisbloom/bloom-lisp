@@ -30,6 +30,20 @@ log_error() {
 	echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Setup local dependencies (user-installed packages in ~/.local)
+setup_local_deps() {
+	local local_pkgconfig="$HOME/.local/lib/pkgconfig"
+	local local_lib="$HOME/.local/lib"
+
+	if [ -d "$local_pkgconfig" ]; then
+		if [ -f "$local_pkgconfig/bloom-boba.pc" ]; then
+			log_info "Found bloom-boba in $local_pkgconfig"
+			export PKG_CONFIG_PATH="${local_pkgconfig}${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+			export LD_LIBRARY_PATH="${local_lib}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+		fi
+	fi
+}
+
 # Check if running on Fedora 43
 check_os() {
 	log_info "Checking operating system..."
@@ -253,6 +267,9 @@ main() {
 
 	# Check OS
 	check_os
+
+	# Setup local dependencies (bloom-boba)
+	setup_local_deps
 
 	# If --install flag is used, skip build and run steps
 	if [ "${INSTALL_ONLY:-false}" = true ]; then
