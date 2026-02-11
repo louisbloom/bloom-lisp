@@ -8,11 +8,11 @@ An embeddable Lisp interpreter library written in C. This implementation follows
 
 ### Core Language
 
-- **Data Types**: Numbers, integers, booleans, strings (UTF-8), characters, lists, vectors, hash tables, lambdas, errors
-- **Special Forms**: `quote`, `quasiquote`, `if`, `define`, `set!`, `lambda`, `defmacro`, `let`/`let*`, `progn`, `do`, `cond`, `case`, `condition-case`, `unwind-protect`
+- **Data Types**: Numbers, integers, booleans, strings (UTF-8), characters, symbols, keywords, lists, vectors, hash tables, lambdas, errors
+- **Special Forms**: `quote`, `quasiquote`, `if`, `define`, `set!`, `lambda`, `defmacro`, `let`/`let*`, `progn`, `do`, `cond`, `case`, `and`, `or`, `condition-case`, `unwind-protect`
 - **Macros**: Code transformation with `defmacro`, quasiquote (`` ` ``), unquote (`,`), unquote-splicing (`,@`), and built-in `defun` macro
-- **Functions**: Arithmetic, strings, lists, vectors, hash tables, regex (PCRE2), file I/O
-- **Type Predicates**: `null?`, `atom?`, `integer?`, `boolean?`, `number?`, `string?`, `char?`, `vector?`, `hash-table?`, `error?`
+- **Functions**: Arithmetic, strings, lists, vectors, hash tables, regex (PCRE2), file I/O, profiling
+- **Type Predicates**: `null?`, `atom?`, `pair?`, `list?`, `integer?`, `boolean?`, `number?`, `string?`, `char?`, `symbol?`, `keyword?`, `vector?`, `hash-table?`, `function?`, `callable?`, `error?`
 
 See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for complete function listings and examples.
 
@@ -90,6 +90,12 @@ bloom-repl -h, --help           # Show help message
 ```bash
 ./repl/bloom-repl
 ```
+
+Features:
+
+- **Input history** - Arrow keys navigate previous inputs (persisted across sessions)
+- **Multiline editing** - Automatically continues incomplete expressions
+- **Tab completion** - Completes symbol names from the environment
 
 REPL Commands:
 

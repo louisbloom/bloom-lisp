@@ -1,6 +1,6 @@
-# Telnet Lisp Language Reference
+# Bloom Lisp Language Reference
 
-A reference for the Telnet Lisp language, covering data types, special forms, built-in functions, and usage examples.
+A reference for Bloom Lisp, covering data types, special forms, built-in functions, and usage examples.
 
 ## Table of Contents
 
@@ -51,7 +51,7 @@ Built-in functions are **implemented in C** for performance, but follow normal e
 
 **Examples:**
 
-- Arithmetic: `+`, `-`, `*`, `/`, `mod`
+- Arithmetic: `+`, `-`, `*`, `/`, `remainder`
 - Lists: `car`, `cdr`, `cons`, `list`, `append`
 - Strings: `string-append`, `string-length`, `substring`
 - I/O: `print`, `read-file`, `write-file`
@@ -1052,6 +1052,8 @@ Functions for transforming lists by applying a function to each element.
 
 ### Hash Table Functions
 
+Hash tables support all key types: strings, symbols, keywords, integers, floats, characters, booleans, nil, lists, vectors, and other hash tables. Keys are compared by value (structural equality), so `(hash-ref ht '(1 2))` will find a key set with `(hash-set! ht '(1 2) val)`.
+
 - `make-hash-table` - Create a new hash table
 - `hash-ref` - Get value for key (returns nil if not found)
 - `hash-set!` - Set key-value pair (mutating)
@@ -1061,6 +1063,34 @@ Functions for transforming lists by applying a function to each element.
 - `hash-keys` - Get list of all keys
 - `hash-values` - Get list of all values
 - `hash-entries` - Get list of `(key . value)` pairs
+
+**Examples:**
+
+```lisp
+;; String keys
+(define ht (make-hash-table))
+(hash-set! ht "name" "Alice")
+(hash-ref ht "name")              ; => "Alice"
+
+;; Symbol and keyword keys
+(hash-set! ht 'status "active")
+(hash-set! ht :port 8080)
+(hash-ref ht :port)               ; => 8080
+
+;; Integer and character keys
+(hash-set! ht 42 "the answer")
+(hash-set! ht #\a "letter a")
+(hash-ref ht 42)                  ; => "the answer"
+
+;; List keys (matched by structural equality)
+(hash-set! ht '(1 2) "pair")
+(hash-ref ht '(1 2))              ; => "pair"
+
+;; Introspection
+(hash-count ht)                    ; => 6
+(hash-keys ht)                     ; => ("name" status :port 42 #\a (1 2))
+(hash-entries ht)                  ; => (("name" . "Alice") (status . "active") ...)
+```
 
 ### Type Predicates
 
@@ -1198,6 +1228,35 @@ Keywords are self-evaluating, interned symbols that start with a colon (`:`). Th
 ; ... do some work ...
 (define elapsed (- (current-time-ms) start))
 (format nil "Elapsed: ~A ms" elapsed)
+```
+
+### Profiling Functions
+
+Functions for measuring function-level execution performance.
+
+- `profile-start` - Start the profiler and clear previous data
+- `profile-stop` - Stop the profiler (data is preserved)
+- `profile-report` - Return profiling results as a list of `(name calls ms)` sorted by total time
+- `profile-reset` - Clear all profiling data without stopping the profiler
+
+**Examples:**
+
+```lisp
+;; Profile some code
+(profile-start)
+
+;; ... run code to profile ...
+(my-function arg1 arg2)
+
+(profile-stop)
+
+;; View results (sorted by total time, descending)
+(profile-report)
+; => (("format-sexp" 12847 1523.45) ("concat" 98234 452.12) ...)
+;     Each entry: (function-name call-count total-ms)
+
+;; Reset data for a fresh run
+(profile-reset)
 ```
 
 ### Script Variables
@@ -1504,7 +1563,7 @@ Expand `~/` prefix in file paths to the user's home directory.
 
 ## Naming Conventions
 
-Telnet Lisp follows modern Lisp naming conventions:
+Bloom Lisp follows modern Lisp naming conventions:
 
 - **Predicates** use `?` suffix: `null?`, `vector?`, `integer?`, `boolean?`, `string?`
 - **Mutating functions** use `!` suffix: `set!`, `vector-set!`, `vector-push!`, `hash-set!`
@@ -1545,7 +1604,7 @@ Examples:
 
 ## Error Handling
 
-Telnet Lisp implements an Emacs Lisp-style condition system with typed errors, catch/handle, and guaranteed cleanup. The system provides:
+Bloom Lisp implements an Emacs Lisp-style condition system with typed errors, catch/handle, and guaranteed cleanup. The system provides:
 
 - **Typed errors**: Errors have symbol-based types (e.g., `'division-by-zero`, `'file-error`)
 - **Error catching**: `condition-case` catches and handles specific error types
@@ -1671,7 +1730,7 @@ Caught errors can be inspected:
 **Safe division:**
 
 ```lisp
-(define (safe-divide a b)
+(defun safe-divide (a b)
   (condition-case err
       (if (= b 0)
           (signal 'division-by-zero "cannot divide by zero")
@@ -1686,15 +1745,14 @@ Caught errors can be inspected:
 **Resource management:**
 
 ```lisp
-(define (process-file filename)
-  (define file (open filename "r"))
-  (unwind-protect
-      (progn
-        (define content (read-line file))
-        (if (null? content)
-            (signal 'empty-file "File is empty")
-            content))
-    (close file)))  ; Always closes
+(defun process-file (filename)
+  (let ((file (open filename "r")))
+    (unwind-protect
+        (let ((content (read-line file)))
+          (if (null? content)
+              (signal 'empty-file "File is empty")
+              content))
+      (close file))))  ; Always closes
 ```
 
 **Nested error handling:**
@@ -1745,7 +1803,7 @@ You can define custom error types using any symbol:
 
 ## Tail Recursion Optimization
 
-Telnet Lisp implements **tail call optimization** (TCO) using a trampoline-based approach. This allows recursive functions to execute without growing the call stack, enabling efficient recursive algorithms that would otherwise cause stack overflow.
+Bloom Lisp implements **tail call optimization** (TCO) using a trampoline-based approach. This allows recursive functions to execute without growing the call stack, enabling efficient recursive algorithms that would otherwise cause stack overflow.
 
 ### What is Tail Position?
 
