@@ -33,7 +33,8 @@ TuiInitResult repl_app_init(void *config)
     }
 
     /* Create textinput (user input) */
-    app->textinput = tui_textinput_create(NULL);
+    TuiTextInputConfig textinput_cfg = { .multiline = 1 };
+    app->textinput = tui_textinput_create(&textinput_cfg);
     if (!app->textinput) {
         tui_viewport_free(app->viewport);
         free(app);
@@ -46,6 +47,7 @@ TuiInitResult repl_app_init(void *config)
     repl_app_set_terminal_size(app, app->terminal_width, app->terminal_height);
 
     tui_textinput_set_word_delimiters(app->textinput, " \t()'`");
+    tui_textinput_set_history_size(app->textinput, 500);
 
     return tui_init_result_none((TuiModel *)app);
 }
@@ -95,8 +97,11 @@ TuiUpdateResult repl_app_update(TuiModel *model, TuiMsg msg)
             return tui_update_result_none();
         }
 
+        TuiUpdateResult result = tui_textinput_update(app->textinput, msg);
+        /* Recalculate layout in case textinput height changed (multiline) */
+        repl_app_set_terminal_size(app, app->terminal_width, app->terminal_height);
         tui_viewport_scroll_to_bottom(app->viewport);
-        return tui_textinput_update(app->textinput, msg);
+        return result;
     }
 
     return tui_update_result_none();
@@ -131,7 +136,6 @@ void repl_app_set_terminal_size(ReplAppModel *app, int width, int height)
     app->terminal_width = width;
     app->terminal_height = height;
 
-    /* Textinput with dividers = 3 rows */
     int textinput_h = tui_textinput_get_height(app->textinput);
 
     /* Viewport fills remaining space */
@@ -139,8 +143,11 @@ void repl_app_set_terminal_size(ReplAppModel *app, int width, int height)
     if (viewport_h < 1)
         viewport_h = 1;
 
-    /* Position textinput at bottom, viewport at top */
-    int textinput_row = height - 1; /* Input line (middle of 3 divider rows) */
+    /* Position textinput at bottom, viewport at top.
+     * textinput_row is the first content line of the input area. */
+    int content_lines = textinput_h - (app->textinput->show_dividers ? 2 : 0);
+    int textinput_row = height - (app->textinput->show_dividers ? 1 : 0) -
+                        content_lines + 1;
 
     if (app->viewport) {
         tui_viewport_set_size(app->viewport, width, viewport_h);

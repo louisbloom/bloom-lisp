@@ -169,7 +169,20 @@ static void handle_line_submit(char *line)
     }
 
     /* Echo the input line to viewport */
-    {
+    if (line && strchr(line, '\n')) {
+        const char *p = line;
+        int first = 1;
+        while (*p) {
+            const char *nl = strchr(p, '\n');
+            int len = nl ? (int)(nl - p) : (int)strlen(p);
+            const char *prompt = (first && expr_pos == 0) ? ">>> " : "... ";
+            char echo_buf[8320];
+            snprintf(echo_buf, sizeof(echo_buf), "%s%.*s\n", prompt, len, p);
+            echo_to_viewport(echo_buf);
+            first = 0;
+            p = nl ? nl + 1 : p + len;
+        }
+    } else {
         const char *prompt = expr_pos > 0 ? "... " : ">>> ";
         char echo_buf[8320];
         snprintf(echo_buf, sizeof(echo_buf), "%s%s\n", prompt, line ? line : "");
