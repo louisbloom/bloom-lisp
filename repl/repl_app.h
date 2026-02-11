@@ -34,17 +34,11 @@ typedef struct
     int terminal_height;
 } ReplAppModel;
 
-/* Create a new ReplApp component */
-ReplAppModel *repl_app_create(const ReplAppConfig *config);
-
-/* Free ReplApp component */
-void repl_app_free(ReplAppModel *app);
-
-/* Update ReplApp with a message */
-TuiUpdateResult repl_app_update(ReplAppModel *app, TuiMsg msg);
-
-/* Render ReplApp to output buffer */
-void repl_app_view(const ReplAppModel *app, DynamicBuffer *out);
+/* TuiComponent interface — init/update/view/free */
+TuiInitResult repl_app_init(void *config);
+TuiUpdateResult repl_app_update(TuiModel *model, TuiMsg msg);
+void repl_app_view(const TuiModel *model, DynamicBuffer *out);
+void repl_app_free(TuiModel *model);
 
 /* Echo text to the viewport */
 void repl_app_echo(ReplAppModel *app, const char *text, size_t len);
@@ -60,5 +54,8 @@ void repl_app_scroll_up(ReplAppModel *app, int lines);
 void repl_app_scroll_down(ReplAppModel *app, int lines);
 void repl_app_page_up(ReplAppModel *app);
 void repl_app_page_down(ReplAppModel *app);
+
+/* Get component interface for ReplApp (used by tui_runtime_create) */
+const TuiComponent *repl_app_component(void);
 
 #endif /* REPL_APP_H */

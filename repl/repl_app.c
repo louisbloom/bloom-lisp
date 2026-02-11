@@ -11,23 +11,25 @@
 
 #define REPL_APP_TYPE_ID (TUI_COMPONENT_TYPE_BASE + 20)
 
-ReplAppModel *repl_app_create(const ReplAppConfig *config)
+TuiInitResult repl_app_init(void *config)
 {
+    const ReplAppConfig *cfg = (const ReplAppConfig *)config;
+
     ReplAppModel *app = (ReplAppModel *)malloc(sizeof(ReplAppModel));
     if (!app)
-        return NULL;
+        return tui_init_result_none(NULL);
 
     memset(app, 0, sizeof(ReplAppModel));
     app->base.type = REPL_APP_TYPE_ID;
 
-    app->terminal_width = config && config->terminal_width > 0 ? config->terminal_width : 80;
-    app->terminal_height = config && config->terminal_height > 0 ? config->terminal_height : 24;
+    app->terminal_width = cfg && cfg->terminal_width > 0 ? cfg->terminal_width : 80;
+    app->terminal_height = cfg && cfg->terminal_height > 0 ? cfg->terminal_height : 24;
 
     /* Create viewport (output display) */
     app->viewport = tui_viewport_create();
     if (!app->viewport) {
         free(app);
-        return NULL;
+        return tui_init_result_none(NULL);
     }
 
     /* Create textinput (user input) */
@@ -35,7 +37,7 @@ ReplAppModel *repl_app_create(const ReplAppConfig *config)
     if (!app->textinput) {
         tui_viewport_free(app->viewport);
         free(app);
-        return NULL;
+        return tui_init_result_none(NULL);
     }
     tui_textinput_set_show_dividers(app->textinput, 1);
     tui_textinput_set_prompt(app->textinput, ">>> ");
@@ -45,11 +47,12 @@ ReplAppModel *repl_app_create(const ReplAppConfig *config)
 
     tui_textinput_set_word_delimiters(app->textinput, " \t()'`");
 
-    return app;
+    return tui_init_result_none((TuiModel *)app);
 }
 
-void repl_app_free(ReplAppModel *app)
+void repl_app_free(TuiModel *model)
 {
+    ReplAppModel *app = (ReplAppModel *)model;
     if (!app)
         return;
 
@@ -60,8 +63,9 @@ void repl_app_free(ReplAppModel *app)
     free(app);
 }
 
-TuiUpdateResult repl_app_update(ReplAppModel *app, TuiMsg msg)
+TuiUpdateResult repl_app_update(TuiModel *model, TuiMsg msg)
 {
+    ReplAppModel *app = (ReplAppModel *)model;
     if (!app)
         return tui_update_result_none();
 
@@ -70,7 +74,27 @@ TuiUpdateResult repl_app_update(ReplAppModel *app, TuiMsg msg)
         return tui_update_result_none();
     }
 
+    /* Mouse wheel → scroll viewport */
+    if (msg.type == TUI_MSG_MOUSE) {
+        if (msg.data.mouse.button == TUI_MOUSE_WHEEL_UP) {
+            repl_app_scroll_up(app, 3);
+        } else if (msg.data.mouse.button == TUI_MOUSE_WHEEL_DOWN) {
+            repl_app_scroll_down(app, 3);
+        }
+        return tui_update_result_none();
+    }
+
     if (msg.type == TUI_MSG_KEY_PRESS) {
+        /* PageUp/PageDown → page viewport */
+        if (msg.data.key.key == TUI_KEY_PAGE_UP) {
+            repl_app_page_up(app);
+            return tui_update_result_none();
+        }
+        if (msg.data.key.key == TUI_KEY_PAGE_DOWN) {
+            repl_app_page_down(app);
+            return tui_update_result_none();
+        }
+
         tui_viewport_scroll_to_bottom(app->viewport);
         return tui_textinput_update(app->textinput, msg);
     }
@@ -78,8 +102,9 @@ TuiUpdateResult repl_app_update(ReplAppModel *app, TuiMsg msg)
     return tui_update_result_none();
 }
 
-void repl_app_view(const ReplAppModel *app, DynamicBuffer *out)
+void repl_app_view(const TuiModel *model, DynamicBuffer *out)
 {
+    const ReplAppModel *app = (const ReplAppModel *)model;
     if (!app || !out)
         return;
 
@@ -156,4 +181,16 @@ void repl_app_page_down(ReplAppModel *app)
 {
     if (app && app->viewport)
         tui_viewport_page_down(app->viewport);
+}
+
+static const TuiComponent repl_app_component_instance = {
+    .init = repl_app_init,
+    .update = repl_app_update,
+    .view = repl_app_view,
+    .free = repl_app_free,
+};
+
+const TuiComponent *repl_app_component(void)
+{
+    return &repl_app_component_instance;
 }

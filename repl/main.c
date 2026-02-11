@@ -5,19 +5,13 @@
 #include "file_utils.h"
 #include "lisp.h"
 #include "repl_app.h"
-#include <bloom-boba/ansi_sequences.h>
 #include <bloom-boba/cmd.h>
-#include <bloom-boba/dynamic_buffer.h>
-#include <bloom-boba/input_parser.h>
+#include <bloom-boba/runtime.h>
 #include <fcntl.h>
 #include <locale.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
-#include <sys/select.h>
-#include <termios.h>
 #include <unistd.h>
 
 /* Version information - fallback if not defined by autoconf */
@@ -28,111 +22,11 @@
 /* Global state */
 static Environment *g_env = NULL;
 static ReplAppModel *g_app = NULL;
-static TuiInputParser *g_input_parser = NULL;
-static DynamicBuffer *g_render_buf = NULL;
-static volatile sig_atomic_t g_quit_requested = 0;
-static volatile sig_atomic_t g_resize_requested = 0;
-static int g_term_rows = 24;
-static int g_term_cols = 80;
-static struct termios g_orig_termios;
-static int g_raw_mode = 0;
+static TuiRuntime *g_runtime = NULL;
 
-/* --- Terminal handling --- */
-
-static void enable_raw_mode(void)
-{
-    if (g_raw_mode)
-        return;
-    tcgetattr(STDIN_FILENO, &g_orig_termios);
-    struct termios raw = g_orig_termios;
-    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    raw.c_oflag &= ~(OPOST);
-    raw.c_cflag |= (CS8);
-    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-    raw.c_cc[VMIN] = 0;
-    raw.c_cc[VTIME] = 1;
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
-    g_raw_mode = 1;
-}
-
-static void disable_raw_mode(void)
-{
-    if (g_raw_mode) {
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, &g_orig_termios);
-        g_raw_mode = 0;
-    }
-}
-
-static void update_terminal_size(void)
-{
-    struct winsize ws;
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0 && ws.ws_row > 0) {
-        g_term_cols = ws.ws_col;
-        g_term_rows = ws.ws_row;
-    }
-}
-
-/* --- Signal handlers --- */
-
-static void handle_sigint(int sig)
-{
-    (void)sig;
-    g_quit_requested = 1;
-}
-
-static void handle_sigwinch(int sig)
-{
-    (void)sig;
-    g_resize_requested = 1;
-}
-
-/* --- Rendering --- */
-
-static void render_full_screen(void)
-{
-    if (!g_app || !g_render_buf)
-        return;
-
-    dynamic_buffer_clear(g_render_buf);
-
-    /* Hide cursor during render */
-    dynamic_buffer_append_str(g_render_buf, CSI "?25l");
-
-    repl_app_view(g_app, g_render_buf);
-
-    /* Show cursor */
-    dynamic_buffer_append_str(g_render_buf, CSI "?25h");
-
-    fwrite(g_render_buf->data, 1, g_render_buf->len, stdout);
-    fflush(stdout);
-}
-
-/* --- Cleanup --- */
-
-static void cleanup(void)
-{
-    disable_raw_mode();
-
-    /* Disable mouse mode */
-    fprintf(stdout, CSI "?1006l" CSI "?1000l");
-
-    /* Exit alternate screen */
-    fprintf(stdout, CSI "?1049l");
-    fflush(stdout);
-
-    if (g_app) {
-        repl_app_free(g_app);
-        g_app = NULL;
-    }
-    if (g_input_parser) {
-        tui_input_parser_free(g_input_parser);
-        g_input_parser = NULL;
-    }
-    if (g_render_buf) {
-        dynamic_buffer_destroy(g_render_buf);
-        g_render_buf = NULL;
-    }
-}
+/* Multi-line expression buffer */
+static char expr_buffer[8192] = { 0 };
+static int expr_pos = 0;
 
 /* --- Completion --- */
 
@@ -178,16 +72,6 @@ static LispCompleteContext detect_context(const char *buffer, int cursor_pos)
     return LISP_COMPLETE_ALL;
 }
 
-static int find_word_start(const char *buffer, int cursor_pos)
-{
-    int i = cursor_pos;
-    while (i > 0 && buffer[i - 1] != ' ' && buffer[i - 1] != '\t' && buffer[i - 1] != '(' && buffer[i - 1] != ')' &&
-           buffer[i - 1] != '\'' && buffer[i - 1] != '`') {
-        i--;
-    }
-    return i;
-}
-
 /* --- Echo helper for viewport --- */
 
 static void echo_to_viewport(const char *text)
@@ -197,7 +81,7 @@ static void echo_to_viewport(const char *text)
     }
 }
 
-/* --- Non-interactive helpers (unchanged from original) --- */
+/* --- Non-interactive helpers --- */
 
 static LispObject *argv_to_list(int start, int end, char **argv)
 {
@@ -274,44 +158,260 @@ static int handle_command(const char *input, Environment *env)
     return -1;
 }
 
+/* --- Runtime command handler --- */
+
+static void handle_line_submit(char *line)
+{
+    /* Skip empty lines if not accumulating */
+    if ((!line || line[0] == '\0') && expr_pos == 0) {
+        tui_runtime_flush(g_runtime);
+        return;
+    }
+
+    /* Echo the input line to viewport */
+    {
+        const char *prompt = expr_pos > 0 ? "... " : ">>> ";
+        char echo_buf[8320];
+        snprintf(echo_buf, sizeof(echo_buf), "%s%s\n", prompt, line ? line : "");
+        echo_to_viewport(echo_buf);
+    }
+
+    /* Handle commands on first line */
+    if (expr_pos == 0 && line) {
+        int cmd_result = handle_command(line, g_env);
+        if (cmd_result == 1) {
+            tui_runtime_quit(g_runtime);
+            return;
+        } else if (cmd_result == 0) {
+            tui_runtime_flush(g_runtime);
+            return;
+        }
+    }
+
+    /* Add to history (first line only, non-empty) */
+    if (line && line[0] != '\0' && expr_pos == 0) {
+        tui_textinput_history_add(g_app->textinput, line);
+    }
+
+    /* Accumulate input for multi-line expressions */
+    size_t line_len = line ? strlen(line) : 0;
+    if (line_len > 0 && expr_pos + (int)line_len < (int)sizeof(expr_buffer) - 2) {
+        if (expr_pos > 0) {
+            expr_buffer[expr_pos++] = ' ';
+        }
+        strcpy(expr_buffer + expr_pos, line);
+        expr_pos += line_len;
+    }
+
+    /* Try to parse */
+    const char *input_ptr = expr_buffer;
+    LispObject *expr = lisp_read(&input_ptr);
+
+    /* Unclosed expression → continue reading */
+    if (expr != NULL && expr->type == LISP_ERROR && strstr(expr->value.error, "Unclosed") != NULL) {
+        repl_app_set_prompt(g_app, "... ");
+        tui_runtime_flush(g_runtime);
+        return;
+    }
+
+    if (expr == NULL) {
+        if (expr_pos == 0) {
+            tui_runtime_flush(g_runtime);
+            return;
+        }
+        repl_app_set_prompt(g_app, "... ");
+        tui_runtime_flush(g_runtime);
+        return;
+    }
+
+    if (expr->type == LISP_ERROR) {
+        char err_buf[4096];
+        snprintf(err_buf, sizeof(err_buf), "ERROR: %s\n", expr->value.error);
+        echo_to_viewport(err_buf);
+        expr_pos = 0;
+        expr_buffer[0] = '\0';
+        repl_app_set_prompt(g_app, ">>> ");
+        tui_runtime_flush(g_runtime);
+        return;
+    }
+
+    /* Capture stdout during eval */
+    int pipefd[2];
+    pipe(pipefd);
+    int saved_stdout = dup(STDOUT_FILENO);
+    dup2(pipefd[1], STDOUT_FILENO);
+
+    LispObject *eval_result = lisp_eval(expr, g_env);
+    fflush(stdout);
+
+    /* Restore stdout */
+    dup2(saved_stdout, STDOUT_FILENO);
+    close(saved_stdout);
+    close(pipefd[1]);
+
+    /* Read captured output */
+    fcntl(pipefd[0], F_SETFL, O_NONBLOCK);
+    char captured[4096];
+    ssize_t n;
+    while ((n = read(pipefd[0], captured, sizeof(captured) - 1)) > 0) {
+        captured[n] = '\0';
+        echo_to_viewport(captured);
+    }
+    close(pipefd[0]);
+
+    /* Display result */
+    if (eval_result->type == LISP_ERROR && !eval_result->value.error_with_stack.caught) {
+        char *err_str = lisp_print(eval_result);
+        char err_buf[4096];
+        snprintf(err_buf, sizeof(err_buf), "ERROR: %s\n", err_str);
+        echo_to_viewport(err_buf);
+    } else {
+        char *output = lisp_print(eval_result);
+        char out_buf[4096];
+        snprintf(out_buf, sizeof(out_buf), "%s\n", output);
+        echo_to_viewport(out_buf);
+    }
+
+    /* Reset buffer */
+    expr_pos = 0;
+    expr_buffer[0] = '\0';
+    repl_app_set_prompt(g_app, ">>> ");
+    tui_runtime_flush(g_runtime);
+}
+
+static void handle_tab_complete(TuiCmd *cmd)
+{
+    char *prefix = cmd->payload.tab_complete.prefix;
+    int word_start = cmd->payload.tab_complete.word_start;
+
+    /* Get the full input buffer for context detection */
+    const char *buffer = tui_textinput_text(g_app->textinput);
+    int cursor_pos = (int)tui_textinput_cursor(g_app->textinput);
+
+    LispCompleteContext ctx = detect_context(buffer, cursor_pos);
+    char **completions = lisp_get_completions(g_env, prefix, ctx);
+
+    if (completions && completions[0]) {
+        int count = 0;
+        while (completions[count])
+            count++;
+
+        if (count == 1) {
+            /* Single match — insert directly */
+            tui_textinput_insert_completion(g_app->textinput, word_start, completions[0]);
+        } else {
+            /* Compute longest common prefix */
+            const char *first = completions[0];
+            int common_len = (int)strlen(first);
+            for (int c = 1; c < count; c++) {
+                int j = 0;
+                while (j < common_len && completions[c][j] == first[j])
+                    j++;
+                common_len = j;
+            }
+
+            int prefix_len = (int)strlen(prefix);
+            if (common_len > prefix_len) {
+                /* Common prefix extends input — insert it */
+                char *common = malloc(common_len + 1);
+                if (common) {
+                    memcpy(common, first, common_len);
+                    common[common_len] = '\0';
+                    tui_textinput_insert_completion(g_app->textinput, word_start, common);
+                    free(common);
+                }
+            } else {
+                /* No extension — display tabular list */
+                int max_len = 0;
+                for (int c = 0; c < count; c++) {
+                    int len = (int)strlen(completions[c]);
+                    if (len > max_len)
+                        max_len = len;
+                }
+                int col_width = max_len + 2;
+                int term_cols = tui_runtime_get_width(g_runtime);
+                int cols = term_cols / col_width;
+                if (cols < 1)
+                    cols = 1;
+
+                char list_buf[8192];
+                int pos = 0;
+                for (int c = 0; c < count; c++) {
+                    int last_in_row = ((c + 1) % cols == 0) || (c == count - 1);
+                    int sn;
+                    if (last_in_row) {
+                        sn = snprintf(list_buf + pos, sizeof(list_buf) - pos, "%s\n", completions[c]);
+                    } else {
+                        sn = snprintf(list_buf + pos, sizeof(list_buf) - pos, "%-*s", col_width, completions[c]);
+                    }
+                    if (sn > 0 && pos + sn < (int)sizeof(list_buf))
+                        pos += sn;
+                }
+                list_buf[pos] = '\0';
+                echo_to_viewport(list_buf);
+            }
+        }
+
+        /* Free completions */
+        for (int c = 0; c < count; c++)
+            free(completions[c]);
+        free(completions);
+    }
+}
+
+static void handle_app_cmd(TuiCmd *cmd, void *user_data)
+{
+    (void)user_data;
+
+    if (cmd->type == TUI_CMD_LINE_SUBMIT) {
+        handle_line_submit(cmd->payload.line);
+    } else if (cmd->type == TUI_CMD_TAB_COMPLETE) {
+        handle_tab_complete(cmd);
+    }
+
+    tui_cmd_free(cmd);
+}
+
+/* --- Cleanup --- */
+
+static void cleanup(void)
+{
+    /* g_app is owned by the runtime — just null our pointer */
+    g_app = NULL;
+
+    if (g_runtime) {
+        tui_runtime_free(g_runtime);
+        g_runtime = NULL;
+    }
+}
+
 /* --- Interactive REPL --- */
 
 static void run_interactive_repl(Environment *env)
 {
-    /* Get terminal size */
-    update_terminal_size();
+    (void)env;
 
-    /* Create boba components */
-    g_input_parser = tui_input_parser_create();
-    g_render_buf = dynamic_buffer_create(4096);
-
-    ReplAppConfig config = {
-        .terminal_width = g_term_cols,
-        .terminal_height = g_term_rows,
+    ReplAppConfig app_config = {
+        .terminal_width = 80,
+        .terminal_height = 24,
     };
-    g_app = repl_app_create(&config);
-
-    if (!g_app || !g_input_parser || !g_render_buf) {
-        fprintf(stderr, "ERROR: Failed to create TUI components\n");
+    TuiRuntimeConfig runtime_config = {
+        .use_alternate_screen = 1,
+        .raw_mode = 1,
+        .enable_mouse = 1,
+        .output = stdout,
+        .cmd_handler = handle_app_cmd,
+        .cmd_handler_data = NULL,
+    };
+    g_runtime = tui_runtime_create((TuiComponent *)repl_app_component(), &app_config, &runtime_config);
+    if (!g_runtime) {
+        fprintf(stderr, "ERROR: Failed to create TUI runtime\n");
         return;
     }
+    g_app = (ReplAppModel *)tui_runtime_model(g_runtime);
 
     /* Register cleanup */
     atexit(cleanup);
-
-    /* Signal handlers */
-    signal(SIGINT, handle_sigint);
-    signal(SIGWINCH, handle_sigwinch);
-
-    /* Enter alternate screen, clear, home cursor */
-    fprintf(stdout, CSI "?1049h" CSI "2J" CSI "H");
-
-    /* Enable mouse (SGR extended mode) */
-    fprintf(stdout, CSI "?1000h" CSI "?1006h");
-    fflush(stdout);
-
-    /* Enter raw mode */
-    enable_raw_mode();
 
     /* Welcome message */
     char welcome[256];
@@ -323,293 +423,10 @@ static void run_interactive_repl(Environment *env)
     repl_app_echo(g_app, welcome, strlen(welcome));
 
     /* Initial render */
-    render_full_screen();
+    tui_runtime_flush(g_runtime);
 
-    /* Multi-line expression buffer */
-    static char expr_buffer[8192] = { 0 };
-    static int expr_pos = 0;
-
-    /* Event loop */
-    while (!g_quit_requested) {
-        /* Handle pending resize */
-        if (g_resize_requested) {
-            g_resize_requested = 0;
-            update_terminal_size();
-            repl_app_set_terminal_size(g_app, g_term_cols, g_term_rows);
-            render_full_screen();
-        }
-
-        /* Wait for stdin with timeout (100ms for signal responsiveness) */
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(STDIN_FILENO, &readfds);
-        struct timeval tv = { 0, 100000 };
-
-        int ready = select(STDIN_FILENO + 1, &readfds, NULL, NULL, &tv);
-        if (ready <= 0)
-            continue;
-
-        /* Read available bytes from stdin */
-        unsigned char buf[256];
-        ssize_t nread = read(STDIN_FILENO, buf, sizeof(buf));
-        if (nread <= 0)
-            continue;
-
-        /* Feed each byte to input parser */
-        for (ssize_t i = 0; i < nread; i++) {
-            TuiMsg msg;
-            if (!tui_input_parser_feed(g_input_parser, buf[i], &msg))
-                continue;
-
-            /* Mouse wheel → scroll viewport */
-            if (msg.type == TUI_MSG_MOUSE) {
-                if (msg.data.mouse.button == TUI_MOUSE_WHEEL_UP) {
-                    repl_app_scroll_up(g_app, 3);
-                    render_full_screen();
-                    continue;
-                }
-                if (msg.data.mouse.button == TUI_MOUSE_WHEEL_DOWN) {
-                    repl_app_scroll_down(g_app, 3);
-                    render_full_screen();
-                    continue;
-                }
-                continue;
-            }
-
-            /* PageUp/PageDown → page viewport */
-            if (msg.type == TUI_MSG_KEY_PRESS) {
-                if (msg.data.key.key == TUI_KEY_PAGE_UP) {
-                    repl_app_page_up(g_app);
-                    render_full_screen();
-                    continue;
-                }
-                if (msg.data.key.key == TUI_KEY_PAGE_DOWN) {
-                    repl_app_page_down(g_app);
-                    render_full_screen();
-                    continue;
-                }
-            }
-
-            /* Route to app update */
-            TuiUpdateResult result = repl_app_update(g_app, msg);
-
-            /* Handle commands from textinput */
-            if (result.cmd) {
-                if (result.cmd->type == TUI_CMD_LINE_SUBMIT) {
-                    char *line = result.cmd->payload.line;
-
-                    /* Skip empty lines if not accumulating */
-                    if ((!line || line[0] == '\0') && expr_pos == 0) {
-                        tui_cmd_free(result.cmd);
-                        render_full_screen();
-                        continue;
-                    }
-
-                    /* Echo the input line to viewport */
-                    {
-                        const char *prompt = expr_pos > 0 ? "... " : ">>> ";
-                        char echo_buf[8320];
-                        snprintf(echo_buf, sizeof(echo_buf), "%s%s\n", prompt, line ? line : "");
-                        echo_to_viewport(echo_buf);
-                    }
-
-                    /* Handle commands on first line */
-                    if (expr_pos == 0 && line) {
-                        int cmd_result = handle_command(line, env);
-                        if (cmd_result == 1) {
-                            tui_cmd_free(result.cmd);
-                            g_quit_requested = 1;
-                            break;
-                        } else if (cmd_result == 0) {
-                            tui_cmd_free(result.cmd);
-                            render_full_screen();
-                            continue;
-                        }
-                    }
-
-                    /* Add to history (first line only, non-empty) */
-                    if (line && line[0] != '\0' && expr_pos == 0) {
-                        tui_textinput_history_add(g_app->textinput, line);
-                    }
-
-                    /* Accumulate input for multi-line expressions */
-                    size_t line_len = line ? strlen(line) : 0;
-                    if (line_len > 0 && expr_pos + line_len < sizeof(expr_buffer) - 2) {
-                        if (expr_pos > 0) {
-                            expr_buffer[expr_pos++] = ' ';
-                        }
-                        strcpy(expr_buffer + expr_pos, line);
-                        expr_pos += line_len;
-                    }
-
-                    tui_cmd_free(result.cmd);
-
-                    /* Try to parse */
-                    const char *input_ptr = expr_buffer;
-                    LispObject *expr = lisp_read(&input_ptr);
-
-                    /* Unclosed expression → continue reading */
-                    if (expr != NULL && expr->type == LISP_ERROR && strstr(expr->value.error, "Unclosed") != NULL) {
-                        repl_app_set_prompt(g_app, "... ");
-                        render_full_screen();
-                        continue;
-                    }
-
-                    if (expr == NULL) {
-                        if (expr_pos == 0) {
-                            render_full_screen();
-                            continue;
-                        }
-                        repl_app_set_prompt(g_app, "... ");
-                        render_full_screen();
-                        continue;
-                    }
-
-                    if (expr->type == LISP_ERROR) {
-                        char err_buf[4096];
-                        snprintf(err_buf, sizeof(err_buf), "ERROR: %s\n", expr->value.error);
-                        echo_to_viewport(err_buf);
-                        expr_pos = 0;
-                        expr_buffer[0] = '\0';
-                        repl_app_set_prompt(g_app, ">>> ");
-                        render_full_screen();
-                        continue;
-                    }
-
-                    /* Capture stdout during eval */
-                    int pipefd[2];
-                    pipe(pipefd);
-                    int saved_stdout = dup(STDOUT_FILENO);
-                    dup2(pipefd[1], STDOUT_FILENO);
-
-                    LispObject *eval_result = lisp_eval(expr, env);
-                    fflush(stdout);
-
-                    /* Restore stdout */
-                    dup2(saved_stdout, STDOUT_FILENO);
-                    close(saved_stdout);
-                    close(pipefd[1]);
-
-                    /* Read captured output */
-                    fcntl(pipefd[0], F_SETFL, O_NONBLOCK);
-                    char captured[4096];
-                    ssize_t n;
-                    while ((n = read(pipefd[0], captured, sizeof(captured) - 1)) > 0) {
-                        captured[n] = '\0';
-                        echo_to_viewport(captured);
-                    }
-                    close(pipefd[0]);
-
-                    /* Display result */
-                    if (eval_result->type == LISP_ERROR && !eval_result->value.error_with_stack.caught) {
-                        char *err_str = lisp_print(eval_result);
-                        char err_buf[4096];
-                        snprintf(err_buf, sizeof(err_buf), "ERROR: %s\n", err_str);
-                        echo_to_viewport(err_buf);
-                    } else {
-                        char *output = lisp_print(eval_result);
-                        char out_buf[4096];
-                        snprintf(out_buf, sizeof(out_buf), "%s\n", output);
-                        echo_to_viewport(out_buf);
-                    }
-
-                    /* Reset buffer */
-                    expr_pos = 0;
-                    expr_buffer[0] = '\0';
-                    repl_app_set_prompt(g_app, ">>> ");
-                } else if (result.cmd->type == TUI_CMD_TAB_COMPLETE) {
-                    char *prefix = result.cmd->payload.tab_complete.prefix;
-                    int word_start = result.cmd->payload.tab_complete.word_start;
-
-                    /* Get the full input buffer for context detection */
-                    const char *buffer = tui_textinput_text(g_app->textinput);
-                    int cursor_pos = (int)tui_textinput_cursor(g_app->textinput);
-
-                    LispCompleteContext ctx = detect_context(buffer, cursor_pos);
-                    char **completions = lisp_get_completions(env, prefix, ctx);
-
-                    if (completions && completions[0]) {
-                        int count = 0;
-                        while (completions[count])
-                            count++;
-
-                        if (count == 1) {
-                            /* Single match — insert directly */
-                            tui_textinput_insert_completion(g_app->textinput,
-                                                            word_start, completions[0]);
-                        } else {
-                            /* Compute longest common prefix */
-                            const char *first = completions[0];
-                            int common_len = (int)strlen(first);
-                            for (int c = 1; c < count; c++) {
-                                int j = 0;
-                                while (j < common_len && completions[c][j] == first[j])
-                                    j++;
-                                common_len = j;
-                            }
-
-                            int prefix_len = (int)strlen(prefix);
-                            if (common_len > prefix_len) {
-                                /* Common prefix extends input — insert it */
-                                char *common = malloc(common_len + 1);
-                                if (common) {
-                                    memcpy(common, first, common_len);
-                                    common[common_len] = '\0';
-                                    tui_textinput_insert_completion(
-                                        g_app->textinput, word_start, common);
-                                    free(common);
-                                }
-                            } else {
-                                /* No extension — display tabular list */
-                                int max_len = 0;
-                                for (int c = 0; c < count; c++) {
-                                    int len = (int)strlen(completions[c]);
-                                    if (len > max_len)
-                                        max_len = len;
-                                }
-                                int col_width = max_len + 2;
-                                int cols = g_term_cols / col_width;
-                                if (cols < 1)
-                                    cols = 1;
-
-                                char list_buf[8192];
-                                int pos = 0;
-                                for (int c = 0; c < count; c++) {
-                                    int last_in_row = ((c + 1) % cols == 0) || (c == count - 1);
-                                    int n;
-                                    if (last_in_row) {
-                                        n = snprintf(list_buf + pos,
-                                                     sizeof(list_buf) - pos,
-                                                     "%s\n", completions[c]);
-                                    } else {
-                                        n = snprintf(list_buf + pos,
-                                                     sizeof(list_buf) - pos,
-                                                     "%-*s", col_width,
-                                                     completions[c]);
-                                    }
-                                    if (n > 0 && pos + n < (int)sizeof(list_buf))
-                                        pos += n;
-                                }
-                                list_buf[pos] = '\0';
-                                echo_to_viewport(list_buf);
-                            }
-                        }
-
-                        /* Free completions */
-                        for (int c = 0; c < count; c++)
-                            free(completions[c]);
-                        free(completions);
-                    }
-
-                    tui_cmd_free(result.cmd);
-                } else {
-                    tui_cmd_free(result.cmd);
-                }
-            }
-
-            render_full_screen();
-        }
-    }
+    /* Blocking event loop — runtime owns raw mode, signals, select() */
+    tui_runtime_run(g_runtime);
 }
 
 /* --- Main --- */
