@@ -5970,7 +5970,7 @@ static LispObject *builtin_read_json(LispObject *args, Environment *env)
             }
 
             /* Store in hash table */
-            hash_table_set_entry(result, key, json_value);
+            hash_table_set_entry(result, lisp_make_string(key), json_value);
 
             /* Skip whitespace */
             while (*p && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) {
@@ -6173,7 +6173,7 @@ static void write_value_expr(FILE *f, LispObject *val)
             struct HashEntry *entry = buckets[i];
             while (entry != NULL) {
                 fprintf(f, " (hash-set! ht ");
-                write_escaped_string(f, entry->key);
+                write_value_expr(f, entry->key);
                 fprintf(f, " ");
                 write_value_expr(f, entry->value);
                 fprintf(f, ")");
@@ -7145,12 +7145,7 @@ static LispObject *builtin_hash_ref(LispObject *args, Environment *env)
     }
 
     LispObject *key_obj = lisp_car(lisp_cdr(args));
-    if (key_obj->type != LISP_STRING && key_obj->type != LISP_SYMBOL) {
-        return lisp_make_error("hash-ref key must be a string or symbol");
-    }
-
-    const char *key = (key_obj->type == LISP_STRING) ? key_obj->value.string : key_obj->value.symbol->name;
-    struct HashEntry *entry = hash_table_get_entry(table, key);
+    struct HashEntry *entry = hash_table_get_entry(table, key_obj);
 
     if (entry) {
         return entry->value;
@@ -7172,14 +7167,9 @@ static LispObject *builtin_hash_set_bang(LispObject *args, Environment *env)
     }
 
     LispObject *key_obj = lisp_car(lisp_cdr(args));
-    if (key_obj->type != LISP_STRING && key_obj->type != LISP_SYMBOL) {
-        return lisp_make_error("hash-set! key must be a string or symbol");
-    }
-
-    const char *key = (key_obj->type == LISP_STRING) ? key_obj->value.string : key_obj->value.symbol->name;
     LispObject *value = lisp_car(lisp_cdr(lisp_cdr(args)));
 
-    hash_table_set_entry(table, key, value);
+    hash_table_set_entry(table, key_obj, value);
     return value;
 }
 
@@ -7196,12 +7186,7 @@ static LispObject *builtin_hash_remove_bang(LispObject *args, Environment *env)
     }
 
     LispObject *key_obj = lisp_car(lisp_cdr(args));
-    if (key_obj->type != LISP_STRING && key_obj->type != LISP_SYMBOL) {
-        return lisp_make_error("hash-remove! key must be a string or symbol");
-    }
-
-    const char *key = (key_obj->type == LISP_STRING) ? key_obj->value.string : key_obj->value.symbol->name;
-    int removed = hash_table_remove_entry(table, key);
+    int removed = hash_table_remove_entry(table, key_obj);
 
     return removed ? LISP_TRUE : NIL;
 }
@@ -7258,8 +7243,7 @@ static LispObject *builtin_hash_keys(LispObject *args, Environment *env)
     for (size_t i = 0; i < bucket_count; i++) {
         struct HashEntry *entry = buckets[i];
         while (entry != NULL) {
-            LispObject *key_obj = lisp_make_string(entry->key);
-            LispObject *new_cons = lisp_make_cons(key_obj, NIL);
+            LispObject *new_cons = lisp_make_cons(entry->key, NIL);
 
             if (result == NIL) {
                 result = new_cons;
@@ -7336,11 +7320,8 @@ static LispObject *builtin_hash_entries(LispObject *args, Environment *env)
     for (size_t i = 0; i < bucket_count; i++) {
         struct HashEntry *entry = buckets[i];
         while (entry != NULL) {
-            LispObject *key_obj = lisp_make_string(entry->key);
-            LispObject *value_obj = entry->value;
-
             /* Create (key . value) pair */
-            LispObject *pair = lisp_make_cons(key_obj, value_obj);
+            LispObject *pair = lisp_make_cons(entry->key, entry->value);
             LispObject *new_cons = lisp_make_cons(pair, NIL);
 
             if (result == NIL) {

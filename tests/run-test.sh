@@ -26,22 +26,18 @@ if [ -z "$TEST_FILE" ]; then
 	exit 1
 fi
 
-# Convert to path relative to project root if it's under tests/
+# Resolve to absolute path from current working directory
+if [ -f "$TEST_FILE" ]; then
+	TEST_FILE="$(cd "$(dirname "$TEST_FILE")" && pwd)/$(basename "$TEST_FILE")"
+fi
+
+# Strip project root prefix to get a path relative to project root
+TEST_FILE="${TEST_FILE#"$PROJECT_ROOT/"}"
+
+# Ensure tests/ prefix
 case "$TEST_FILE" in
-/*)
-	# Absolute path - convert to relative
-	TEST_FILE="tests/$(basename "$(dirname "$TEST_FILE")")/$(basename "$TEST_FILE")"
-	;;
-*/*)
-	# Relative with directory - ensure it has tests/ prefix if needed
-	if [ ! -f "$PROJECT_ROOT/$TEST_FILE" ]; then
-		TEST_FILE="tests/$TEST_FILE"
-	fi
-	;;
-*)
-	# Just a filename - assume it's in tests/
-	TEST_FILE="tests/$TEST_FILE"
-	;;
+tests/*) ;; # Already has tests/ prefix
+*) TEST_FILE="tests/$TEST_FILE" ;;
 esac
 
 # Run from project root

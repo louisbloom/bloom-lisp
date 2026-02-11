@@ -275,16 +275,17 @@ extern LispObject *sym_error;
 /* Hash table entry structure */
 struct HashEntry
 {
-    char *key;
+    LispObject *key;
     LispObject *value;
     struct HashEntry *next;
 };
 
 /* Hash table operations */
-struct HashEntry *hash_table_get_entry(LispObject *table, const char *key);
-struct HashEntry *hash_table_set_entry(LispObject *table, const char *key, LispObject *value);
-int hash_table_remove_entry(LispObject *table, const char *key);
+struct HashEntry *hash_table_get_entry(LispObject *table, LispObject *key);
+struct HashEntry *hash_table_set_entry(LispObject *table, LispObject *key, LispObject *value);
+int hash_table_remove_entry(LispObject *table, LispObject *key);
 void hash_table_clear(LispObject *table);
+int hash_keys_equal(LispObject *a, LispObject *b);
 
 /* Object utilities */
 int lisp_is_truthy(LispObject *obj);

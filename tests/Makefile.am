@@ -7,6 +7,7 @@ TESTS = \
     basic/hash_tables.lisp \
     basic/integer_ops.lisp \
     basic/integers.lisp \
+    basic/keywords.lisp \
     basic/length.lisp \
     basic/list_reverse.lisp \
     basic/path_expansion.lisp \

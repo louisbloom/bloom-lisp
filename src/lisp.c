@@ -113,7 +113,8 @@ LispObject *lisp_intern(const char *name)
     }
 
     /* Look up symbol in intern table */
-    struct HashEntry *entry = hash_table_get_entry(symbol_table, name);
+    LispObject *name_key = lisp_make_string(name);
+    struct HashEntry *entry = hash_table_get_entry(symbol_table, name_key);
     if (entry != NULL) {
         return entry->value; /* Return existing symbol */
     }
@@ -129,7 +130,7 @@ LispObject *lisp_intern(const char *name)
     obj->value.symbol = sym;
 
     /* Add to intern table */
-    hash_table_set_entry(symbol_table, name, obj);
+    hash_table_set_entry(symbol_table, name_key, obj);
 
     return obj;
 }
@@ -154,7 +155,8 @@ LispObject *lisp_make_keyword(const char *name)
     }
 
     /* Look up keyword in intern table */
-    struct HashEntry *entry = hash_table_get_entry(keyword_table, name);
+    LispObject *name_key = lisp_make_string(name);
+    struct HashEntry *entry = hash_table_get_entry(keyword_table, name_key);
     if (entry != NULL) {
         return entry->value; /* Return existing keyword */
     }
@@ -170,7 +172,7 @@ LispObject *lisp_make_keyword(const char *name)
     obj->value.symbol = sym;
 
     /* Add to intern table */
-    hash_table_set_entry(keyword_table, name, obj);
+    hash_table_set_entry(keyword_table, name_key, obj);
 
     return obj;
 }
