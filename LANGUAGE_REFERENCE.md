@@ -1385,24 +1385,26 @@ The condition system provides Emacs Lisp-style error handling with typed errors,
 
 Functions for managing the package system. All functions also have `package-` prefixed aliases for tab-completion discoverability.
 
-- `in-package` - Set the current package (string or symbol). Alias: `package-set`
+- `in-package` - Set the current package (symbol). Alias: `package-set`
 - `current-package` - Return the current package name as a symbol. Alias: `package-current`
-- `list-packages` - Return a list of all package names. Alias: `package-list`
-- `package-symbols` - Return an alist of `(symbol . value)` pairs for a named package
-- `package-save` - Save package bindings to a file as valid Lisp source. Takes a filename and optional package name (defaults to current package). The output file can be loaded with `(load filename)`.
+- `list-packages` - Return a list of all package names as symbols. Alias: `package-list`
+- `package-symbols` - Return an alist of `(symbol . value)` pairs for a named package (symbol)
+- `package-save` - Save package bindings to a file as valid Lisp source. Takes a filename and optional package name symbol (defaults to current package). The output file can be loaded with `(load filename)`.
+
+All package functions accept symbols as package names. Strings are also accepted for convenience and are converted to symbols internally.
 
 ```lisp
 ;; Switch to a custom package
-(in-package "math")
+(in-package 'math)
 (define pi 3.14159)
 
 ;; Switch back and inspect
-(in-package "user")
-(package-symbols "math")   ; => ((pi . 3.14159))
+(in-package 'user)
+(package-symbols 'math)    ; => ((pi . 3.14159))
 (list-packages)             ; => (core user math)
 
 ;; Save and restore
-(package-save "math-lib.lisp" "math")
+(package-save "math-lib.lisp" 'math)
 (load "math-lib.lisp")
 ```
 
@@ -1823,16 +1825,16 @@ See [Package Functions](#package-functions) for the full function reference. All
 
 ### Current Package
 
-The `*package*` variable controls where `define` creates new bindings. It defaults to `user`.
+The `*package*` variable controls where `define` creates new bindings. It defaults to `user`. Packages are referenced by symbol.
 
 - `current-package` (alias: `package-current`) - Return the current package name as a symbol
-- `in-package` (alias: `package-set`) - Set the current package (accepts a string or symbol)
+- `in-package` (alias: `package-set`) - Set the current package (symbol; strings also accepted for convenience)
 
 ```lisp
 (current-package)       ; => user
-(in-package "math")
+(in-package 'math)
 (current-package)       ; => math
-(in-package 'user)      ; accepts symbols too
+(in-package 'user)
 ```
 
 ### Qualified Symbol Access
@@ -1840,11 +1842,11 @@ The `*package*` variable controls where `define` creates new bindings. It defaul
 Use `pkg:symbol` syntax to access a binding in a specific package:
 
 ```lisp
-(in-package "math")
+(in-package 'math)
 (define pi 3.14159)
 (define add (lambda (a b) (+ a b)))
 
-(in-package "user")
+(in-package 'user)
 math:pi                 ; => 3.14159
 (math:add 2 3)          ; => 5
 (core:+ 10 20)          ; => 30 (access builtins explicitly)
@@ -1854,15 +1856,15 @@ The reader translates `pkg:sym` into the `(package-ref "pkg" sym)` special form.
 
 ### Package Introspection
 
-- `package-symbols` - Return an alist of `(symbol . value)` pairs for a named package
-- `list-packages` (alias: `package-list`) - Return a list of all package names
+- `package-symbols` - Return an alist of `(symbol . value)` pairs for a named package (symbol)
+- `list-packages` (alias: `package-list`) - Return a list of all package names as symbols
 
 ```lisp
-(in-package "math")
+(in-package 'math)
 (define x 42)
-(in-package "user")
+(in-package 'user)
 
-(package-symbols "math")  ; => ((x . 42) ...)
+(package-symbols 'math)   ; => ((x . 42) ...)
 (list-packages)            ; => (core user math)
 ```
 
@@ -1871,7 +1873,7 @@ The reader translates `pkg:sym` into the `(package-ref "pkg" sym)` special form.
 - `package-save` - Save a package's bindings to a file as loadable Lisp source
 
 ```lisp
-(package-save "math-lib.lisp" "math")  ; save specific package
+(package-save "math-lib.lisp" 'math)  ; save specific package
 (package-save "session.lisp")          ; save current package
 (load "math-lib.lisp")                 ; restore later
 ```

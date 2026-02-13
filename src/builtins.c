@@ -1240,7 +1240,7 @@ static const char *doc_package_save =
     "\n"
     "## Parameters\n"
     "- `filename` - Path to write (string)\n"
-    "- `package` (optional) - Package name (string). Defaults to current package.\n"
+    "- `package` (optional) - Package name (symbol). Defaults to current package.\n"
     "\n"
     "## Returns\n"
     "`#t` on success.\n"
@@ -1249,25 +1249,26 @@ static const char *doc_package_save =
     "```lisp\n"
     "(define x 42)\n"
     "(package-save \"my-pkg.lisp\")\n"
-    "(package-save \"math.lisp\" \"math\")\n"
+    "(package-save \"math.lisp\" 'math)\n"
     "```\n"
     "\n"
     "## Notes\n"
-    "The output file can be loaded with `(load filename)`.";
+    "The output file can be loaded with `(load filename)`. Strings are also accepted\n"
+    "for the package name and converted to symbols internally.";
 
 static const char *doc_in_package =
     "Set the current package.\n"
     "\n"
     "## Parameters\n"
-    "- `name` - Package name (symbol or string)\n"
+    "- `name` - Package name (symbol). Strings also accepted for convenience.\n"
     "\n"
     "## Returns\n"
     "The package name as a symbol.\n"
     "\n"
     "## Examples\n"
     "```lisp\n"
-    "(in-package \"math\")\n"
-    "(in-package user)\n"
+    "(in-package 'math)\n"
+    "(in-package 'user)\n"
     "```";
 
 static const char *doc_current_package =
@@ -1282,18 +1283,18 @@ static const char *doc_package_symbols =
     "Return an alist of bindings in the named package.\n"
     "\n"
     "## Parameters\n"
-    "- `name` - Package name (string or symbol)\n"
+    "- `name` - Package name (symbol). Strings also accepted for convenience.\n"
     "\n"
     "## Returns\n"
     "An alist of `(symbol . value)` pairs.\n"
     "\n"
     "## Examples\n"
     "```lisp\n"
-    "(package-symbols \"user\") ; => ((x . 42) ...)\n"
+    "(package-symbols 'user) ; => ((x . 42) ...)\n"
     "```";
 
 static const char *doc_list_packages =
-    "Return a list of distinct package names.\n"
+    "Return a list of distinct package names as symbols.\n"
     "\n"
     "## Examples\n"
     "```lisp\n"
