@@ -20,7 +20,7 @@
 ;; ===========================================
 ;; in-package changes current package
 ;; ===========================================
-(in-package "math")
+(in-package 'math)
 
 (assert-equal (current-package) 'math "in-package changes package to math")
 
@@ -32,19 +32,19 @@
 ;; ===========================================
 ;; package-symbols returns bindings
 ;; ===========================================
-(let ((syms (package-symbols "math")))
+(let ((syms (package-symbols 'math)))
   (assert-true (list? syms) "package-symbols returns a list")
   ;; Should contain math-add and math-pi
   (assert-true (assoc 'math-add syms) "package-symbols contains math-add")
   (assert-true (assoc 'math-pi syms) "package-symbols contains math-pi"))
-;; package-symbols accepts symbol argument
-(let ((syms (package-symbols 'math)))
-  (assert-true (assoc 'math-add syms) "package-symbols accepts symbol arg"))
+;; package-symbols accepts string argument
+(let ((syms (package-symbols "math")))
+  (assert-true (assoc 'math-add syms) "package-symbols accepts string arg"))
 
 ;; ===========================================
 ;; Qualified access with pkg:symbol
 ;; ===========================================
-(in-package "user")
+(in-package 'user)
 
 (assert-equal math:math-pi 3.14159 "pkg:symbol resolves across packages")
 (assert-equal (math:math-add 2 3) 5 "pkg:symbol resolves function in package")
@@ -73,23 +73,23 @@
 (assert-equal (math-add 10 20) 30 "unqualified names resolve across packages")
 
 ;; ===========================================
-;; in-package accepts symbol argument
+;; in-package accepts string argument
 ;; ===========================================
-(in-package 'user)
+(in-package "user")
 
-(assert-equal (current-package) 'user "in-package accepts symbol argument")
+(assert-equal (current-package) 'user "in-package accepts string argument")
 
 ;; ===========================================
 ;; package- prefixed aliases
 ;; ===========================================
-(package-set "alias-test")
+(package-set 'alias-test)
 
 (assert-equal (package-current) 'alias-test
  "package-set / package-current work")
 
 (define alias-test-var 1)
 
-(package-set "user")
+(package-set 'user)
 
 (let ((pkgs (package-list)))
   (assert-true (memq 'core pkgs) "package-list includes core")
@@ -155,7 +155,7 @@
 (define pkg-save-file "tests/basic/_test_pkg_save2.lisp")
 
 (unwind-protect
-  (progn (package-save pkg-save-file "math")
+  (progn (package-save pkg-save-file 'math)
     (define content-str (read-file-string pkg-save-file))
     (assert-true (regex-match? "math-pi" content-str)
      "package-save with package arg saves that package")
