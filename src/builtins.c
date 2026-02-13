@@ -1241,6 +1241,8 @@ static const char *doc_package_save =
     "## Parameters\n"
     "- `filename` - Path to write (string)\n"
     "- `package` (optional) - Package name (symbol). Defaults to current package.\n"
+    "- `:defun` (optional) - Extract lambdas into named `defun` forms for readability.\n"
+    "- `:format` (optional) - Pretty-print the output (requires lisp-fmt.lisp to be loaded).\n"
     "\n"
     "## Returns\n"
     "`#t` on success.\n"
@@ -1250,11 +1252,20 @@ static const char *doc_package_save =
     "(define x 42)\n"
     "(package-save \"my-pkg.lisp\")\n"
     "(package-save \"math.lisp\" 'math)\n"
+    "(package-save \"my-pkg.lisp\" :defun)\n"
+    "(package-save \"math.lisp\" 'math :defun)\n"
+    "(package-save \"my-pkg.lisp\" :defun :format)\n"
     "```\n"
     "\n"
     "## Notes\n"
     "The output file can be loaded with `(load filename)`. Strings are also accepted\n"
-    "for the package name and converted to symbols internally.";
+    "for the package name and converted to symbols internally.\n"
+    "\n"
+    "With `:defun`, top-level lambdas emit as `(defun name ...)` and nested lambdas\n"
+    "are extracted into separate defun forms referenced by name.\n"
+    "\n"
+    "With `:format`, the output is pretty-printed using `format-file` from lisp-fmt.lisp.\n"
+    "Load lisp-fmt.lisp first: `(load \"lisp/lisp-fmt.lisp\")`.";
 
 static const char *doc_in_package =
     "Set the current package.\n"
@@ -6183,7 +6194,111 @@ static void write_escaped_string(FILE *f, const char *str)
     fputc('"', f);
 }
 
-static void write_value_expr(FILE *f, LispObject *val)
+/* Extracted lambda tracking for :defun mode */
+typedef struct ExtractedLambda
+{
+    LispObject *obj;
+    char name[256];
+    struct ExtractedLambda *next;
+} ExtractedLambda;
+
+static void collect_lambdas(LispObject *val, ExtractedLambda **list, int *counter,
+                            const char *binding_name)
+{
+    if (val == NULL || val == NIL)
+        return;
+    switch (val->type) {
+    case LISP_LAMBDA:
+    {
+        /* Check if already collected (pointer equality) */
+        for (ExtractedLambda *e = *list; e != NULL; e = e->next) {
+            if (e->obj == val)
+                return;
+        }
+        ExtractedLambda *entry = GC_MALLOC(sizeof(ExtractedLambda));
+        entry->obj = val;
+        if (val->value.lambda.name && strncmp(val->value.lambda.name, "lambda", 6) != 0) {
+            snprintf(entry->name, sizeof(entry->name), "%s", val->value.lambda.name);
+        } else {
+            snprintf(entry->name, sizeof(entry->name), "%s--fn-%d", binding_name, (*counter)++);
+        }
+        entry->next = NULL;
+        /* Append to end of list to maintain discovery order */
+        if (*list == NULL) {
+            *list = entry;
+        } else {
+            ExtractedLambda *tail = *list;
+            while (tail->next != NULL)
+                tail = tail->next;
+            tail->next = entry;
+        }
+        /* Recurse into lambda body to find nested lambdas */
+        LispObject *body = val->value.lambda.body;
+        while (body != NIL && body->type == LISP_CONS) {
+            collect_lambdas(lisp_car(body), list, counter, binding_name);
+            body = lisp_cdr(body);
+        }
+        break;
+    }
+    case LISP_CONS:
+    {
+        LispObject *cur = val;
+        while (cur != NIL && cur->type == LISP_CONS) {
+            collect_lambdas(lisp_car(cur), list, counter, binding_name);
+            cur = lisp_cdr(cur);
+        }
+        if (cur != NIL)
+            collect_lambdas(cur, list, counter, binding_name);
+        break;
+    }
+    case LISP_VECTOR:
+        for (size_t i = 0; i < val->value.vector.size; i++) {
+            collect_lambdas(val->value.vector.items[i], list, counter, binding_name);
+        }
+        break;
+    case LISP_HASH_TABLE:
+    {
+        struct HashEntry **buckets = (struct HashEntry **)val->value.hash_table.buckets;
+        size_t bucket_count = val->value.hash_table.bucket_count;
+        for (size_t i = 0; i < bucket_count; i++) {
+            struct HashEntry *entry = buckets[i];
+            while (entry != NULL) {
+                collect_lambdas(entry->value, list, counter, binding_name);
+                entry = entry->next;
+            }
+        }
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+static const char *find_lambda_name(ExtractedLambda *list, LispObject *obj)
+{
+    for (ExtractedLambda *e = list; e != NULL; e = e->next) {
+        if (e->obj == obj)
+            return e->name;
+    }
+    return NULL;
+}
+
+static void write_defun(FILE *f, const char *name, LispObject *lambda)
+{
+    fprintf(f, "(defun %s %s", name, lisp_print(lambda->value.lambda.params));
+    if (lambda->value.lambda.docstring) {
+        fprintf(f, "\n  ");
+        write_escaped_string(f, lambda->value.lambda.docstring);
+    }
+    LispObject *body = lambda->value.lambda.body;
+    while (body != NIL && body->type == LISP_CONS) {
+        fprintf(f, "\n  %s", lisp_print(lisp_car(body)));
+        body = lisp_cdr(body);
+    }
+    fprintf(f, ")\n\n");
+}
+
+static void write_value_expr(FILE *f, LispObject *val, ExtractedLambda *extracted)
 {
     if (val == NULL || val == NIL) {
         fprintf(f, "nil");
@@ -6192,18 +6307,24 @@ static void write_value_expr(FILE *f, LispObject *val)
     switch (val->type) {
     case LISP_LAMBDA:
     {
-        fprintf(f, "(lambda %s", lisp_print(val->value.lambda.params));
-        /* Emit docstring if present */
-        if (val->value.lambda.docstring) {
-            fprintf(f, " ");
-            write_escaped_string(f, val->value.lambda.docstring);
+        /* In defun mode, emit extracted name instead of inline lambda */
+        const char *extracted_name = extracted ? find_lambda_name(extracted, val) : NULL;
+        if (extracted_name) {
+            fprintf(f, "%s", extracted_name);
+        } else {
+            fprintf(f, "(lambda %s", lisp_print(val->value.lambda.params));
+            /* Emit docstring if present */
+            if (val->value.lambda.docstring) {
+                fprintf(f, " ");
+                write_escaped_string(f, val->value.lambda.docstring);
+            }
+            LispObject *body = val->value.lambda.body;
+            while (body != NIL && body->type == LISP_CONS) {
+                fprintf(f, " %s", lisp_print(lisp_car(body)));
+                body = lisp_cdr(body);
+            }
+            fprintf(f, ")");
         }
-        LispObject *body = val->value.lambda.body;
-        while (body != NIL && body->type == LISP_CONS) {
-            fprintf(f, " %s", lisp_print(lisp_car(body)));
-            body = lisp_cdr(body);
-        }
-        fprintf(f, ")");
         break;
     }
     case LISP_MACRO:
@@ -6236,9 +6357,9 @@ static void write_value_expr(FILE *f, LispObject *val)
             struct HashEntry *entry = buckets[i];
             while (entry != NULL) {
                 fprintf(f, " (hash-set! ht ");
-                write_value_expr(f, entry->key);
+                write_value_expr(f, entry->key, extracted);
                 fprintf(f, " ");
-                write_value_expr(f, entry->value);
+                write_value_expr(f, entry->value, extracted);
                 fprintf(f, ")");
                 entry = entry->next;
             }
@@ -6254,14 +6375,14 @@ static void write_value_expr(FILE *f, LispObject *val)
             LispObject *cur = val;
             while (cur != NIL && cur->type == LISP_CONS) {
                 fprintf(f, " ");
-                write_value_expr(f, lisp_car(cur));
+                write_value_expr(f, lisp_car(cur), extracted);
                 cur = lisp_cdr(cur);
             }
             if (cur != NIL) {
                 /* Dotted pair - can't use list, fall back to cons */
                 /* This is a rare edge case */
                 fprintf(f, " . ");
-                write_value_expr(f, cur);
+                write_value_expr(f, cur, extracted);
             }
             fprintf(f, ")");
         } else {
@@ -6275,7 +6396,7 @@ static void write_value_expr(FILE *f, LispObject *val)
             fprintf(f, "(vector");
             for (size_t i = 0; i < val->value.vector.size; i++) {
                 fprintf(f, " ");
-                write_value_expr(f, val->value.vector.items[i]);
+                write_value_expr(f, val->value.vector.items[i], extracted);
             }
             fprintf(f, ")");
         } else {
@@ -6305,20 +6426,27 @@ static LispObject *builtin_package_save(LispObject *args, Environment *env)
     }
 
     LispObject *first_arg = lisp_car(args);
-    LispObject *second_arg = lisp_cadr(args);
-    LispObject *filename_obj;
-    Symbol *target_pkg;
+    LispObject *filename_obj = first_arg;
+    Symbol *target_pkg = NULL;
+    int defun_mode = 0;
+    int format_mode = 0;
 
-    if (second_arg != NIL && second_arg->type == LISP_STRING) {
-        /* (package-save "file" "pkg") - deprecated arg order compat */
-        /* Actually: (package-save "file") or (package-save "file" "pkg") */
-        filename_obj = first_arg;
-        target_pkg = lisp_intern(second_arg->value.string)->value.symbol;
-    } else if (second_arg != NIL && second_arg->type == LISP_SYMBOL) {
-        filename_obj = first_arg;
-        target_pkg = second_arg->value.symbol;
-    } else {
-        filename_obj = first_arg;
+    /* Scan remaining args for package name, :defun, and :format keywords */
+    LispObject *rest = lisp_cdr(args);
+    while (rest != NIL && rest->type == LISP_CONS) {
+        LispObject *arg = lisp_car(rest);
+        if (arg->type == LISP_KEYWORD && strcmp(arg->value.symbol->name, ":defun") == 0) {
+            defun_mode = 1;
+        } else if (arg->type == LISP_KEYWORD && strcmp(arg->value.symbol->name, ":format") == 0) {
+            format_mode = 1;
+        } else if (arg->type == LISP_STRING) {
+            target_pkg = lisp_intern(arg->value.string)->value.symbol;
+        } else if (arg->type == LISP_SYMBOL) {
+            target_pkg = arg->value.symbol;
+        }
+        rest = lisp_cdr(rest);
+    }
+    if (target_pkg == NULL) {
         target_pkg = env_current_package(env);
     }
 
@@ -6383,9 +6511,23 @@ static LispObject *builtin_package_save(LispObject *args, Environment *env)
                 body = lisp_cdr(body);
             }
             fprintf(f, ")\n\n");
+        } else if (defun_mode && val != NULL && val->type == LISP_LAMBDA) {
+            /* Top-level lambda: emit as defun directly */
+            write_defun(f, name, val);
+        } else if (defun_mode && val != NULL) {
+            /* Extract nested lambdas, emit defuns, then define */
+            ExtractedLambda *extracted = NULL;
+            int counter = 0;
+            collect_lambdas(val, &extracted, &counter, name);
+            for (ExtractedLambda *e = extracted; e != NULL; e = e->next) {
+                write_defun(f, e->name, e->obj);
+            }
+            fprintf(f, "(define %s ", name);
+            write_value_expr(f, val, extracted);
+            fprintf(f, ")\n\n");
         } else {
             fprintf(f, "(define %s ", name);
-            write_value_expr(f, val);
+            write_value_expr(f, val, NULL);
             fprintf(f, ")\n\n");
         }
 
@@ -6393,6 +6535,29 @@ static LispObject *builtin_package_save(LispObject *args, Environment *env)
     }
 
     fclose(f);
+
+    /* Optionally format the output using lisp-fmt's format-file */
+    if (format_mode) {
+        LispObject *fmt_sym = lisp_intern("format-file");
+        LispObject *fmt_func = env_lookup(env, fmt_sym->value.symbol);
+        if (fmt_func == NULL) {
+            return lisp_make_error(
+                "package-save: :format requires lisp-fmt.lisp to be loaded first");
+        }
+        LispObject *call = lisp_make_cons(fmt_sym, lisp_make_cons(filename_obj, NIL));
+        LispObject *result = lisp_eval(call, env);
+        if (result != NULL && result->type == LISP_ERROR) {
+            return result;
+        }
+        if (result != NULL && result->type == LISP_STRING) {
+            FILE *f2 = file_open(filename_obj->value.string, "w");
+            if (f2 != NULL) {
+                fputs(result->value.string, f2);
+                fclose(f2);
+            }
+        }
+    }
+
     return LISP_TRUE;
 }
 

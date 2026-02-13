@@ -10,6 +10,11 @@
 ;;;   - List continuations align with first element
 ;;;   - Comments are preserved (leading and inline)
 ;;; ============================================================================
+;;; Package
+;;; ============================================================================
+(in-package "lisp-fmt")
+
+;;; ============================================================================
 ;;; Configuration
 ;;; ============================================================================
 (define *max-column* 79)
@@ -1252,5 +1257,5 @@
                 (format-file-inplace file)
                 (princ (format-file file))))))))))
 
-(main)
+(when (and (bound? '*command-line-args*) *command-line-args*) (main))
 
