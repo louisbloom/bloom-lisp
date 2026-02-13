@@ -299,10 +299,10 @@ size_t lisp_list_length(LispObject *list);
 
 /* Environment functions */
 Environment *env_create(Environment *parent);
-void env_define_sym(Environment *env, Symbol *sym, LispObject *value, Symbol *package);
-LispObject *env_lookup_sym(Environment *env, Symbol *sym);
-LispObject *env_lookup_sym_in_package(Environment *env, Symbol *sym, Symbol *package);
-int env_set_sym(Environment *env, Symbol *sym, LispObject *value);
+void env_define(Environment *env, Symbol *sym, LispObject *value, Symbol *package);
+LispObject *env_lookup(Environment *env, Symbol *sym);
+LispObject *env_lookup_in_package(Environment *env, Symbol *sym, Symbol *package);
+int env_set(Environment *env, Symbol *sym, LispObject *value);
 void env_free(Environment *env);
 Symbol *env_current_package(Environment *env);
 Environment *env_create_global(void);
@@ -312,12 +312,6 @@ Environment *env_create_user(Environment *global);
 __attribute__((deprecated("use env_create_user")))
 Environment *
 env_create_session(Environment *global);
-
-/* Deprecated — use _sym variants with lisp_intern()->value.symbol instead */
-__attribute__((deprecated("use env_define_sym"))) void env_define(Environment *env, const char *name,
-                                                                  LispObject *value);
-__attribute__((deprecated("use env_lookup_sym"))) LispObject *env_lookup(Environment *env, const char *name);
-__attribute__((deprecated("use env_set_sym"))) int env_set(Environment *env, const char *name, LispObject *value);
 
 /* Call stack functions */
 void push_call_frame(Environment *env, const char *function_name);

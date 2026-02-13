@@ -104,7 +104,7 @@ Environment *env_create(Environment *parent)
     return env;
 }
 
-void env_define_sym(Environment *env, Symbol *sym, LispObject *value, Symbol *package)
+void env_define(Environment *env, Symbol *sym, LispObject *value, Symbol *package)
 {
     size_t idx = hash_symbol(sym, env->bucket_count);
     /* Check if binding already exists (pointer comparison) */
@@ -133,7 +133,7 @@ void env_define_sym(Environment *env, Symbol *sym, LispObject *value, Symbol *pa
     env->binding_count++;
 }
 
-LispObject *env_lookup_sym(Environment *env, Symbol *sym)
+LispObject *env_lookup(Environment *env, Symbol *sym)
 {
     while (env != NULL) {
         size_t idx = hash_symbol(sym, env->bucket_count);
@@ -149,7 +149,7 @@ LispObject *env_lookup_sym(Environment *env, Symbol *sym)
     return NULL;
 }
 
-LispObject *env_lookup_sym_in_package(Environment *env, Symbol *sym, Symbol *package)
+LispObject *env_lookup_in_package(Environment *env, Symbol *sym, Symbol *package)
 {
     while (env != NULL) {
         size_t idx = hash_symbol(sym, env->bucket_count);
@@ -167,14 +167,14 @@ LispObject *env_lookup_sym_in_package(Environment *env, Symbol *sym, Symbol *pac
 
 Symbol *env_current_package(Environment *env)
 {
-    LispObject *val = env_lookup_sym(env, sym_star_package_star->value.symbol);
+    LispObject *val = env_lookup(env, sym_star_package_star->value.symbol);
     if (val != NULL && val->type == LISP_SYMBOL) {
         return val->value.symbol;
     }
     return pkg_core;
 }
 
-int env_set_sym(Environment *env, Symbol *sym, LispObject *value)
+int env_set(Environment *env, Symbol *sym, LispObject *value)
 {
     /* Look for binding in current or parent environments */
     while (env != NULL) {
@@ -191,27 +191,6 @@ int env_set_sym(Environment *env, Symbol *sym, LispObject *value)
     }
     return 0; /* Variable not found */
 }
-
-/* Deprecated wrappers — intern name then delegate to _sym variant */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
-void env_define(Environment *env, const char *name, LispObject *value)
-{
-    env_define_sym(env, lisp_intern(name)->value.symbol, value, NULL);
-}
-
-LispObject *env_lookup(Environment *env, const char *name)
-{
-    return env_lookup_sym(env, lisp_intern(name)->value.symbol);
-}
-
-int env_set(Environment *env, const char *name, LispObject *value)
-{
-    return env_set_sym(env, lisp_intern(name)->value.symbol, value);
-}
-
-#pragma GCC diagnostic pop
 
 void env_free(Environment *env)
 {
@@ -384,8 +363,8 @@ Environment *env_create_global(void)
     Environment *env = env_create(NULL);
 
     /* Set *package* to core before registering builtins and stdlib */
-    env_define_sym(env, sym_star_package_star->value.symbol,
-                   lisp_intern("core"), pkg_core);
+    env_define(env, sym_star_package_star->value.symbol,
+               lisp_intern("core"), pkg_core);
     register_builtins(env);
 
     /* Load standard library (defun, defvar, defconst, defalias, aliases) */
@@ -401,8 +380,8 @@ Environment *env_create_user(Environment *global)
     Environment *env = env_create(global);
     env->call_stack = global->call_stack;
     env->handler_stack = global->handler_stack;
-    env_define_sym(env, sym_star_package_star->value.symbol,
-                   lisp_intern("user"), pkg_core);
+    env_define(env, sym_star_package_star->value.symbol,
+               lisp_intern("user"), pkg_core);
     return env;
 }
 
