@@ -18,6 +18,7 @@ TESTS = \
     basic/string_ports.lisp \
     basic/strings.lisp \
     basic/symbols.lisp \
+    basic/packages.lisp \
     basic/vectors.lisp \
     advanced/collection_iteration.lisp \
     advanced/cond_case.lisp \

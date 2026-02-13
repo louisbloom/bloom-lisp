@@ -42,6 +42,10 @@ LispObject *sym_else = NULL;
 LispObject *sym_optional = NULL;
 LispObject *sym_rest = NULL;
 LispObject *sym_error = NULL;
+LispObject *sym_package_ref = NULL;
+LispObject *sym_star_package_star = NULL;
+Symbol *pkg_core = NULL;
+Symbol *pkg_user = NULL;
 
 /* Small integer cache: -1 through 255 (257 objects) */
 #define SMALL_INT_MIN   (-1)
@@ -473,6 +477,10 @@ int lisp_init(void)
     sym_optional = lisp_intern("&optional");
     sym_rest = lisp_intern("&rest");
     sym_error = lisp_intern("error");
+    sym_package_ref = lisp_intern("package-ref");
+    sym_star_package_star = lisp_intern("*package*");
+    pkg_core = lisp_intern("core")->value.symbol;
+    pkg_user = lisp_intern("user")->value.symbol;
 
     if (global_env == NULL) {
         global_env = env_create_global();

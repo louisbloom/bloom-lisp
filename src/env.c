@@ -104,7 +104,7 @@ Environment *env_create(Environment *parent)
     return env;
 }
 
-void env_define_sym(Environment *env, Symbol *sym, LispObject *value)
+void env_define_sym(Environment *env, Symbol *sym, LispObject *value, Symbol *package)
 {
     size_t idx = hash_symbol(sym, env->bucket_count);
     /* Check if binding already exists (pointer comparison) */
@@ -127,6 +127,7 @@ void env_define_sym(Environment *env, Symbol *sym, LispObject *value)
     binding = GC_malloc(sizeof(struct Binding));
     binding->symbol = sym;
     binding->value = value;
+    binding->package = package;
     binding->next = env->buckets[idx];
     env->buckets[idx] = binding;
     env->binding_count++;
@@ -146,6 +147,31 @@ LispObject *env_lookup_sym(Environment *env, Symbol *sym)
         env = env->parent;
     }
     return NULL;
+}
+
+LispObject *env_lookup_sym_in_package(Environment *env, Symbol *sym, Symbol *package)
+{
+    while (env != NULL) {
+        size_t idx = hash_symbol(sym, env->bucket_count);
+        struct Binding *binding = env->buckets[idx];
+        while (binding != NULL) {
+            if (binding->symbol == sym && binding->package == package) {
+                return binding->value;
+            }
+            binding = binding->next;
+        }
+        env = env->parent;
+    }
+    return NULL;
+}
+
+Symbol *env_current_package(Environment *env)
+{
+    LispObject *val = env_lookup_sym(env, sym_star_package_star->value.symbol);
+    if (val != NULL && val->type == LISP_SYMBOL) {
+        return val->value.symbol;
+    }
+    return pkg_core;
 }
 
 int env_set_sym(Environment *env, Symbol *sym, LispObject *value)
@@ -172,7 +198,7 @@ int env_set_sym(Environment *env, Symbol *sym, LispObject *value)
 
 void env_define(Environment *env, const char *name, LispObject *value)
 {
-    env_define_sym(env, lisp_intern(name)->value.symbol, value);
+    env_define_sym(env, lisp_intern(name)->value.symbol, value, NULL);
 }
 
 LispObject *env_lookup(Environment *env, const char *name)
@@ -356,6 +382,10 @@ static int load_stdlib(Environment *env)
 Environment *env_create_global(void)
 {
     Environment *env = env_create(NULL);
+
+    /* Set *package* to core before registering builtins and stdlib */
+    env_define_sym(env, sym_star_package_star->value.symbol,
+                   lisp_intern("core"), pkg_core);
     register_builtins(env);
 
     /* Load standard library (defun, defvar, defconst, defalias, aliases) */
@@ -366,10 +396,22 @@ Environment *env_create_global(void)
     return env;
 }
 
-Environment *env_create_session(Environment *global)
+Environment *env_create_user(Environment *global)
 {
     Environment *env = env_create(global);
     env->call_stack = global->call_stack;
     env->handler_stack = global->handler_stack;
+    env_define_sym(env, sym_star_package_star->value.symbol,
+                   lisp_intern("user"), pkg_core);
     return env;
 }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
+Environment *env_create_session(Environment *global)
+{
+    return env_create_user(global);
+}
+
+#pragma GCC diagnostic pop

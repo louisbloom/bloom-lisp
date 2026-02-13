@@ -179,6 +179,7 @@ struct Binding
 {
     Symbol *symbol; /* Interned symbol (pointer comparison for lookup) */
     LispObject *value;
+    Symbol *package;      /* Owning package symbol (NULL for local scopes) */
     struct Binding *next; /* Next binding in same hash bucket */
 };
 
@@ -271,6 +272,10 @@ extern LispObject *sym_else;
 extern LispObject *sym_optional;
 extern LispObject *sym_rest;
 extern LispObject *sym_error;
+extern LispObject *sym_package_ref;
+extern LispObject *sym_star_package_star;
+extern Symbol *pkg_core;
+extern Symbol *pkg_user;
 
 /* Hash table entry structure */
 struct HashEntry
@@ -294,12 +299,19 @@ size_t lisp_list_length(LispObject *list);
 
 /* Environment functions */
 Environment *env_create(Environment *parent);
-void env_define_sym(Environment *env, Symbol *sym, LispObject *value);
+void env_define_sym(Environment *env, Symbol *sym, LispObject *value, Symbol *package);
 LispObject *env_lookup_sym(Environment *env, Symbol *sym);
+LispObject *env_lookup_sym_in_package(Environment *env, Symbol *sym, Symbol *package);
 int env_set_sym(Environment *env, Symbol *sym, LispObject *value);
 void env_free(Environment *env);
+Symbol *env_current_package(Environment *env);
 Environment *env_create_global(void);
-Environment *env_create_session(Environment *global);
+Environment *env_create_user(Environment *global);
+
+/* Deprecated — use env_create_user */
+__attribute__((deprecated("use env_create_user")))
+Environment *
+env_create_session(Environment *global);
 
 /* Deprecated — use _sym variants with lisp_intern()->value.symbol instead */
 __attribute__((deprecated("use env_define_sym"))) void env_define(Environment *env, const char *name,

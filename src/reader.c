@@ -165,7 +165,20 @@ static LispObject *read_atom(const char **input)
         /* Keyword: starts with : and has at least one character after */
         obj = lisp_make_keyword(token);
     } else {
-        obj = lisp_make_symbol(token);
+        /* Check for package-qualified symbol: pkg:name */
+        char *colon = strchr(token, ':');
+        if (colon && colon != token && colon[1] != '\0') {
+            size_t pkg_len = colon - token;
+            char *pkg_name = GC_malloc(pkg_len + 1);
+            memcpy(pkg_name, token, pkg_len);
+            pkg_name[pkg_len] = '\0';
+            char *sym_name = colon + 1;
+            obj = lisp_make_cons(sym_package_ref,
+                                 lisp_make_cons(lisp_make_string(pkg_name),
+                                                lisp_make_cons(lisp_intern(sym_name), NIL)));
+        } else {
+            obj = lisp_make_symbol(token);
+        }
     }
 
     return obj;

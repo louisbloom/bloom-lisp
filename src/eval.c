@@ -27,6 +27,7 @@ static LispObject *eval_and(LispObject *args, Environment *env, int in_tail_posi
 static LispObject *eval_or(LispObject *args, Environment *env, int in_tail_position);
 static LispObject *eval_condition_case(LispObject *args, Environment *env, int in_tail_position);
 static LispObject *eval_unwind_protect(LispObject *args, Environment *env, int in_tail_position);
+static LispObject *eval_package_ref(LispObject *args, Environment *env);
 static LispObject *apply(LispObject *func, LispObject *args, Environment *env, int in_tail_position);
 static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in_tail_position);
 
@@ -186,6 +187,10 @@ static LispObject *eval_list(LispObject *list, Environment *env, int in_tail_pos
         if (first == sym_unwind_protect) {
             return eval_unwind_protect(lisp_cdr(list), env, in_tail_position);
         }
+
+        if (first == sym_package_ref) {
+            return eval_package_ref(lisp_cdr(list), env);
+        }
     }
 
     /* Function application */
@@ -292,7 +297,8 @@ static LispObject *eval_define(LispObject *args, Environment *env)
         value->value.lambda.name = GC_strdup(name->value.symbol->name);
     }
 
-    env_define_sym(env, name->value.symbol, value);
+    Symbol *pkg = env_current_package(env);
+    env_define_sym(env, name->value.symbol, value, pkg);
 
     /* Copy lambda/macro docstrings to symbol for uniform access via documentation */
     if (value->type == LISP_LAMBDA && value->value.lambda.docstring != NULL) {
@@ -577,7 +583,8 @@ static LispObject *eval_defmacro(LispObject *args, Environment *env)
     }
 
     /* Define it in the environment */
-    env_define_sym(env, name->value.symbol, macro);
+    Symbol *pkg = env_current_package(env);
+    env_define_sym(env, name->value.symbol, macro, pkg);
 
     /* Copy macro docstring to symbol for uniform access via documentation */
     if (macro->value.macro.docstring != NULL) {
@@ -684,7 +691,7 @@ static LispObject *expand_macro(LispObject *macro, LispObject *args, Environment
         /* Check for rest parameter (dotted list) */
         if (params->type == LISP_SYMBOL) {
             /* Rest of arguments go into this parameter as a list */
-            env_define_sym(new_env, params->value.symbol, arg_list);
+            env_define_sym(new_env, params->value.symbol, arg_list, NULL);
             arg_list = NIL; /* Mark as consumed */
             break;
         }
@@ -703,7 +710,7 @@ static LispObject *expand_macro(LispObject *macro, LispObject *args, Environment
         }
 
         LispObject *arg = lisp_car(arg_list);
-        env_define_sym(new_env, param->value.symbol, arg);
+        env_define_sym(new_env, param->value.symbol, arg, NULL);
 
         params = lisp_cdr(params);
         arg_list = lisp_cdr(arg_list);
@@ -760,7 +767,7 @@ static LispObject *eval_let(LispObject *args, Environment *env, int in_tail_posi
             return value;
         }
 
-        env_define_sym(new_env, name->value.symbol, value);
+        env_define_sym(new_env, name->value.symbol, value, NULL);
         bindings = lisp_cdr(bindings);
     }
 
@@ -811,7 +818,7 @@ static LispObject *eval_let_star(LispObject *args, Environment *env, int in_tail
             return value;
         }
 
-        env_define_sym(new_env, name->value.symbol, value);
+        env_define_sym(new_env, name->value.symbol, value, NULL);
         bindings = lisp_cdr(bindings);
     }
 
@@ -902,7 +909,7 @@ static LispObject *eval_do(LispObject *args, Environment *env)
             return init_result;
         }
 
-        env_define_sym(loop_env, name->value.symbol, init_result);
+        env_define_sym(loop_env, name->value.symbol, init_result, NULL);
         binding_list = lisp_cdr(binding_list);
     }
 
@@ -1252,7 +1259,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
         while (params != NIL && params != NULL) {
             LispObject *param = lisp_car(params);
             LispObject *arg = lisp_car(arg_list);
-            env_define_sym(new_env, param->value.symbol, arg);
+            env_define_sym(new_env, param->value.symbol, arg, NULL);
             params = lisp_cdr(params);
             arg_list = lisp_cdr(arg_list);
         }
@@ -1262,7 +1269,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
         while (opt_params != NIL && opt_params != NULL) {
             LispObject *param_sym = lisp_car(opt_params);
             LispObject *value = (arg_list != NIL) ? lisp_car(arg_list) : NIL;
-            env_define_sym(new_env, param_sym->value.symbol, value);
+            env_define_sym(new_env, param_sym->value.symbol, value, NULL);
             opt_params = lisp_cdr(opt_params);
             if (arg_list != NIL) {
                 arg_list = lisp_cdr(arg_list);
@@ -1271,7 +1278,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
 
         /* Bind rest parameter (collect remaining args as list) */
         if (rest_param) {
-            env_define_sym(new_env, rest_param->value.symbol, arg_list);
+            env_define_sym(new_env, rest_param->value.symbol, arg_list, NULL);
         }
 
         /* Evaluate body with tail position awareness (implicit progn) */
@@ -1356,7 +1363,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
             while (tail_params != NIL && tail_params != NULL) {
                 LispObject *tail_param = lisp_car(tail_params);
                 LispObject *tail_arg = lisp_car(tail_arg_list);
-                env_define_sym(tail_env, tail_param->value.symbol, tail_arg);
+                env_define_sym(tail_env, tail_param->value.symbol, tail_arg, NULL);
                 tail_params = lisp_cdr(tail_params);
                 tail_arg_list = lisp_cdr(tail_arg_list);
             }
@@ -1366,7 +1373,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
             while (tail_opt_params != NIL && tail_opt_params != NULL) {
                 LispObject *tail_param_sym = lisp_car(tail_opt_params);
                 LispObject *tail_value = (tail_arg_list != NIL) ? lisp_car(tail_arg_list) : NIL;
-                env_define_sym(tail_env, tail_param_sym->value.symbol, tail_value);
+                env_define_sym(tail_env, tail_param_sym->value.symbol, tail_value, NULL);
                 tail_opt_params = lisp_cdr(tail_opt_params);
                 if (tail_arg_list != NIL) {
                     tail_arg_list = lisp_cdr(tail_arg_list);
@@ -1375,7 +1382,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
 
             /* Bind rest parameter (collect remaining args as list) */
             if (tail_rest_param) {
-                env_define_sym(tail_env, tail_rest_param->value.symbol, tail_arg_list);
+                env_define_sym(tail_env, tail_rest_param->value.symbol, tail_arg_list, NULL);
             }
 
             /* Execute lambda body (in tail position) */
@@ -1409,6 +1416,34 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
  * Evaluates BODYFORM, then always executes CLEANUP-FORMS regardless of errors.
  * Returns the result of BODYFORM (even if it's an error).
  */
+static LispObject *eval_package_ref(LispObject *args, Environment *env)
+{
+    /* args: (package-name symbol) */
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error_with_stack("package-ref requires 2 arguments", env);
+    }
+
+    LispObject *pkg_name = lisp_car(args);
+    LispObject *sym = lisp_cadr(args);
+
+    if (pkg_name->type != LISP_STRING) {
+        return lisp_make_error_with_stack("package-ref: package name must be a string", env);
+    }
+    if (sym->type != LISP_SYMBOL) {
+        return lisp_make_error_with_stack("package-ref: second argument must be a symbol", env);
+    }
+
+    Symbol *pkg_sym = lisp_intern(pkg_name->value.string)->value.symbol;
+    LispObject *value = env_lookup_sym_in_package(env, sym->value.symbol, pkg_sym);
+    if (value == NULL) {
+        char error[256];
+        snprintf(error, sizeof(error), "Undefined symbol: %s:%s",
+                 pkg_name->value.string, sym->value.symbol->name);
+        return lisp_make_error_with_stack(error, env);
+    }
+    return value;
+}
+
 static LispObject *eval_unwind_protect(LispObject *args, Environment *env, int in_tail_position)
 {
     (void)in_tail_position; /* Body is never in tail position - cleanup must run */
@@ -1517,7 +1552,7 @@ static LispObject *eval_condition_case(LispObject *args, Environment *env, int i
                 saved_binding = env_lookup_sym(env, var->value.symbol);
                 had_binding = (saved_binding != NULL);
                 /* Temporarily bind error variable */
-                env_define_sym(env, var->value.symbol, result);
+                env_define_sym(env, var->value.symbol, result, NULL);
             }
 
             /* Evaluate handler body (implicit progn, tail position preserved) */

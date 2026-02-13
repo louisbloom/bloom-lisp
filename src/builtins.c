@@ -517,7 +517,11 @@ static LispObject *builtin_read_sexp(LispObject *args, Environment *env);
 static LispObject *builtin_read_json(LispObject *args, Environment *env);
 static LispObject *builtin_delete_file(LispObject *args, Environment *env);
 static LispObject *builtin_load(LispObject *args, Environment *env);
-static LispObject *builtin_session_save(LispObject *args, Environment *env);
+static LispObject *builtin_package_save(LispObject *args, Environment *env);
+static LispObject *builtin_in_package(LispObject *args, Environment *env);
+static LispObject *builtin_current_package(LispObject *args, Environment *env);
+static LispObject *builtin_package_symbols(LispObject *args, Environment *env);
+static LispObject *builtin_list_packages(LispObject *args, Environment *env);
 
 /* String port operations */
 static LispObject *builtin_open_input_string(LispObject *args, Environment *env);
@@ -1231,11 +1235,12 @@ static const char *doc_environment_bindings =
     "(environment-bindings)  ; => ((x . 42) (y . \"hello\"))\n"
     "```";
 
-static const char *doc_session_save =
-    "Save user-defined bindings to a file as valid Lisp source.\n"
+static const char *doc_package_save =
+    "Save package bindings to a file as valid Lisp source.\n"
     "\n"
     "## Parameters\n"
     "- `filename` - Path to write (string)\n"
+    "- `package` (optional) - Package name (string). Defaults to current package.\n"
     "\n"
     "## Returns\n"
     "`#t` on success.\n"
@@ -1243,14 +1248,57 @@ static const char *doc_session_save =
     "## Examples\n"
     "```lisp\n"
     "(define x 42)\n"
-    "(define greet (lambda (name) (concat \"Hello, \" name)))\n"
-    "(session-save \"my-session.lisp\")\n"
-    ";; Later: (load \"my-session.lisp\") to restore\n"
+    "(package-save \"my-pkg.lisp\")\n"
+    "(package-save \"math.lisp\" \"math\")\n"
     "```\n"
     "\n"
     "## Notes\n"
-    "Only bindings in the user frame are saved (not builtins or stdlib).\n"
     "The output file can be loaded with `(load filename)`.";
+
+static const char *doc_in_package =
+    "Set the current package.\n"
+    "\n"
+    "## Parameters\n"
+    "- `name` - Package name (symbol or string)\n"
+    "\n"
+    "## Returns\n"
+    "The package name as a symbol.\n"
+    "\n"
+    "## Examples\n"
+    "```lisp\n"
+    "(in-package \"math\")\n"
+    "(in-package user)\n"
+    "```";
+
+static const char *doc_current_package =
+    "Return the current package name as a symbol.\n"
+    "\n"
+    "## Examples\n"
+    "```lisp\n"
+    "(current-package) ; => user\n"
+    "```";
+
+static const char *doc_package_symbols =
+    "Return an alist of bindings in the named package.\n"
+    "\n"
+    "## Parameters\n"
+    "- `name` - Package name (string or symbol)\n"
+    "\n"
+    "## Returns\n"
+    "An alist of `(symbol . value)` pairs.\n"
+    "\n"
+    "## Examples\n"
+    "```lisp\n"
+    "(package-symbols \"user\") ; => ((x . 42) ...)\n"
+    "```";
+
+static const char *doc_list_packages =
+    "Return a list of distinct package names.\n"
+    "\n"
+    "## Examples\n"
+    "```lisp\n"
+    "(list-packages) ; => (core user)\n"
+    "```";
 
 /* Comparison operators */
 static const char *doc_gt = "Test if numbers are in strictly decreasing order.\n"
@@ -2999,12 +3047,12 @@ static LispObject *create_bloom_lisp_version_alist(void)
 }
 
 /* Helper macro to register a builtin and set its symbol's docstring */
-#define REGISTER(name, func, doc)                                              \
-    do {                                                                       \
-        LispObject *sym = lisp_intern(name);                                   \
-        if ((doc) != NULL)                                                     \
-            sym->value.symbol->docstring = (char *)(doc);                      \
-        env_define_sym(env, sym->value.symbol, lisp_make_builtin(func, name)); \
+#define REGISTER(name, func, doc)                                                        \
+    do {                                                                                 \
+        LispObject *sym = lisp_intern(name);                                             \
+        if ((doc) != NULL)                                                               \
+            sym->value.symbol->docstring = (char *)(doc);                                \
+        env_define_sym(env, sym->value.symbol, lisp_make_builtin(func, name), pkg_core); \
     } while (0)
 
 void register_builtins(Environment *env)
@@ -3126,7 +3174,12 @@ void register_builtins(Environment *env)
     REGISTER("read-json", builtin_read_json, doc_read_json);
     REGISTER("delete-file", builtin_delete_file, doc_delete_file);
     REGISTER("load", builtin_load, doc_load);
-    REGISTER("session-save", builtin_session_save, doc_session_save);
+    REGISTER("package-save", builtin_package_save, doc_package_save);
+    REGISTER("session-save", builtin_package_save, doc_package_save); /* deprecated alias */
+    REGISTER("in-package", builtin_in_package, doc_in_package);
+    REGISTER("current-package", builtin_current_package, doc_current_package);
+    REGISTER("package-symbols", builtin_package_symbols, doc_package_symbols);
+    REGISTER("list-packages", builtin_list_packages, doc_list_packages);
 
     /* String port functions for O(1) sequential character access */
     REGISTER("open-input-string", builtin_open_input_string,
@@ -3293,7 +3346,7 @@ void register_builtins(Environment *env)
              "Clears accumulated profiling data without stopping the profiler.\n");
 
     /* Define version information variable */
-    env_define_sym(env, lisp_intern("bloom-lisp-version")->value.symbol, create_bloom_lisp_version_alist());
+    env_define_sym(env, lisp_intern("bloom-lisp-version")->value.symbol, create_bloom_lisp_version_alist(), pkg_core);
 }
 
 #undef REGISTER
@@ -6045,7 +6098,15 @@ static LispObject *builtin_load(LispObject *args, Environment *env)
         return lisp_make_error("load requires a string filename");
     }
 
+    /* Save current *package* and restore after load */
+    LispObject *saved_pkg = env_lookup_sym(env, sym_star_package_star->value.symbol);
+
     LispObject *result = lisp_load_file(filename_obj->value.string, env);
+
+    /* Restore *package* */
+    if (saved_pkg) {
+        env_set_sym(env, sym_star_package_star->value.symbol, saved_pkg);
+    }
 
     /* Return the result of the last expression evaluated, or nil if error */
     if (result && result->type == LISP_ERROR) {
@@ -6235,34 +6296,61 @@ static void write_value_expr(FILE *f, LispObject *val)
 }
 
 /* Save user session bindings to a file */
-static LispObject *builtin_session_save(LispObject *args, Environment *env)
+static LispObject *builtin_package_save(LispObject *args, Environment *env)
 {
     if (args == NIL) {
-        return lisp_make_error("session-save requires 1 argument");
+        return lisp_make_error("package-save requires 1-2 arguments");
     }
 
-    LispObject *filename_obj = lisp_car(args);
+    LispObject *first_arg = lisp_car(args);
+    LispObject *second_arg = lisp_cadr(args);
+    LispObject *filename_obj;
+    Symbol *target_pkg;
+
+    if (second_arg != NIL && second_arg->type == LISP_STRING) {
+        /* (package-save "file" "pkg") - deprecated arg order compat */
+        /* Actually: (package-save "file") or (package-save "file" "pkg") */
+        filename_obj = first_arg;
+        target_pkg = lisp_intern(second_arg->value.string)->value.symbol;
+    } else if (second_arg != NIL && second_arg->type == LISP_SYMBOL) {
+        filename_obj = first_arg;
+        target_pkg = second_arg->value.symbol;
+    } else {
+        filename_obj = first_arg;
+        target_pkg = env_current_package(env);
+    }
+
     if (filename_obj->type != LISP_STRING) {
-        return lisp_make_error("session-save requires a string filename");
+        return lisp_make_error("package-save requires a string filename");
     }
 
     FILE *f = file_open(filename_obj->value.string, "w");
     if (f == NULL) {
         char error[512];
-        snprintf(error, sizeof(error), "session-save: cannot open '%s': %s", filename_obj->value.string,
+        snprintf(error, sizeof(error), "package-save: cannot open '%s': %s", filename_obj->value.string,
                  strerror(errno));
         return lisp_make_error(error);
     }
 
-    fprintf(f, ";; Bloom Lisp session saved by session-save\n");
-    fprintf(f, ";; Load with: (load \"%s\")\n\n", filename_obj->value.string);
+    fprintf(f, ";; Bloom Lisp package saved by package-save\n");
+    fprintf(f, ";; Load with: (load \"%s\")\n", filename_obj->value.string);
+    fprintf(f, "(in-package \"%s\")\n\n", target_pkg->name);
 
-    /* Collect bindings from current frame, reverse for definition order */
+    /* Collect bindings matching target package from all env frames */
     LispObject *bindings = NIL;
-    ENV_FOR_EACH_BINDING(env, binding)
-    {
-        LispObject *pair = lisp_make_cons(lisp_make_string(binding->symbol->name), binding->value);
-        bindings = lisp_make_cons(pair, bindings);
+    Environment *e = env;
+    while (e != NULL) {
+        ENV_FOR_EACH_BINDING(e, binding)
+        {
+            if (binding->package == target_pkg) {
+                /* Skip *package* itself */
+                if (binding->symbol == sym_star_package_star->value.symbol)
+                    continue;
+                LispObject *pair = lisp_make_cons(lisp_make_string(binding->symbol->name), binding->value);
+                bindings = lisp_make_cons(pair, bindings);
+            }
+        }
+        e = e->parent;
     }
 
     /* Iterate in definition order */
@@ -6304,6 +6392,99 @@ static LispObject *builtin_session_save(LispObject *args, Environment *env)
 
     fclose(f);
     return LISP_TRUE;
+}
+
+static LispObject *builtin_in_package(LispObject *args, Environment *env)
+{
+    if (args == NIL) {
+        return lisp_make_error("in-package requires 1 argument");
+    }
+
+    LispObject *arg = lisp_car(args);
+    LispObject *pkg_sym_obj;
+
+    if (arg->type == LISP_STRING) {
+        pkg_sym_obj = lisp_intern(arg->value.string);
+    } else if (arg->type == LISP_SYMBOL) {
+        pkg_sym_obj = arg;
+    } else {
+        return lisp_make_error("in-package requires a string or symbol argument");
+    }
+
+    env_set_sym(env, sym_star_package_star->value.symbol, pkg_sym_obj);
+    return pkg_sym_obj;
+}
+
+static LispObject *builtin_current_package(LispObject *args, Environment *env)
+{
+    (void)args;
+    Symbol *pkg = env_current_package(env);
+    return lisp_intern(pkg->name);
+}
+
+static LispObject *builtin_package_symbols(LispObject *args, Environment *env)
+{
+    if (args == NIL) {
+        return lisp_make_error("package-symbols requires 1 argument");
+    }
+
+    LispObject *arg = lisp_car(args);
+    Symbol *target_pkg;
+
+    if (arg->type == LISP_STRING) {
+        target_pkg = lisp_intern(arg->value.string)->value.symbol;
+    } else if (arg->type == LISP_SYMBOL) {
+        target_pkg = arg->value.symbol;
+    } else {
+        return lisp_make_error("package-symbols requires a string or symbol argument");
+    }
+
+    LispObject *result = NIL;
+    Environment *e = env;
+    while (e != NULL) {
+        ENV_FOR_EACH_BINDING(e, binding)
+        {
+            if (binding->package == target_pkg) {
+                LispObject *sym = lisp_intern(binding->symbol->name);
+                LispObject *pair = lisp_make_cons(sym, binding->value);
+                result = lisp_make_cons(pair, result);
+            }
+        }
+        e = e->parent;
+    }
+    return result;
+}
+
+static LispObject *builtin_list_packages(LispObject *args, Environment *env)
+{
+    (void)args;
+
+    /* Collect distinct package names from all bindings */
+    LispObject *packages = NIL;
+    Environment *e = env;
+    while (e != NULL) {
+        ENV_FOR_EACH_BINDING(e, binding)
+        {
+            if (binding->package != NULL) {
+                /* Check if already in list (pointer comparison) */
+                int found = 0;
+                LispObject *cur = packages;
+                while (cur != NIL && cur->type == LISP_CONS) {
+                    if (lisp_car(cur)->type == LISP_SYMBOL &&
+                        lisp_car(cur)->value.symbol == binding->package) {
+                        found = 1;
+                        break;
+                    }
+                    cur = lisp_cdr(cur);
+                }
+                if (!found) {
+                    packages = lisp_make_cons(lisp_intern(binding->package->name), packages);
+                }
+            }
+        }
+        e = e->parent;
+    }
+    return packages;
 }
 
 /* Delete a file */
@@ -6919,17 +7100,27 @@ static LispObject *builtin_function_name(LispObject *args, Environment *env)
 
 static LispObject *builtin_environment_bindings(LispObject *args, Environment *env)
 {
-    (void)args;
+    /* Optional package filter argument */
+    Symbol *filter_pkg = NULL;
+    if (args != NIL) {
+        LispObject *arg = lisp_car(args);
+        if (arg->type == LISP_STRING) {
+            filter_pkg = lisp_intern(arg->value.string)->value.symbol;
+        } else if (arg->type == LISP_SYMBOL) {
+            filter_pkg = arg->value.symbol;
+        }
+    }
+
     /* Collect bindings from the current frame only (not parent) */
     LispObject *result = NIL;
     ENV_FOR_EACH_BINDING(env, binding)
     {
+        if (filter_pkg != NULL && binding->package != filter_pkg)
+            continue;
         LispObject *sym = lisp_intern(binding->symbol->name);
         LispObject *pair = lisp_make_cons(sym, binding->value);
         result = lisp_make_cons(pair, result);
     }
-    /* result is already in reverse-definition order (since bindings are prepended),
-       so this gives definition order */
     return result;
 }
 
@@ -7707,7 +7898,7 @@ static LispObject *builtin_map(LispObject *args, Environment *env)
             }
 
             /* Bind the parameter to the item */
-            env_define_sym(lambda_env, param->value.symbol, item);
+            env_define_sym(lambda_env, param->value.symbol, item, NULL);
 
             /* Check for extra parameters (should only have one for map) */
             if (lisp_cdr(params) != NIL) {
@@ -7797,7 +7988,7 @@ static LispObject *builtin_filter(LispObject *args, Environment *env)
             }
 
             /* Bind the parameter to the item */
-            env_define_sym(lambda_env, param->value.symbol, item);
+            env_define_sym(lambda_env, param->value.symbol, item, NULL);
 
             /* Evaluate lambda body */
             LispObject *body = func->value.lambda.body;
@@ -7880,10 +8071,10 @@ static LispObject *builtin_apply(LispObject *args, Environment *env)
                 }
                 if (param->type == LISP_SYMBOL) {
                     if (arg_list != NIL && arg_list != NULL && arg_list->type == LISP_CONS) {
-                        env_define_sym(lambda_env, param->value.symbol, lisp_car(arg_list));
+                        env_define_sym(lambda_env, param->value.symbol, lisp_car(arg_list), NULL);
                         arg_list = lisp_cdr(arg_list);
                     } else {
-                        env_define_sym(lambda_env, param->value.symbol, NIL);
+                        env_define_sym(lambda_env, param->value.symbol, NIL, NULL);
                     }
                 }
                 params = lisp_cdr(params);
@@ -7897,7 +8088,7 @@ static LispObject *builtin_apply(LispObject *args, Environment *env)
             if (params != NIL && params->type == LISP_CONS) {
                 LispObject *rest_param = lisp_car(params);
                 if (rest_param->type == LISP_SYMBOL) {
-                    env_define_sym(lambda_env, rest_param->value.symbol, arg_list);
+                    env_define_sym(lambda_env, rest_param->value.symbol, arg_list, NULL);
                 }
             }
             break;
@@ -7909,7 +8100,7 @@ static LispObject *builtin_apply(LispObject *args, Environment *env)
                 env_free(lambda_env);
                 return lisp_make_error("apply: too few arguments");
             }
-            env_define_sym(lambda_env, param->value.symbol, lisp_car(arg_list));
+            env_define_sym(lambda_env, param->value.symbol, lisp_car(arg_list), NULL);
             arg_list = lisp_cdr(arg_list);
         }
 

@@ -457,10 +457,10 @@ int main(int argc, char **argv)
     /* Initialize interpreter */
     lisp_init();
     Environment *global = env_create_global();
-    Environment *env = env_create_session(global);
+    Environment *env = env_create_user(global);
     g_env = env;
 
-    env_define_sym(env, lisp_intern("*command-line-args*")->value.symbol, NIL);
+    env_define_sym(env, lisp_intern("*command-line-args*")->value.symbol, NIL, pkg_user);
 
     /* Handle -e/--eval/-c flag */
     if (argc > 2 && (strcmp(argv[1], "-e") == 0 || strcmp(argv[1], "--eval") == 0 || strcmp(argv[1], "-c") == 0)) {
