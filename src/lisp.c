@@ -520,8 +520,12 @@ void lisp_cleanup(void)
 /* Load file */
 LispObject *lisp_load_file(const char *filename, Environment *env)
 {
+    /* Resolve filename via XDG data dirs for non-absolute paths */
+    char resolved_path[4096];
+    const char *path = file_resolve(filename, resolved_path, sizeof(resolved_path));
+
     /* Use binary mode to avoid ftell/fread size mismatch with CRLF translation */
-    FILE *file = file_open(filename, "rb");
+    FILE *file = file_open(path, "rb");
     if (file == NULL) {
         return lisp_make_error("Cannot open file");
     }

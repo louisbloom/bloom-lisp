@@ -42,6 +42,22 @@ int file_remove(const char *utf8_path);
  */
 int file_mkdir(const char *utf8_path);
 
+/* Resolve a file path by searching XDG data directories.
+ * For relative paths (not starting with / ./ ../), searches:
+ *   1. Current working directory
+ *   2. $XDG_DATA_HOME/bloom-lisp/ (default: ~/.local/share/bloom-lisp/)
+ *   3. Each dir in $XDG_DATA_DIRS/bloom-lisp/ (default: /usr/local/share:/usr/share)
+ *
+ * Parameters:
+ *   filename - File path to resolve
+ *   resolved - Output buffer for resolved path
+ *   resolved_size - Size of output buffer
+ *
+ * Returns:
+ *   resolved on success (points to the found path), NULL if not found anywhere
+ */
+const char *file_resolve(const char *filename, char *resolved, size_t resolved_size);
+
 #ifdef _WIN32
 #include <wchar.h>
 
