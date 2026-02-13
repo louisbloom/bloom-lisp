@@ -3174,12 +3174,13 @@ void register_builtins(Environment *env)
     REGISTER("read-json", builtin_read_json, doc_read_json);
     REGISTER("delete-file", builtin_delete_file, doc_delete_file);
     REGISTER("load", builtin_load, doc_load);
-    REGISTER("package-save", builtin_package_save, doc_package_save);
-    REGISTER("session-save", builtin_package_save, doc_package_save); /* deprecated alias */
+
+    /* Package functions */
     REGISTER("in-package", builtin_in_package, doc_in_package);
     REGISTER("current-package", builtin_current_package, doc_current_package);
     REGISTER("package-symbols", builtin_package_symbols, doc_package_symbols);
     REGISTER("list-packages", builtin_list_packages, doc_list_packages);
+    REGISTER("package-save", builtin_package_save, doc_package_save);
 
     /* String port functions for O(1) sequential character access */
     REGISTER("open-input-string", builtin_open_input_string,

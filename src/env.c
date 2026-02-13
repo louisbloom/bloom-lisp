@@ -324,7 +324,12 @@ static const char *stdlib_code =
     "(defalias string-append concat \"Alias for `concat`.\")\n"
     "(defalias string-split split \"Alias for `split`.\")\n"
     "(defalias string-join join \"Alias for `join`.\")\n"
-    "(defalias string-length length \"Alias for `length` (also works on lists and vectors).\")\n";
+    "(defalias string-length length \"Alias for `length` (also works on lists and vectors).\")\n"
+    "\n"
+    ";; Package aliases (package- prefix for discoverability)\n"
+    "(defalias package-set in-package \"Alias for `in-package`. Set the current package.\")\n"
+    "(defalias package-current current-package \"Alias for `current-package`. Return current package name.\")\n"
+    "(defalias package-list list-packages \"Alias for `list-packages`. Return list of all package names.\")\n";
 
 /* Helper to load stdlib from embedded string */
 static int load_stdlib(Environment *env)

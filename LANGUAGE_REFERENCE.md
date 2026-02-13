@@ -14,6 +14,7 @@ A reference for Bloom Lisp, covering data types, special forms, built-in functio
 - [Truthy/Falsy Values](#truthyfalsy-values)
 - [Pattern Matching](#pattern-matching)
 - [Error Handling](#error-handling)
+- [Package System](#package-system)
 - [Tail Recursion Optimization](#tail-recursion-optimization)
 - [Quick Examples](#quick-examples)
 
@@ -153,6 +154,7 @@ Most code you write will be user functions. Macros are powerful but should be us
 - `or` - Logical OR with short-circuit evaluation (returns first truthy value or last falsy value)
 - `condition-case` - Catch and handle errors by type (Emacs Lisp-style exception handling)
 - `unwind-protect` - Guarantee cleanup code execution (like try-finally)
+- `package-ref` - Resolve a symbol in a specific package (emitted by `pkg:sym` reader syntax)
 
 ### Macros
 
@@ -1378,18 +1380,30 @@ The condition system provides Emacs Lisp-style error handling with typed errors,
 - `read-json` - Read JSON from file (filename or file stream) - returns Lisp data structures (objects → hash tables, arrays → vectors, etc.)
 - `delete-file` - Delete a file from the filesystem (filename) - returns nil on success, error if file doesn't exist or cannot be deleted
 - `load` - Load and evaluate a Lisp file (filename) - returns the result of the last expression evaluated, or an error if loading fails
-- `session-save` - Save user-defined bindings to a file as valid Lisp source (filename) - only saves bindings from the current environment frame (not builtins or stdlib). The output file can be loaded with `(load filename)`.
+
+### Package Functions
+
+Functions for managing the package system. All functions also have `package-` prefixed aliases for tab-completion discoverability.
+
+- `in-package` - Set the current package (string or symbol). Alias: `package-set`
+- `current-package` - Return the current package name as a symbol. Alias: `package-current`
+- `list-packages` - Return a list of all package names. Alias: `package-list`
+- `package-symbols` - Return an alist of `(symbol . value)` pairs for a named package
+- `package-save` - Save package bindings to a file as valid Lisp source. Takes a filename and optional package name (defaults to current package). The output file can be loaded with `(load filename)`.
 
 ```lisp
-;; Define some things in a session
-(define x 42)
-(define greet (lambda (name) (concat "Hello, " name)))
+;; Switch to a custom package
+(in-package "math")
+(define pi 3.14159)
 
-;; Save the session
-(session-save "my-session.lisp")
+;; Switch back and inspect
+(in-package "user")
+(package-symbols "math")   ; => ((pi . 3.14159))
+(list-packages)             ; => (core user math)
 
-;; Later, in a new session:
-(load "my-session.lisp")  ; Restores x and greet
+;; Save and restore
+(package-save "math-lib.lisp" "math")
+(load "math-lib.lisp")
 ```
 
 ### String Port Functions
@@ -1799,6 +1813,67 @@ You can define custom error types using any symbol:
 
 ```lisp
 (signal 'my-custom-error "Custom error message")
+```
+
+## Package System
+
+Bloom Lisp has a package system for organizing bindings into namespaces. Each binding is tagged with an owning package. The default packages are `core` (builtins and stdlib) and `user` (user-defined bindings).
+
+See [Package Functions](#package-functions) for the full function reference. All package functions have `package-` prefixed aliases (e.g., `package-set` for `in-package`).
+
+### Current Package
+
+The `*package*` variable controls where `define` creates new bindings. It defaults to `user`.
+
+- `current-package` (alias: `package-current`) - Return the current package name as a symbol
+- `in-package` (alias: `package-set`) - Set the current package (accepts a string or symbol)
+
+```lisp
+(current-package)       ; => user
+(in-package "math")
+(current-package)       ; => math
+(in-package 'user)      ; accepts symbols too
+```
+
+### Qualified Symbol Access
+
+Use `pkg:symbol` syntax to access a binding in a specific package:
+
+```lisp
+(in-package "math")
+(define pi 3.14159)
+(define add (lambda (a b) (+ a b)))
+
+(in-package "user")
+math:pi                 ; => 3.14159
+(math:add 2 3)          ; => 5
+(core:+ 10 20)          ; => 30 (access builtins explicitly)
+```
+
+The reader translates `pkg:sym` into the `(package-ref "pkg" sym)` special form.
+
+### Package Introspection
+
+- `package-symbols` - Return an alist of `(symbol . value)` pairs for a named package
+- `list-packages` (alias: `package-list`) - Return a list of all package names
+
+```lisp
+(in-package "math")
+(define x 42)
+(in-package "user")
+
+(package-symbols "math")  ; => ((x . 42) ...)
+(list-packages)            ; => (core user math)
+```
+
+### Saving Package Bindings
+
+- `package-save` - Save a package's bindings to a file as loadable Lisp source
+
+```lisp
+(package-save "math-lib.lisp" "math")  ; save specific package
+(package-save "session.lisp")          ; save current package
+(load "math-lib.lisp")                 ; restore later
 ```
 
 ## Tail Recursion Optimization

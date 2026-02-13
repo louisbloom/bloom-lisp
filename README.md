@@ -9,15 +9,16 @@ An embeddable Lisp interpreter library written in C. This implementation follows
 ### Core Language
 
 - **Data Types**: Numbers, integers, booleans, strings (UTF-8), characters, symbols, keywords, lists, vectors, hash tables, lambdas, errors
-- **Special Forms**: `quote`, `quasiquote`, `if`, `define`, `set!`, `lambda`, `defmacro`, `let`/`let*`, `progn`, `do`, `cond`, `case`, `and`, `or`, `condition-case`, `unwind-protect`
+- **Special Forms**: `quote`, `quasiquote`, `if`, `define`, `set!`, `lambda`, `defmacro`, `let`/`let*`, `progn`, `do`, `cond`, `case`, `and`, `or`, `condition-case`, `unwind-protect`, `package-ref`
 - **Macros**: Code transformation with `defmacro`, quasiquote (`` ` ``), unquote (`,`), unquote-splicing (`,@`), and built-in `defun` macro
-- **Functions**: Arithmetic, strings, lists, vectors, hash tables, regex (PCRE2), file I/O, profiling
+- **Functions**: Arithmetic, strings, lists, vectors, hash tables, regex (PCRE2), file I/O, packages, profiling
 - **Type Predicates**: `null?`, `atom?`, `pair?`, `list?`, `integer?`, `boolean?`, `number?`, `string?`, `char?`, `symbol?`, `keyword?`, `vector?`, `hash-table?`, `function?`, `callable?`, `error?`
 
 See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for complete function listings and examples.
 
 ### Advanced Features
 
+- **Package System**: Namespace management with `in-package`, `current-package`, and `pkg:symbol` qualified access syntax
 - **Condition System**: Emacs Lisp-style error handling with `signal`, `condition-case`, `unwind-protect`, and error introspection
 - **Tail Call Optimization**: Trampoline-based tail recursion enables efficient recursive algorithms without stack overflow
 - **Lexical Scoping**: First-class functions and closures with captured environments
@@ -146,17 +147,18 @@ int main() {
 }
 ```
 
-**Session Management (two-layer environment):**
+**Two-layer environment with packages:**
 
-For applications that want to separate system bindings from user bindings (enabling `session-save` / `environment-bindings`), use the two-layer pattern:
+For applications that want to separate system bindings from user bindings, use the two-layer pattern:
 
 ```c
 lisp_init();
 Environment* global = env_create_global();
 // Register app-specific builtins into global...
-Environment* user = env_create_session(global);
+Environment* user = env_create_user(global);
 // Use `user` for eval — user bindings stay in this frame
-// session-save / environment-bindings operate on this frame
+// Bindings are tagged with packages (core, user, or custom)
+// package-save / environment-bindings operate on this frame
 ```
 
 Note: Memory is managed by Boehm GC. Call `lisp_cleanup()` once at program exit.
@@ -218,13 +220,13 @@ Note: Memory is managed by Boehm GC. Call `lisp_cleanup()` once at program exit.
 
 ### Environment Management
 
-| Function                       | Description                                |
-| ------------------------------ | ------------------------------------------ |
-| `env_create(parent)`           | Create new environment                     |
-| `env_create_global()`          | Create global environment with built-ins   |
-| `env_create_session(global)`   | Create user session frame on top of global |
-| `env_define(env, name, value)` | Define variable                            |
-| `env_lookup(env, name)`        | Look up variable                           |
+| Function                               | Description                              |
+| -------------------------------------- | ---------------------------------------- |
+| `env_create(parent)`                   | Create new environment                   |
+| `env_create_global()`                  | Create global environment with built-ins |
+| `env_create_user(global)`              | Create user frame on top of global       |
+| `env_define(env, sym, value, package)` | Define variable in package               |
+| `env_lookup(env, sym)`                 | Look up variable                         |
 
 ## License
 
