@@ -207,7 +207,7 @@ extern LispObject *NIL;
 extern LispObject *LISP_TRUE; /* #t */
 
 /* Simple API */
-int lisp_init(void);
+Environment *lisp_init(void);
 LispObject *lisp_eval_string(const char *code, Environment *env);
 void lisp_cleanup(void);
 
@@ -305,14 +305,6 @@ LispObject *env_lookup_in_package(Environment *env, Symbol *sym, Symbol *package
 int env_set(Environment *env, Symbol *sym, LispObject *value);
 void env_free(Environment *env);
 Symbol *env_current_package(Environment *env);
-Environment *env_create_global(void);
-Environment *env_create_user(Environment *global);
-
-/* Deprecated — use env_create_user */
-__attribute__((deprecated("use env_create_user")))
-Environment *
-env_create_session(Environment *global);
-
 /* Call stack functions */
 void push_call_frame(Environment *env, const char *function_name);
 void pop_call_frame(Environment *env);

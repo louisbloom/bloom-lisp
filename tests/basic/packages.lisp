@@ -189,14 +189,18 @@
 ;; ===========================================
 ;; User redefining a builtin
 ;; ===========================================
+;; Redefining a builtin updates the value in place (core package).
+;; package-save only saves user-package bindings, so the redefined
+;; builtin won't appear in the saved file.
 (define test-shadow-file "tests/basic/_test_shadow.lisp")
 
 (unwind-protect
   (progn (define my-plus +) (define + 42)
-    (assert-equal + 42 "shadowed + is 42")
+    (assert-equal + 42 "redefining builtin updates value")
     (package-save test-shadow-file)
     (let ((content (read-file-string test-shadow-file)))
-      (assert-true (regex-match? "\\(define \\+ 42\\)" content)
-       "package-save has shadowed +")))
+      (assert-true (not (regex-match? "\\(define \\+ 42\\)" content))
+       "package-save excludes redefined builtin (still core package)"))
+    (define + my-plus))
   (delete-file test-shadow-file))
 

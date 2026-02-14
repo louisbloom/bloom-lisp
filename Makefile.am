@@ -10,5 +10,4 @@ EXTRA_DIST = \
     bloom-lisp.pc.in \
     README.md \
     LANGUAGE_REFERENCE.md \
-    PACKAGING.md \
     lisp/lisp-fmt.lisp

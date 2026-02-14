@@ -1122,16 +1122,12 @@ Functions for inspecting lambdas, macros, builtins, and the environment.
 - `function-params` - Return the parameter list of a lambda or macro
 - `function-body` - Return the body expression list of a lambda or macro
 - `function-name` - Return the name of a lambda, macro, or builtin (string or nil)
-- `environment-bindings` - Return alist of `(symbol . value)` pairs for the current environment frame only (does not include parent frames)
 
 ```lisp
 (define add (lambda (x y) (+ x y)))
 (function-params add)   ; => (x y)
 (function-body add)     ; => ((+ x y))
 (function-name +)       ; => "+"
-
-(define x 42)
-(environment-bindings)  ; => ((x . 42) (add . #<lambda add (x y)>) ...)
 ```
 
 ### Symbol Operations
@@ -2535,6 +2531,5 @@ vec                                  ; => #(10 99)
 
 ## See Also
 
-- [README.md](README.md) - Project overview, building, and C API reference
+- [README.md](README.md) - Project overview, building, embedding, and C API reference
 - [tests/](tests/) - Test files with more examples
-- [PACKAGING.md](PACKAGING.md) - Guide for packaging the library

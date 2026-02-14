@@ -442,8 +442,113 @@ LispObject *lisp_cadddr(LispObject *obj)
 /* Simple API */
 static Environment *global_env = NULL;
 
-int lisp_init(void)
+/* Forward declaration for builtin registration */
+void register_builtins(Environment *env);
+
+/* Standard library macros (embedded to avoid file dependency) */
+static const char *stdlib_code =
+    ";; defun macro\n"
+    "(defmacro defun (name params . body) `(define ,name (lambda ,params ,@body)))\n"
+    "\n"
+    ";; when - execute body when condition is true\n"
+    "(defmacro when (condition . body)\n"
+    "  \"Execute BODY when CONDITION is true.\"\n"
+    "  `(if ,condition (progn ,@body) nil))\n"
+    "\n"
+    ";; unless - execute body when condition is false\n"
+    "(defmacro unless (condition . body)\n"
+    "  \"Execute BODY when CONDITION is false.\"\n"
+    "  `(if ,condition nil (progn ,@body)))\n"
+    "\n"
+    ";; defvar - define variable only if unbound\n"
+    ";; Usage: (defvar name) or (defvar name value) or (defvar name value docstring)\n"
+    "(defmacro defvar (name . rest)\n"
+    "  \"Define NAME as a variable. Only sets value if NAME is not already bound.\"\n"
+    "  (let ((value (if (null? rest) nil (car rest)))\n"
+    "        (docstring (if (or (null? rest) (null? (cdr rest))) nil (car (cdr rest)))))\n"
+    "    `(progn\n"
+    "       (unless (bound? ',name)\n"
+    "         (define ,name ,value))\n"
+    "       ,(if docstring\n"
+    "            `(set-documentation! ',name ,docstring)\n"
+    "            nil)\n"
+    "       ',name)))\n"
+    "\n"
+    ";; defconst - define constant (always sets value)\n"
+    ";; Usage: (defconst name value) or (defconst name value docstring)\n"
+    "(defmacro defconst (name value . rest)\n"
+    "  \"Define NAME as a constant. Always sets value (unlike defvar).\"\n"
+    "  (let ((docstring (if (null? rest) nil (car rest))))\n"
+    "    `(progn\n"
+    "       (define ,name ,value)\n"
+    "       ,(if docstring\n"
+    "            `(set-documentation! ',name ,docstring)\n"
+    "            nil)\n"
+    "       ',name)))\n"
+    "\n"
+    ";; defalias - create alias for function\n"
+    ";; Usage: (defalias alias target) or (defalias alias target docstring)\n"
+    "(defmacro defalias (alias target . rest)\n"
+    "  \"Define ALIAS as an alias for TARGET function.\"\n"
+    "  (let ((docstring (if (null? rest) nil (car rest))))\n"
+    "    `(progn\n"
+    "       (define ,alias ,target)\n"
+    "       ,(if docstring\n"
+    "            `(set-documentation! ',alias ,docstring)\n"
+    "            nil)\n"
+    "       ',alias)))\n"
+    "\n"
+    ";; Short aliases\n"
+    "(defalias doc documentation \"Shorthand for `documentation`.\")\n"
+    "(defalias doc-set! set-documentation! \"Shorthand for `set-documentation!`.\")\n"
+    "(defalias string-append concat \"Alias for `concat`.\")\n"
+    "(defalias string-split split \"Alias for `split`.\")\n"
+    "(defalias string-join join \"Alias for `join`.\")\n"
+    "(defalias string-length length \"Alias for `length` (also works on lists and vectors).\")\n"
+    "\n"
+    ";; Package aliases (package- prefix for discoverability)\n"
+    "(defalias package-set in-package \"Alias for `in-package`. Set the current package.\")\n"
+    "(defalias package-current current-package \"Alias for `current-package`. Return current package name.\")\n"
+    "(defalias package-list list-packages \"Alias for `list-packages`. Return list of all package names.\")\n";
+
+/* Helper to load stdlib from embedded string */
+static int load_stdlib(Environment *env)
 {
+    const char *input = stdlib_code;
+    while (*input) {
+        /* Skip whitespace and comments */
+        while (*input && (*input == ' ' || *input == '\t' || *input == '\n' || *input == '\r')) {
+            input++;
+        }
+        if (*input == ';') {
+            while (*input && *input != '\n')
+                input++;
+            continue;
+        }
+        if (!*input)
+            break;
+
+        LispObject *expr = lisp_read(&input);
+        if (expr == NULL)
+            break;
+        if (expr->type == LISP_ERROR) {
+            return 0; /* Parse error */
+        }
+
+        LispObject *result = lisp_eval(expr, env);
+        if (result != NULL && result->type == LISP_ERROR) {
+            return 0; /* Eval error */
+        }
+    }
+    return 1; /* Success */
+}
+
+Environment *lisp_init(void)
+{
+    if (global_env != NULL) {
+        return global_env;
+    }
+
     /* Initialize Boehm GC */
     GC_INIT();
 
@@ -482,10 +587,23 @@ int lisp_init(void)
     pkg_core = lisp_intern("core")->value.symbol;
     pkg_user = lisp_intern("user")->value.symbol;
 
-    if (global_env == NULL) {
-        global_env = env_create_global();
+    /* Create environment with builtins and stdlib */
+    Environment *env = env_create(NULL);
+
+    /* Set *package* to core for builtin and stdlib registration */
+    env_define(env, sym_star_package_star->value.symbol, lisp_intern("core"), pkg_core);
+    register_builtins(env);
+
+    /* Load standard library (defun, defvar, defconst, defalias, aliases) */
+    if (!load_stdlib(env)) {
+        return NULL;
     }
-    return 0;
+
+    /* Switch to user package for user code */
+    env_define(env, sym_star_package_star->value.symbol, lisp_intern("user"), pkg_core);
+
+    global_env = env;
+    return env;
 }
 
 LispObject *lisp_eval_string(const char *code, Environment *env)

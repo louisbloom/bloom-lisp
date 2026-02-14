@@ -556,8 +556,6 @@ static LispObject *builtin_callable_question(LispObject *args, Environment *env)
 static LispObject *builtin_function_params(LispObject *args, Environment *env);
 static LispObject *builtin_function_body(LispObject *args, Environment *env);
 static LispObject *builtin_function_name(LispObject *args, Environment *env);
-static LispObject *builtin_environment_bindings(LispObject *args, Environment *env);
-
 /* Keyword operations */
 static LispObject *builtin_keyword_name(LispObject *args, Environment *env);
 
@@ -1217,23 +1215,6 @@ static const char *doc_function_name = "Return the name of a lambda, macro, or b
                                        "(function-name +)              ; => \"+\"\n"
                                        "(function-name (lambda (x) x)) ; => nil\n"
                                        "```";
-
-static const char *doc_environment_bindings =
-    "Return an alist of bindings in the current (user) environment frame.\n"
-    "\n"
-    "## Parameters\n"
-    "None.\n"
-    "\n"
-    "## Returns\n"
-    "An association list of `(symbol . value)` pairs for bindings\n"
-    "in the current frame only (does not include parent frames).\n"
-    "\n"
-    "## Examples\n"
-    "```lisp\n"
-    "(define x 42)\n"
-    "(define y \"hello\")\n"
-    "(environment-bindings)  ; => ((x . 42) (y . \"hello\"))\n"
-    "```";
 
 static const char *doc_package_save =
     "Save package bindings to a file as valid Lisp source.\n"
@@ -3256,9 +3237,6 @@ void register_builtins(Environment *env)
     REGISTER("function-params", builtin_function_params, doc_function_params);
     REGISTER("function-body", builtin_function_body, doc_function_body);
     REGISTER("function-name", builtin_function_name, doc_function_name);
-
-    /* Environment introspection */
-    REGISTER("environment-bindings", builtin_environment_bindings, doc_environment_bindings);
 
     /* Keyword operations */
     REGISTER("keyword-name", builtin_keyword_name, doc_keyword_name);
@@ -7263,32 +7241,6 @@ static LispObject *builtin_function_name(LispObject *args, Environment *env)
         return arg->value.builtin.name ? lisp_make_string(arg->value.builtin.name) : NIL;
     }
     return lisp_make_error("function-name requires a lambda, macro, or builtin");
-}
-
-static LispObject *builtin_environment_bindings(LispObject *args, Environment *env)
-{
-    /* Optional package filter argument */
-    Symbol *filter_pkg = NULL;
-    if (args != NIL) {
-        LispObject *arg = lisp_car(args);
-        if (arg->type == LISP_STRING) {
-            filter_pkg = lisp_intern(arg->value.string)->value.symbol;
-        } else if (arg->type == LISP_SYMBOL) {
-            filter_pkg = arg->value.symbol;
-        }
-    }
-
-    /* Collect bindings from the current frame only (not parent) */
-    LispObject *result = NIL;
-    ENV_FOR_EACH_BINDING(env, binding)
-    {
-        if (filter_pkg != NULL && binding->package != filter_pkg)
-            continue;
-        LispObject *sym = lisp_intern(binding->symbol->name);
-        LispObject *pair = lisp_make_cons(sym, binding->value);
-        result = lisp_make_cons(pair, result);
-    }
-    return result;
 }
 
 static LispObject *builtin_keyword_name(LispObject *args, Environment *env)

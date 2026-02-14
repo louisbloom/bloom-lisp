@@ -1,4 +1,4 @@
-;; Tests for type predicates, function introspection, and environment-bindings
+;; Tests for type predicates and function introspection
 (load "tests/test-helpers.lisp")
 
 ;; ============================================
@@ -94,16 +94,4 @@
 (assert-true (function? my-add) "my-add is function?")
 (assert-true (macro? my-when) "my-when is macro?")
 
-;; ============================================
-;; environment-bindings
-;; ============================================
-;; environment-bindings returns alist for current frame
-(define test-var-eb 99)
-
-(let ((bindings (environment-bindings)))
-  ;; Should find test-var-eb in bindings
-  (assert-true (assoc 'test-var-eb bindings)
-   "environment-bindings includes test-var-eb")
-  (assert-equal (cdr (assoc 'test-var-eb bindings)) 99
-   "environment-bindings value correct"))
 

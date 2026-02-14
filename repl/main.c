@@ -455,9 +455,11 @@ int main(int argc, char **argv)
     }
 
     /* Initialize interpreter */
-    lisp_init();
-    Environment *global = env_create_global();
-    Environment *env = env_create_user(global);
+    Environment *env = lisp_init();
+    if (!env) {
+        fprintf(stderr, "ERROR: Failed to initialize Lisp interpreter\n");
+        return 1;
+    }
     g_env = env;
 
     env_define(env, lisp_intern("*command-line-args*")->value.symbol, NIL, pkg_user);

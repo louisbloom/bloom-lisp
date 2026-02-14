@@ -121,22 +121,15 @@ Exit code is 0 on success, 1 on error.
 
 ## Embedding in Your Application
 
-The library is self-contained and can be integrated into any project. For detailed packaging instructions, see [PACKAGING.md](PACKAGING.md).
+The library is self-contained and can be integrated into any C project.
 
-**Using pkg-config:**
-
-```bash
-cc myapp.c $(pkg-config --cflags --libs bloom-lisp) -o myapp
-```
-
-**Using the Library:**
+**Example:**
 
 ```c
 #include <bloom-lisp/lisp.h>
 
 int main() {
-    lisp_init();
-    Environment* env = env_create_global();
+    Environment* env = lisp_init();
 
     LispObject* result = lisp_eval_string("(+ 1 2 3)", env);
     char* output = lisp_print(result);
@@ -147,21 +140,38 @@ int main() {
 }
 ```
 
-**Two-layer environment with packages:**
+Memory is managed by Boehm GC. Call `lisp_cleanup()` once at program exit.
 
-For applications that want to separate system bindings from user bindings, use the two-layer pattern:
+### Integration Options
 
-```c
-lisp_init();
-Environment* global = env_create_global();
-// Register app-specific builtins into global...
-Environment* user = env_create_user(global);
-// Use `user` for eval — user bindings stay in this frame
-// Bindings are tagged with packages (core, user, or custom)
-// package-save / environment-bindings operate on this frame
+**pkg-config (after `make install`):**
+
+```bash
+cc myapp.c $(pkg-config --cflags --libs bloom-lisp) -o myapp
 ```
 
-Note: Memory is managed by Boehm GC. Call `lisp_cleanup()` once at program exit.
+**Copy into your project** and link directly:
+
+```bash
+cc -I./libs/bloom-lisp/include \
+   myapp.c \
+   ./libs/bloom-lisp/src/libbloomlisp.a \
+   $(pkg-config --libs bdw-gc libpcre2-8) -lm \
+   -o myapp
+```
+
+**Autotools subproject:**
+
+```bash
+# In your configure.ac
+AC_CONFIG_SUBDIRS([libs/bloom-lisp])
+```
+
+```makefile
+# In your Makefile.am
+SUBDIRS = libs/bloom-lisp
+myapp_LDADD = libs/bloom-lisp/src/libbloomlisp.a
+```
 
 ## Quick Start
 
@@ -191,12 +201,12 @@ Note: Memory is managed by Boehm GC. Call `lisp_cleanup()` once at program exit.
 
 ### Core Functions
 
-| Function                        | Description                 |
-| ------------------------------- | --------------------------- |
-| `lisp_init()`                   | Initialize the interpreter  |
-| `lisp_eval_string(code, env)`   | Parse and evaluate a string |
-| `lisp_load_file(filename, env)` | Load and evaluate a file    |
-| `lisp_cleanup()`                | Free global resources       |
+| Function                        | Description                                |
+| ------------------------------- | ------------------------------------------ |
+| `lisp_init()`                   | Initialize interpreter, return environment |
+| `lisp_eval_string(code, env)`   | Parse and evaluate a string                |
+| `lisp_load_file(filename, env)` | Load and evaluate a file                   |
+| `lisp_cleanup()`                | Free global resources                      |
 
 ### Parsing and Evaluation
 
@@ -220,13 +230,11 @@ Note: Memory is managed by Boehm GC. Call `lisp_cleanup()` once at program exit.
 
 ### Environment Management
 
-| Function                               | Description                              |
-| -------------------------------------- | ---------------------------------------- |
-| `env_create(parent)`                   | Create new environment                   |
-| `env_create_global()`                  | Create global environment with built-ins |
-| `env_create_user(global)`              | Create user frame on top of global       |
-| `env_define(env, sym, value, package)` | Define variable in package               |
-| `env_lookup(env, sym)`                 | Look up variable                         |
+| Function                               | Description                    |
+| -------------------------------------- | ------------------------------ |
+| `env_create(parent)`                   | Create child environment frame |
+| `env_define(env, sym, value, package)` | Define variable in package     |
+| `env_lookup(env, sym)`                 | Look up variable               |
 
 ## License
 
