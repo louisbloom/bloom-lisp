@@ -236,6 +236,10 @@ myapp_LDADD = libs/bloom-lisp/src/libbloomlisp.a
 | `env_define(env, sym, value, package)` | Define variable in package     |
 | `env_lookup(env, sym)`                 | Look up variable               |
 
+## Authors
+
+- Thomas Christensen
+
 ## License
 
-MIT License - see LICENSE file for details.
+[MIT License](LICENSE)
