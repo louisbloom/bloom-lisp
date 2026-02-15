@@ -46,7 +46,8 @@ TuiInitResult repl_app_init(void *config)
     /* Configure layout */
     repl_app_set_terminal_size(app, app->terminal_width, app->terminal_height);
 
-    tui_textinput_set_word_delimiters(app->textinput, " \t()'`");
+    tui_textinput_set_word_chars(app->textinput,
+                                 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-*!?");
     tui_textinput_set_history_size(app->textinput, 500);
 
     return tui_init_result_none((TuiModel *)app);
