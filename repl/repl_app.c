@@ -42,6 +42,7 @@ TuiInitResult repl_app_init(void *config)
     }
     tui_textinput_set_show_dividers(app->textinput, 1);
     tui_textinput_set_prompt(app->textinput, ">>> ");
+    tui_textinput_set_continuation_prompt(app->textinput, "... ");
 
     /* Configure layout */
     repl_app_set_terminal_size(app, app->terminal_width, app->terminal_height);

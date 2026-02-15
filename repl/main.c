@@ -227,10 +227,22 @@ static int handle_command(const char *input, Environment *env)
 
 static void handle_line_submit(char *line)
 {
-    /* Skip empty lines if not accumulating */
-    if ((!line || line[0] == '\0') && expr_pos == 0) {
-        tui_runtime_flush(g_runtime);
-        return;
+    /* Skip blank lines if not accumulating */
+    if (expr_pos == 0) {
+        int blank = !line || line[0] == '\0';
+        if (!blank) {
+            blank = 1;
+            for (const char *c = line; *c; c++) {
+                if (*c != ' ' && *c != '\t' && *c != '\n' && *c != '\r') {
+                    blank = 0;
+                    break;
+                }
+            }
+        }
+        if (blank) {
+            tui_runtime_flush(g_runtime);
+            return;
+        }
     }
 
     /* Echo the input line to viewport */
@@ -295,7 +307,19 @@ static void handle_line_submit(char *line)
     }
 
     if (expr == NULL) {
-        if (expr_pos == 0) {
+        /* Check if buffer is only whitespace (nothing to continue) */
+        int all_ws = 1;
+        for (int i = 0; i < expr_pos; i++) {
+            if (expr_buffer[i] != ' ' && expr_buffer[i] != '\t' &&
+                expr_buffer[i] != '\n' && expr_buffer[i] != '\r') {
+                all_ws = 0;
+                break;
+            }
+        }
+        if (expr_pos == 0 || all_ws) {
+            expr_pos = 0;
+            expr_buffer[0] = '\0';
+            repl_app_set_prompt(g_app, ">>> ");
             tui_runtime_flush(g_runtime);
             return;
         }
