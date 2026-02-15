@@ -2,9 +2,11 @@
 #include <config.h>
 #endif
 
+#include "colors.h"
 #include "file_utils.h"
 #include "lisp.h"
 #include "repl_app.h"
+#include <bloom-boba/ansi_sequences.h>
 #include <bloom-boba/cmd.h>
 #include <bloom-boba/runtime.h>
 #include <fcntl.h>
@@ -23,6 +25,64 @@
 static Environment *g_env = NULL;
 static ReplAppModel *g_app = NULL;
 static TuiRuntime *g_runtime = NULL;
+
+/* ANSI color buffers */
+static char color_prompt[32];
+static char color_divider[32];
+static char color_error[32];
+static char color_info[32];
+static char color_nil[32];
+static char color_number[32];
+static char color_string[32];
+static char color_symbol[32];
+static char color_function[32];
+static char color_result[32];
+
+static void init_colors(void)
+{
+    ansi_format_fg_color_rgb(color_prompt, sizeof(color_prompt),
+                             COLOR_PROMPT_R, COLOR_PROMPT_G, COLOR_PROMPT_B);
+    ansi_format_fg_color_rgb(color_divider, sizeof(color_divider),
+                             COLOR_DIVIDER_R, COLOR_DIVIDER_G, COLOR_DIVIDER_B);
+    ansi_format_fg_color_rgb(color_error, sizeof(color_error),
+                             COLOR_ERROR_R, COLOR_ERROR_G, COLOR_ERROR_B);
+    ansi_format_fg_color_rgb(color_info, sizeof(color_info),
+                             COLOR_INFO_R, COLOR_INFO_G, COLOR_INFO_B);
+    ansi_format_fg_color_rgb(color_nil, sizeof(color_nil),
+                             COLOR_NIL_R, COLOR_NIL_G, COLOR_NIL_B);
+    ansi_format_fg_color_rgb(color_number, sizeof(color_number),
+                             COLOR_NUMBER_R, COLOR_NUMBER_G, COLOR_NUMBER_B);
+    ansi_format_fg_color_rgb(color_string, sizeof(color_string),
+                             COLOR_STRING_R, COLOR_STRING_G, COLOR_STRING_B);
+    ansi_format_fg_color_rgb(color_symbol, sizeof(color_symbol),
+                             COLOR_SYMBOL_R, COLOR_SYMBOL_G, COLOR_SYMBOL_B);
+    ansi_format_fg_color_rgb(color_function, sizeof(color_function),
+                             COLOR_FUNCTION_R, COLOR_FUNCTION_G, COLOR_FUNCTION_B);
+    ansi_format_fg_color_rgb(color_result, sizeof(color_result),
+                             COLOR_RESULT_R, COLOR_RESULT_G, COLOR_RESULT_B);
+}
+
+static const char *color_for_type(LispType type)
+{
+    switch (type) {
+    case LISP_NIL:
+        return color_nil;
+    case LISP_NUMBER:
+    case LISP_INTEGER:
+    case LISP_CHAR:
+        return color_number;
+    case LISP_STRING:
+        return color_string;
+    case LISP_SYMBOL:
+        return color_symbol;
+    case LISP_LAMBDA:
+    case LISP_MACRO:
+    case LISP_BUILTIN:
+        return color_function;
+    default:
+        return color_result;
+    }
+}
 
 /* Multi-line expression buffer */
 static char expr_buffer[8192] = { 0 };
@@ -133,7 +193,10 @@ static int handle_command(const char *input, Environment *env)
             filename++;
 
         if (*filename == '\0') {
-            echo_to_viewport("ERROR: :load requires a filename\n");
+            char buf[256];
+            snprintf(buf, sizeof(buf), "%sERROR: :load requires a filename%s\n",
+                     color_error, SGR_RESET);
+            echo_to_viewport(buf);
             return 0;
         }
 
@@ -143,12 +206,14 @@ static int handle_command(const char *input, Environment *env)
         if (result->type == LISP_ERROR) {
             char *err_str = lisp_print(result);
             char buf[4096];
-            snprintf(buf, sizeof(buf), "ERROR: %s\n", err_str);
+            snprintf(buf, sizeof(buf), "%sERROR: %s%s\n",
+                     color_error, err_str, SGR_RESET);
             echo_to_viewport(buf);
         } else {
             char *output = lisp_print(result);
+            const char *clr = color_for_type(result->type);
             char buf[4096];
-            snprintf(buf, sizeof(buf), "%s\n", output);
+            snprintf(buf, sizeof(buf), "%s%s%s\n", clr, output, SGR_RESET);
             echo_to_viewport(buf);
         }
 
@@ -177,7 +242,8 @@ static void handle_line_submit(char *line)
             int len = nl ? (int)(nl - p) : (int)strlen(p);
             const char *prompt = (first && expr_pos == 0) ? ">>> " : "... ";
             char echo_buf[8320];
-            snprintf(echo_buf, sizeof(echo_buf), "%s%.*s\n", prompt, len, p);
+            snprintf(echo_buf, sizeof(echo_buf), "%s%s%s%.*s\n",
+                     color_prompt, prompt, SGR_RESET, len, p);
             echo_to_viewport(echo_buf);
             first = 0;
             p = nl ? nl + 1 : p + len;
@@ -185,7 +251,8 @@ static void handle_line_submit(char *line)
     } else {
         const char *prompt = expr_pos > 0 ? "... " : ">>> ";
         char echo_buf[8320];
-        snprintf(echo_buf, sizeof(echo_buf), "%s%s\n", prompt, line ? line : "");
+        snprintf(echo_buf, sizeof(echo_buf), "%s%s%s%s\n",
+                 color_prompt, prompt, SGR_RESET, line ? line : "");
         echo_to_viewport(echo_buf);
     }
 
@@ -239,7 +306,8 @@ static void handle_line_submit(char *line)
 
     if (expr->type == LISP_ERROR) {
         char err_buf[4096];
-        snprintf(err_buf, sizeof(err_buf), "ERROR: %s\n", expr->value.error);
+        snprintf(err_buf, sizeof(err_buf), "%sERROR: %s%s\n",
+                 color_error, expr->value.error, SGR_RESET);
         echo_to_viewport(err_buf);
         expr_pos = 0;
         expr_buffer[0] = '\0';
@@ -276,12 +344,14 @@ static void handle_line_submit(char *line)
     if (eval_result->type == LISP_ERROR && !eval_result->value.error_with_stack.caught) {
         char *err_str = lisp_print(eval_result);
         char err_buf[4096];
-        snprintf(err_buf, sizeof(err_buf), "ERROR: %s\n", err_str);
+        snprintf(err_buf, sizeof(err_buf), "%sERROR: %s%s\n",
+                 color_error, err_str, SGR_RESET);
         echo_to_viewport(err_buf);
     } else {
         char *output = lisp_print(eval_result);
+        const char *clr = color_for_type(eval_result->type);
         char out_buf[4096];
-        snprintf(out_buf, sizeof(out_buf), "%s\n", output);
+        snprintf(out_buf, sizeof(out_buf), "%s%s%s\n", clr, output, SGR_RESET);
         echo_to_viewport(out_buf);
     }
 
@@ -349,11 +419,14 @@ static void handle_tab_complete(TuiCmd *cmd)
 
                 char list_buf[8192];
                 int pos = 0;
+                pos += snprintf(list_buf, sizeof(list_buf), "%s", color_function);
                 for (int c = 0; c < count; c++) {
                     int last_in_row = ((c + 1) % cols == 0) || (c == count - 1);
                     int sn;
                     if (last_in_row) {
-                        sn = snprintf(list_buf + pos, sizeof(list_buf) - pos, "%s\n", completions[c]);
+                        sn = snprintf(list_buf + pos, sizeof(list_buf) - pos,
+                                      "%s%s\n%s", completions[c], SGR_RESET,
+                                      (c < count - 1) ? color_function : "");
                     } else {
                         sn = snprintf(list_buf + pos, sizeof(list_buf) - pos, "%-*s", col_width, completions[c]);
                     }
@@ -404,6 +477,8 @@ static void run_interactive_repl(Environment *env)
 {
     (void)env;
 
+    init_colors();
+
     ReplAppConfig app_config = {
         .terminal_width = 80,
         .terminal_height = 24,
@@ -423,20 +498,21 @@ static void run_interactive_repl(Environment *env)
     }
     g_app = (ReplAppModel *)tui_runtime_model(g_runtime);
 
+    /* Set REPL colors */
+    tui_textinput_set_divider_color(g_app->textinput, color_divider);
+    tui_textinput_set_prompt_color(g_app->textinput, color_prompt);
+
     /* Register cleanup */
     atexit(cleanup);
 
     /* Welcome message */
-    char welcome[256];
+    char welcome[512];
     snprintf(welcome, sizeof(welcome),
-             "Bloom Lisp Interpreter v%s\n"
+             "%sBloom Lisp Interpreter v%s\n"
              "Type expressions to evaluate, :quit to exit, :load <file> to load a file\n"
-             "Tab for completion, Up/Down for history, PageUp/PageDown to scroll\n\n",
-             BLOOM_LISP_VERSION);
+             "Tab for completion, Up/Down for history, PageUp/PageDown to scroll%s\n\n",
+             color_info, BLOOM_LISP_VERSION, SGR_RESET);
     repl_app_echo(g_app, welcome, strlen(welcome));
-
-    /* Initial render */
-    tui_runtime_flush(g_runtime);
 
     /* Blocking event loop — runtime owns raw mode, signals, select() */
     tui_runtime_run(g_runtime);
