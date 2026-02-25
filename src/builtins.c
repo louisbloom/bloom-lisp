@@ -256,7 +256,7 @@ static LispObject *builtin_error(LispObject *args, Environment *env);
 /* Docstring introspection */
 static LispObject *builtin_documentation(LispObject *args, Environment *env);
 static LispObject *builtin_bound_question(LispObject *args, Environment *env);
-static LispObject *builtin_set_documentation(LispObject *args, Environment *env);
+static LispObject *builtin_set_documentation_bang(LispObject *args, Environment *env);
 
 /* Eval */
 static LispObject *builtin_eval(LispObject *args, Environment *env);
@@ -551,7 +551,7 @@ void register_builtins(Environment *env)
     /* Docstring introspection functions */
     REGISTER("documentation", builtin_documentation);
     REGISTER("bound?", builtin_bound_question);
-    REGISTER("set-documentation!", builtin_set_documentation);
+    REGISTER("set-documentation!", builtin_set_documentation_bang);
 
     /* Eval */
     REGISTER("eval", builtin_eval);
@@ -4964,7 +4964,7 @@ static LispObject *builtin_profile_reset(LispObject *args, Environment *env)
     return LISP_TRUE;
 }
 
-static LispObject *builtin_set_documentation(LispObject *args, Environment *env)
+static LispObject *builtin_set_documentation_bang(LispObject *args, Environment *env)
 {
     (void)env; /* Unused - docstrings are stored on symbols, not bindings */
 
