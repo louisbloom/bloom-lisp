@@ -7,7 +7,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
-#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -33,6 +32,31 @@
 #ifndef BLOOM_LISP_VERSION_PATCH
 #define BLOOM_LISP_VERSION_PATCH 0
 #endif
+
+/* ---- Argument validation macros ---- */
+#define CHECK_ARGS_1(name) \
+    if (args == NIL)       \
+    return lisp_make_error(name " requires 1 argument")
+#define CHECK_ARGS_2(name)                    \
+    if (args == NIL || lisp_cdr(args) == NIL) \
+    return lisp_make_error(name " requires 2 arguments")
+#define CHECK_ARGS_3(name)                      \
+    if (args == NIL || lisp_cdr(args) == NIL || \
+        lisp_cdr(lisp_cdr(args)) == NIL)        \
+    return lisp_make_error(name " requires 3 arguments")
+
+/* ---- List builder macro ---- */
+#define LIST_APPEND(result, tail, item)                  \
+    do {                                                 \
+        LispObject *_node = lisp_make_cons((item), NIL); \
+        if ((result) == NIL) {                           \
+            (result) = _node;                            \
+            (tail) = _node;                              \
+        } else {                                         \
+            (tail)->value.cons.cdr = _node;              \
+            (tail) = _node;                              \
+        }                                                \
+    } while (0)
 
 /* Arithmetic operations */
 static LispObject *builtin_add(LispObject *args, Environment *env);
@@ -144,7 +168,6 @@ static LispObject *builtin_hash_keys(LispObject *args, Environment *env);
 static LispObject *builtin_hash_values(LispObject *args, Environment *env);
 static LispObject *builtin_hash_entries(LispObject *args, Environment *env);
 
-/* File I/O operations docstrings */
 /* File I/O operations */
 static LispObject *builtin_open(LispObject *args, Environment *env);
 static LispObject *builtin_close(LispObject *args, Environment *env);
@@ -266,28 +289,6 @@ static LispObject *builtin_mkdir(LispObject *args, Environment *env);
 static int match_char_class(const char **pattern, char c);
 static int wildcard_match(const char *pattern, const char *str);
 
-/* Arithmetic operations */
-/* String operations */
-/* List operations */
-/* Type predicates */
-/* Comparison operators */
-/* Equality predicates */
-/* Boolean operations */
-/* Vector operations */
-/* Hash table operations */
-/* List operations */
-/* String operations */
-/* String conversion operations */
-/* String comparison operations */
-/* String search operations */
-/* Association list (alist) operations */
-/* List membership */
-/* Miscellaneous predicates and operations */
-/* Path expansion functions */
-/* Environment and filesystem functions */
-/* Error handling functions */
-/* Docstring introspection functions */
-/* Printing functions */
 /* Create bloom-lisp-version alist with version information.
  * Called during initialization to define the bloom-lisp-version variable.
  */
@@ -583,121 +584,69 @@ static double get_numeric_value(LispObject *obj, int *is_integer)
     return 0.0;
 }
 
-/* Arithmetic operations */
+/* Arithmetic loop: validate + accumulate numeric args */
+#define ARITH_LOOP(accum, op, name)                                      \
+    while (args != NIL && args != NULL) {                                \
+        LispObject *_a = lisp_car(args);                                 \
+        int _ai = 0;                                                     \
+        double _v = get_numeric_value(_a, &_ai);                         \
+        if (!_ai && _a->type != LISP_NUMBER && _a->type != LISP_INTEGER) \
+            return lisp_make_error(name " requires numbers");            \
+        if (!_ai)                                                        \
+            all_integers = 0;                                            \
+        accum op _v;                                                     \
+        args = lisp_cdr(args);                                           \
+    }
+
+/* Return integer if all args were ints, else float */
+#define ARITH_RETURN(accum)                                     \
+    return all_integers ? lisp_make_integer((long long)(accum)) \
+                        : lisp_make_number(accum)
+
 static LispObject *builtin_add(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_integer(0); /* Return 0 for (+), not 0.0 */
-    }
+    if (args == NIL)
+        return lisp_make_integer(0);
 
-    /* Check if all integers */
     int all_integers = 1;
     double sum = 0;
-    int first_is_integer = 0;
-    double first_val = 0;
-
-    LispObject *first = lisp_car(args);
-    first_val = get_numeric_value(first, &first_is_integer);
-    all_integers = first_is_integer;
-    sum = first_val;
-    args = lisp_cdr(args);
-
-    while (args != NIL && args != NULL) {
-        LispObject *arg = lisp_car(args);
-        int arg_is_integer = 0;
-        double val = get_numeric_value(arg, &arg_is_integer);
-        if (arg_is_integer == 0 && arg->type != LISP_NUMBER && arg->type != LISP_INTEGER) {
-            return lisp_make_error("+ requires numbers");
-        }
-        if (!arg_is_integer) {
-            all_integers = 0;
-        }
-        sum += val;
-        args = lisp_cdr(args);
-    }
-
-    if (all_integers) {
-        return lisp_make_integer((long long)sum);
-    } else {
-        return lisp_make_number(sum);
-    }
+    ARITH_LOOP(sum, +=, "+");
+    ARITH_RETURN(sum);
 }
 
 static LispObject *builtin_subtract(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("- requires at least one argument");
-    }
+    CHECK_ARGS_1("-");
 
     LispObject *first = lisp_car(args);
     int first_is_integer = 0;
     double result = get_numeric_value(first, &first_is_integer);
     int all_integers = first_is_integer;
-
     args = lisp_cdr(args);
 
-    if (args == NIL) {
-        /* Unary negation */
-        if (first_is_integer) {
-            return lisp_make_integer((long long)-result);
-        } else {
-            return lisp_make_number(-result);
-        }
-    }
+    if (args == NIL)
+        return first_is_integer ? lisp_make_integer((long long)-result)
+                                : lisp_make_number(-result);
 
-    while (args != NIL && args != NULL) {
-        LispObject *arg = lisp_car(args);
-        int arg_is_integer = 0;
-        double val = get_numeric_value(arg, &arg_is_integer);
-        if (arg_is_integer == 0 && arg->type != LISP_NUMBER && arg->type != LISP_INTEGER) {
-            return lisp_make_error("- requires numbers");
-        }
-        if (!arg_is_integer) {
-            all_integers = 0;
-        }
-        result -= val;
-        args = lisp_cdr(args);
-    }
-
-    if (all_integers) {
-        return lisp_make_integer((long long)result);
-    } else {
-        return lisp_make_number(result);
-    }
+    ARITH_LOOP(result, -=, "-");
+    ARITH_RETURN(result);
 }
 
 static LispObject *builtin_multiply(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_integer(1); /* Return 1 for (*), not 1.0 */
-    }
+    if (args == NIL)
+        return lisp_make_integer(1);
 
     int all_integers = 1;
     double product = 1;
-
-    while (args != NIL && args != NULL) {
-        LispObject *arg = lisp_car(args);
-        int arg_is_integer = 0;
-        double val = get_numeric_value(arg, &arg_is_integer);
-        if (arg_is_integer == 0 && arg->type != LISP_NUMBER && arg->type != LISP_INTEGER) {
-            return lisp_make_error("* requires numbers");
-        }
-        if (!arg_is_integer) {
-            all_integers = 0;
-        }
-        product *= val;
-        args = lisp_cdr(args);
-    }
-
-    if (all_integers) {
-        return lisp_make_integer((long long)product);
-    } else {
-        return lisp_make_number(product);
-    }
+    ARITH_LOOP(product, *=, "*");
+    ARITH_RETURN(product);
 }
+#undef ARITH_LOOP
+#undef ARITH_RETURN
 
 static LispObject *builtin_divide(LispObject *args, Environment *env)
 {
@@ -740,9 +689,7 @@ static LispObject *builtin_divide(LispObject *args, Environment *env)
 static LispObject *builtin_quotient(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("quotient requires 2 arguments");
-    }
+    CHECK_ARGS_2("quotient");
 
     LispObject *first = lisp_car(args);
     LispObject *second = lisp_car(lisp_cdr(args));
@@ -771,9 +718,7 @@ static LispObject *builtin_quotient(LispObject *args, Environment *env)
 static LispObject *builtin_remainder(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("remainder requires 2 arguments");
-    }
+    CHECK_ARGS_2("remainder");
 
     LispObject *first = lisp_car(args);
     LispObject *second = lisp_car(lisp_cdr(args));
@@ -801,9 +746,7 @@ static LispObject *builtin_remainder(LispObject *args, Environment *env)
 static LispObject *builtin_even_question(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("even? requires 1 argument");
-    }
+    CHECK_ARGS_1("even?");
 
     LispObject *arg = lisp_car(args);
     int arg_is_integer;
@@ -823,9 +766,7 @@ static LispObject *builtin_even_question(LispObject *args, Environment *env)
 static LispObject *builtin_odd_question(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("odd? requires 1 argument");
-    }
+    CHECK_ARGS_1("odd?");
 
     LispObject *arg = lisp_car(args);
     int arg_is_integer;
@@ -843,120 +784,26 @@ static LispObject *builtin_odd_question(LispObject *args, Environment *env)
 }
 
 /* Number comparisons */
-static LispObject *builtin_gt(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("> requires at least 2 arguments");
+#define DEFINE_NUM_CMP(cname, opname, op)                              \
+    static LispObject *cname(LispObject *args, Environment *env)       \
+    {                                                                  \
+        (void)env;                                                     \
+        CHECK_ARGS_2(opname);                                          \
+        LispObject *a = lisp_car(args), *b = lisp_car(lisp_cdr(args)); \
+        int ai, bi;                                                    \
+        double av = get_numeric_value(a, &ai),                         \
+               bv = get_numeric_value(b, &bi);                         \
+        if ((!ai && a->type != LISP_NUMBER) ||                         \
+            (!bi && b->type != LISP_NUMBER))                           \
+            return lisp_make_error(opname " requires numbers");        \
+        return (av op bv) ? LISP_TRUE : NIL;                           \
     }
-
-    LispObject *a = lisp_car(args);
-    LispObject *b = lisp_car(lisp_cdr(args));
-
-    int a_is_integer = 0;
-    int b_is_integer = 0;
-    double a_val = get_numeric_value(a, &a_is_integer);
-    double b_val = get_numeric_value(b, &b_is_integer);
-
-    if ((!a_is_integer && a->type != LISP_NUMBER && a->type != LISP_INTEGER) ||
-        (!b_is_integer && b->type != LISP_NUMBER && b->type != LISP_INTEGER)) {
-        return lisp_make_error("> requires numbers");
-    }
-
-    return (a_val > b_val) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_lt(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("< requires at least 2 arguments");
-    }
-
-    LispObject *a = lisp_car(args);
-    LispObject *b = lisp_car(lisp_cdr(args));
-
-    int a_is_integer = 0;
-    int b_is_integer = 0;
-    double a_val = get_numeric_value(a, &a_is_integer);
-    double b_val = get_numeric_value(b, &b_is_integer);
-
-    if ((!a_is_integer && a->type != LISP_NUMBER && a->type != LISP_INTEGER) ||
-        (!b_is_integer && b->type != LISP_NUMBER && b->type != LISP_INTEGER)) {
-        return lisp_make_error("< requires numbers");
-    }
-
-    return (a_val < b_val) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_eq(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("= requires at least 2 arguments");
-    }
-
-    LispObject *a = lisp_car(args);
-    LispObject *b = lisp_car(lisp_cdr(args));
-
-    int a_is_integer = 0;
-    int b_is_integer = 0;
-    double a_val = get_numeric_value(a, &a_is_integer);
-    double b_val = get_numeric_value(b, &b_is_integer);
-
-    if ((!a_is_integer && a->type != LISP_NUMBER && a->type != LISP_INTEGER) ||
-        (!b_is_integer && b->type != LISP_NUMBER && b->type != LISP_INTEGER)) {
-        return lisp_make_error("= requires numbers");
-    }
-
-    return (a_val == b_val) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_gte(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error(">= requires at least 2 arguments");
-    }
-
-    LispObject *a = lisp_car(args);
-    LispObject *b = lisp_car(lisp_cdr(args));
-
-    int a_is_integer = 0;
-    int b_is_integer = 0;
-    double a_val = get_numeric_value(a, &a_is_integer);
-    double b_val = get_numeric_value(b, &b_is_integer);
-
-    if ((!a_is_integer && a->type != LISP_NUMBER && a->type != LISP_INTEGER) ||
-        (!b_is_integer && b->type != LISP_NUMBER && b->type != LISP_INTEGER)) {
-        return lisp_make_error(">= requires numbers");
-    }
-
-    return (a_val >= b_val) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_lte(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("<= requires at least 2 arguments");
-    }
-
-    LispObject *a = lisp_car(args);
-    LispObject *b = lisp_car(lisp_cdr(args));
-
-    int a_is_integer = 0;
-    int b_is_integer = 0;
-    double a_val = get_numeric_value(a, &a_is_integer);
-    double b_val = get_numeric_value(b, &b_is_integer);
-
-    if ((!a_is_integer && a->type != LISP_NUMBER && a->type != LISP_INTEGER) ||
-        (!b_is_integer && b->type != LISP_NUMBER && b->type != LISP_INTEGER)) {
-        return lisp_make_error("<= requires numbers");
-    }
-
-    return (a_val <= b_val) ? LISP_TRUE : NIL;
-}
+DEFINE_NUM_CMP(builtin_gt, ">", >)
+DEFINE_NUM_CMP(builtin_lt, "<", <)
+DEFINE_NUM_CMP(builtin_eq, "=", ==)
+DEFINE_NUM_CMP(builtin_gte, ">=", >=)
+DEFINE_NUM_CMP(builtin_lte, "<=", <=)
+#undef DEFINE_NUM_CMP
 
 /* String operations */
 static LispObject *builtin_concat(LispObject *args, Environment *env)
@@ -1259,9 +1106,7 @@ static int wildcard_match(const char *pattern, const char *str)
 static LispObject *builtin_split(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("split requires 2 arguments");
-    }
+    CHECK_ARGS_2("split");
 
     LispObject *str_obj = lisp_car(args);
     LispObject *pattern_obj = lisp_car(lisp_cdr(args));
@@ -1305,16 +1150,7 @@ static LispObject *builtin_split(LispObject *args, Environment *env)
             strncpy(token, start, len);
             token[len] = '\0';
 
-            LispObject *token_obj = lisp_make_string(token);
-
-            LispObject *new_cons = lisp_make_cons(token_obj, NIL);
-            if (result == NIL) {
-                result = new_cons;
-                tail = new_cons;
-            } else {
-                tail->value.cons.cdr = new_cons;
-                tail = new_cons;
-            }
+            LIST_APPEND(result, tail, lisp_make_string(token));
 
             /* Skip pattern */
             p += pattern_len;
@@ -1325,15 +1161,8 @@ static LispObject *builtin_split(LispObject *args, Environment *env)
     }
 
     /* Add remaining */
-    if (*start || result != NIL) {
-        LispObject *token_obj = lisp_make_string(start);
-        LispObject *new_cons = lisp_make_cons(token_obj, NIL);
-        if (result == NIL) {
-            result = new_cons;
-        } else {
-            tail->value.cons.cdr = new_cons;
-        }
-    }
+    if (*start || result != NIL)
+        LIST_APPEND(result, tail, lisp_make_string(start));
 
     return result;
 }
@@ -1341,9 +1170,7 @@ static LispObject *builtin_split(LispObject *args, Environment *env)
 static LispObject *builtin_join(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("join requires 2 arguments: (join list separator)");
-    }
+    CHECK_ARGS_2("join");
 
     LispObject *list_obj = lisp_car(args);
     LispObject *sep_obj = lisp_car(lisp_cdr(args));
@@ -1398,80 +1225,28 @@ static LispObject *builtin_join(LispObject *args, Environment *env)
     return lisp_make_string(result);
 }
 
-static LispObject *builtin_string_lt(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string<? requires 2 arguments");
+#define DEFINE_STR_CMP(cname, opname, op)                              \
+    static LispObject *cname(LispObject *args, Environment *env)       \
+    {                                                                  \
+        (void)env;                                                     \
+        CHECK_ARGS_2(opname);                                          \
+        LispObject *a = lisp_car(args), *b = lisp_car(lisp_cdr(args)); \
+        if (a->type != LISP_STRING || b->type != LISP_STRING)          \
+            return lisp_make_error(opname " requires strings");        \
+        return (strcmp(a->value.string, b->value.string) op 0)         \
+                   ? LISP_TRUE                                         \
+                   : NIL;                                              \
     }
-
-    LispObject *a = lisp_car(args);
-    LispObject *b = lisp_car(lisp_cdr(args));
-
-    if (a->type != LISP_STRING || b->type != LISP_STRING) {
-        return lisp_make_error("string<? requires strings");
-    }
-
-    return (strcmp(a->value.string, b->value.string) < 0) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_string_gt(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string>? requires 2 arguments");
-    }
-
-    LispObject *a = lisp_car(args);
-    LispObject *b = lisp_car(lisp_cdr(args));
-
-    if (a->type != LISP_STRING || b->type != LISP_STRING) {
-        return lisp_make_error("string>? requires strings");
-    }
-
-    return (strcmp(a->value.string, b->value.string) > 0) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_string_lte(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string<=? requires 2 arguments");
-    }
-
-    LispObject *a = lisp_car(args);
-    LispObject *b = lisp_car(lisp_cdr(args));
-
-    if (a->type != LISP_STRING || b->type != LISP_STRING) {
-        return lisp_make_error("string<=? requires strings");
-    }
-
-    return (strcmp(a->value.string, b->value.string) <= 0) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_string_gte(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string>=? requires 2 arguments");
-    }
-
-    LispObject *a = lisp_car(args);
-    LispObject *b = lisp_car(lisp_cdr(args));
-
-    if (a->type != LISP_STRING || b->type != LISP_STRING) {
-        return lisp_make_error("string>=? requires strings");
-    }
-
-    return (strcmp(a->value.string, b->value.string) >= 0) ? LISP_TRUE : NIL;
-}
+DEFINE_STR_CMP(builtin_string_lt, "string<?", <)
+DEFINE_STR_CMP(builtin_string_gt, "string>?", >)
+DEFINE_STR_CMP(builtin_string_lte, "string<=?", <=)
+DEFINE_STR_CMP(builtin_string_gte, "string>=?", >=)
+#undef DEFINE_STR_CMP
 
 static LispObject *builtin_string_contains(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string-contains? requires 2 arguments");
-    }
+    CHECK_ARGS_2("string-contains?");
 
     LispObject *haystack = lisp_car(args);
     LispObject *needle = lisp_car(lisp_cdr(args));
@@ -1486,9 +1261,7 @@ static LispObject *builtin_string_contains(LispObject *args, Environment *env)
 static LispObject *builtin_string_index(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string-index requires 2 arguments");
-    }
+    CHECK_ARGS_2("string-index");
 
     LispObject *haystack = lisp_car(args);
     LispObject *needle = lisp_car(lisp_cdr(args));
@@ -1520,9 +1293,7 @@ static LispObject *builtin_string_index(LispObject *args, Environment *env)
 static LispObject *builtin_string_match(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string-match? requires 2 arguments");
-    }
+    CHECK_ARGS_2("string-match?");
 
     LispObject *str = lisp_car(args);
     LispObject *pattern = lisp_car(lisp_cdr(args));
@@ -1537,9 +1308,7 @@ static LispObject *builtin_string_match(LispObject *args, Environment *env)
 static LispObject *builtin_string_prefix_question(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string-prefix? requires 2 arguments");
-    }
+    CHECK_ARGS_2("string-prefix?");
 
     LispObject *prefix = lisp_car(args);
     LispObject *str = lisp_car(lisp_cdr(args));
@@ -1611,9 +1380,7 @@ static LispObject *builtin_substring(LispObject *args, Environment *env)
 static LispObject *builtin_string_ref(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string-ref requires 2 arguments");
-    }
+    CHECK_ARGS_2("string-ref");
 
     LispObject *str_obj = lisp_car(args);
     LispObject *index_obj = lisp_car(lisp_cdr(args));
@@ -1648,9 +1415,7 @@ static LispObject *builtin_string_ref(LispObject *args, Environment *env)
 static LispObject *builtin_string_replace(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL || lisp_cdr(lisp_cdr(args)) == NIL) {
-        return lisp_make_error("string-replace requires 3 arguments");
-    }
+    CHECK_ARGS_3("string-replace");
 
     LispObject *str_obj = lisp_car(args);
     LispObject *old_obj = lisp_car(lisp_cdr(args));
@@ -1710,35 +1475,21 @@ static LispObject *builtin_string_replace(LispObject *args, Environment *env)
     return lisp_make_string(result);
 }
 
-/* String upcase */
-static LispObject *builtin_string_upcase(LispObject *args, Environment *env)
+static LispObject *string_case_convert(const char *str,
+                                       int (*convert)(int))
 {
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("string-upcase requires 1 argument");
-    }
-
-    LispObject *str_obj = lisp_car(args);
-    if (str_obj->type != LISP_STRING) {
-        return lisp_make_error("string-upcase requires a string");
-    }
-
-    const char *str = str_obj->value.string;
     size_t len = strlen(str);
     char *result = GC_malloc(len + 1);
     const char *src = str;
     char *dst = result;
 
-    /* Convert each character */
     while (*src) {
         int codepoint = utf8_get_codepoint(src);
         if (codepoint >= 0 && codepoint < 128) {
-            /* ASCII - use toupper */
-            *dst = toupper((unsigned char)*src);
+            *dst = convert((unsigned char)*src);
             src++;
             dst++;
         } else {
-            /* Unicode - preserve as-is (full Unicode case conversion requires tables) */
             int bytes = utf8_char_bytes(src);
             memcpy(dst, src, bytes);
             src += bytes;
@@ -1746,57 +1497,34 @@ static LispObject *builtin_string_upcase(LispObject *args, Environment *env)
         }
     }
     *dst = '\0';
-
     return lisp_make_string(result);
 }
 
-/* String downcase */
+static LispObject *builtin_string_upcase(LispObject *args, Environment *env)
+{
+    (void)env;
+    CHECK_ARGS_1("string-upcase");
+    LispObject *str_obj = lisp_car(args);
+    if (str_obj->type != LISP_STRING)
+        return lisp_make_error("string-upcase requires a string");
+    return string_case_convert(str_obj->value.string, toupper);
+}
+
 static LispObject *builtin_string_downcase(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("string-downcase requires 1 argument");
-    }
-
+    CHECK_ARGS_1("string-downcase");
     LispObject *str_obj = lisp_car(args);
-    if (str_obj->type != LISP_STRING) {
+    if (str_obj->type != LISP_STRING)
         return lisp_make_error("string-downcase requires a string");
-    }
-
-    const char *str = str_obj->value.string;
-    size_t len = strlen(str);
-    char *result = GC_malloc(len + 1);
-    const char *src = str;
-    char *dst = result;
-
-    /* Convert each character */
-    while (*src) {
-        int codepoint = utf8_get_codepoint(src);
-        if (codepoint >= 0 && codepoint < 128) {
-            /* ASCII - use tolower */
-            *dst = tolower((unsigned char)*src);
-            src++;
-            dst++;
-        } else {
-            /* Unicode - preserve as-is (full Unicode case conversion requires tables) */
-            int bytes = utf8_char_bytes(src);
-            memcpy(dst, src, bytes);
-            src += bytes;
-            dst += bytes;
-        }
-    }
-    *dst = '\0';
-
-    return lisp_make_string(result);
+    return string_case_convert(str_obj->value.string, tolower);
 }
 
 /* String trim - remove leading and trailing whitespace */
 static LispObject *builtin_string_trim(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("string-trim requires 1 argument");
-    }
+    CHECK_ARGS_1("string-trim");
 
     LispObject *str_obj = lisp_car(args);
     if (str_obj->type != LISP_STRING) {
@@ -1846,9 +1574,7 @@ static LispObject *builtin_char_question(LispObject *args, Environment *env)
 static LispObject *builtin_char_code(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("char-code requires 1 argument");
-    }
+    CHECK_ARGS_1("char-code");
     LispObject *char_obj = lisp_car(args);
     if (char_obj->type != LISP_CHAR) {
         return lisp_make_error("char-code requires a character");
@@ -1859,9 +1585,7 @@ static LispObject *builtin_char_code(LispObject *args, Environment *env)
 static LispObject *builtin_code_char(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("code-char requires 1 argument");
-    }
+    CHECK_ARGS_1("code-char");
     LispObject *code_obj = lisp_car(args);
     if (code_obj->type != LISP_INTEGER) {
         return lisp_make_error("code-char requires an integer");
@@ -1876,9 +1600,7 @@ static LispObject *builtin_code_char(LispObject *args, Environment *env)
 static LispObject *builtin_char_to_string(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("char->string requires 1 argument");
-    }
+    CHECK_ARGS_1("char->string");
     LispObject *char_obj = lisp_car(args);
     if (char_obj->type != LISP_CHAR) {
         return lisp_make_error("char->string requires a character");
@@ -1891,9 +1613,7 @@ static LispObject *builtin_char_to_string(LispObject *args, Environment *env)
 static LispObject *builtin_string_to_char(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("string->char requires 1 argument");
-    }
+    CHECK_ARGS_1("string->char");
     LispObject *str_obj = lisp_car(args);
     if (str_obj->type != LISP_STRING) {
         return lisp_make_error("string->char requires a string");
@@ -1907,82 +1627,27 @@ static LispObject *builtin_string_to_char(LispObject *args, Environment *env)
     return lisp_make_char(codepoint);
 }
 
-static LispObject *builtin_char_eq(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("char=? requires 2 arguments");
+#define DEFINE_CHAR_CMP(cname, opname, op)                                    \
+    static LispObject *cname(LispObject *args, Environment *env)              \
+    {                                                                         \
+        (void)env;                                                            \
+        CHECK_ARGS_2(opname);                                                 \
+        LispObject *c1 = lisp_car(args), *c2 = lisp_car(lisp_cdr(args));      \
+        if (c1->type != LISP_CHAR || c2->type != LISP_CHAR)                   \
+            return lisp_make_error(opname " requires characters");            \
+        return lisp_make_boolean(c1->value.character op c2->value.character); \
     }
-    LispObject *c1 = lisp_car(args);
-    LispObject *c2 = lisp_car(lisp_cdr(args));
-    if (c1->type != LISP_CHAR || c2->type != LISP_CHAR) {
-        return lisp_make_error("char=? requires characters");
-    }
-    return lisp_make_boolean(c1->value.character == c2->value.character);
-}
-
-static LispObject *builtin_char_lt(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("char<? requires 2 arguments");
-    }
-    LispObject *c1 = lisp_car(args);
-    LispObject *c2 = lisp_car(lisp_cdr(args));
-    if (c1->type != LISP_CHAR || c2->type != LISP_CHAR) {
-        return lisp_make_error("char<? requires characters");
-    }
-    return lisp_make_boolean(c1->value.character < c2->value.character);
-}
-
-static LispObject *builtin_char_gt(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("char>? requires 2 arguments");
-    }
-    LispObject *c1 = lisp_car(args);
-    LispObject *c2 = lisp_car(lisp_cdr(args));
-    if (c1->type != LISP_CHAR || c2->type != LISP_CHAR) {
-        return lisp_make_error("char>? requires characters");
-    }
-    return lisp_make_boolean(c1->value.character > c2->value.character);
-}
-
-static LispObject *builtin_char_lte(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("char<=? requires 2 arguments");
-    }
-    LispObject *c1 = lisp_car(args);
-    LispObject *c2 = lisp_car(lisp_cdr(args));
-    if (c1->type != LISP_CHAR || c2->type != LISP_CHAR) {
-        return lisp_make_error("char<=? requires characters");
-    }
-    return lisp_make_boolean(c1->value.character <= c2->value.character);
-}
-
-static LispObject *builtin_char_gte(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("char>=? requires 2 arguments");
-    }
-    LispObject *c1 = lisp_car(args);
-    LispObject *c2 = lisp_car(lisp_cdr(args));
-    if (c1->type != LISP_CHAR || c2->type != LISP_CHAR) {
-        return lisp_make_error("char>=? requires characters");
-    }
-    return lisp_make_boolean(c1->value.character >= c2->value.character);
-}
+DEFINE_CHAR_CMP(builtin_char_eq, "char=?", ==)
+DEFINE_CHAR_CMP(builtin_char_lt, "char<?", <)
+DEFINE_CHAR_CMP(builtin_char_gt, "char>?", >)
+DEFINE_CHAR_CMP(builtin_char_lte, "char<=?", <=)
+DEFINE_CHAR_CMP(builtin_char_gte, "char>=?", >=)
+#undef DEFINE_CHAR_CMP
 
 static LispObject *builtin_char_upcase(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("char-upcase requires 1 argument");
-    }
+    CHECK_ARGS_1("char-upcase");
     LispObject *char_obj = lisp_car(args);
     if (char_obj->type != LISP_CHAR) {
         return lisp_make_error("char-upcase requires a character");
@@ -1998,9 +1663,7 @@ static LispObject *builtin_char_upcase(LispObject *args, Environment *env)
 static LispObject *builtin_char_downcase(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("char-downcase requires 1 argument");
-    }
+    CHECK_ARGS_1("char-downcase");
     LispObject *char_obj = lisp_car(args);
     if (char_obj->type != LISP_CHAR) {
         return lisp_make_error("char-downcase requires a character");
@@ -2016,9 +1679,7 @@ static LispObject *builtin_char_downcase(LispObject *args, Environment *env)
 static LispObject *builtin_char_alphabetic(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("char-alphabetic? requires 1 argument");
-    }
+    CHECK_ARGS_1("char-alphabetic?");
     LispObject *char_obj = lisp_car(args);
     if (char_obj->type != LISP_CHAR) {
         return lisp_make_error("char-alphabetic? requires a character");
@@ -2032,9 +1693,7 @@ static LispObject *builtin_char_alphabetic(LispObject *args, Environment *env)
 static LispObject *builtin_char_numeric(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("char-numeric? requires 1 argument");
-    }
+    CHECK_ARGS_1("char-numeric?");
     LispObject *char_obj = lisp_car(args);
     if (char_obj->type != LISP_CHAR) {
         return lisp_make_error("char-numeric? requires a character");
@@ -2047,9 +1706,7 @@ static LispObject *builtin_char_numeric(LispObject *args, Environment *env)
 static LispObject *builtin_char_whitespace(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("char-whitespace? requires 1 argument");
-    }
+    CHECK_ARGS_1("char-whitespace?");
     LispObject *char_obj = lisp_car(args);
     if (char_obj->type != LISP_CHAR) {
         return lisp_make_error("char-whitespace? requires a character");
@@ -2063,9 +1720,7 @@ static LispObject *builtin_char_whitespace(LispObject *args, Environment *env)
 static LispObject *builtin_not(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("not requires 1 argument");
-    }
+    CHECK_ARGS_1("not");
 
     LispObject *arg = lisp_car(args);
     return lisp_is_truthy(arg) ? NIL : LISP_TRUE;
@@ -2075,9 +1730,7 @@ static LispObject *builtin_not(LispObject *args, Environment *env)
 static LispObject *builtin_car(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("car requires 1 argument");
-    }
+    CHECK_ARGS_1("car");
 
     LispObject *arg = lisp_car(args);
     if (arg == NIL) {
@@ -2094,9 +1747,7 @@ static LispObject *builtin_car(LispObject *args, Environment *env)
 static LispObject *builtin_cdr(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("cdr requires 1 argument");
-    }
+    CHECK_ARGS_1("cdr");
 
     LispObject *arg = lisp_car(args);
     if (arg == NIL) {
@@ -2111,86 +1762,38 @@ static LispObject *builtin_cdr(LispObject *args, Environment *env)
 }
 
 /* c*r combination builtins */
-static LispObject *builtin_caar(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL)
-        return lisp_make_error("caar requires 1 argument");
-    return lisp_caar(lisp_car(args));
-}
+#define DEFINE_CXR(cname, opname, func)                          \
+    static LispObject *cname(LispObject *args, Environment *env) \
+    {                                                            \
+        (void)env;                                               \
+        CHECK_ARGS_1(opname);                                    \
+        return func(lisp_car(args));                             \
+    }
+DEFINE_CXR(builtin_caar, "caar", lisp_caar)
+DEFINE_CXR(builtin_cadr, "cadr", lisp_cadr)
+DEFINE_CXR(builtin_cdar, "cdar", lisp_cdar)
+DEFINE_CXR(builtin_cddr, "cddr", lisp_cddr)
+DEFINE_CXR(builtin_caddr, "caddr", lisp_caddr)
+DEFINE_CXR(builtin_cadddr, "cadddr", lisp_cadddr)
+#undef DEFINE_CXR
 
-static LispObject *builtin_cadr(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL)
-        return lisp_make_error("cadr requires 1 argument");
-    return lisp_cadr(lisp_car(args));
-}
-
-static LispObject *builtin_cdar(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL)
-        return lisp_make_error("cdar requires 1 argument");
-    return lisp_cdar(lisp_car(args));
-}
-
-static LispObject *builtin_cddr(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL)
-        return lisp_make_error("cddr requires 1 argument");
-    return lisp_cddr(lisp_car(args));
-}
-
-static LispObject *builtin_caddr(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL)
-        return lisp_make_error("caddr requires 1 argument");
-    return lisp_caddr(lisp_car(args));
-}
-
-static LispObject *builtin_cadddr(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL)
-        return lisp_make_error("cadddr requires 1 argument");
-    return lisp_cadddr(lisp_car(args));
-}
-
-/* Readable list accessors - aliases for car, cadr, caddr, cadddr */
-static LispObject *builtin_first(LispObject *args, Environment *env)
-{
-    return builtin_car(args, env);
-}
-
-static LispObject *builtin_second(LispObject *args, Environment *env)
-{
-    return builtin_cadr(args, env);
-}
-
-static LispObject *builtin_third(LispObject *args, Environment *env)
-{
-    return builtin_caddr(args, env);
-}
-
-static LispObject *builtin_fourth(LispObject *args, Environment *env)
-{
-    return builtin_cadddr(args, env);
-}
-
-static LispObject *builtin_rest(LispObject *args, Environment *env)
-{
-    return builtin_cdr(args, env);
-}
+/* Readable list accessors */
+#define DEFINE_ALIAS(cname, target)                              \
+    static LispObject *cname(LispObject *args, Environment *env) \
+    {                                                            \
+        return target(args, env);                                \
+    }
+DEFINE_ALIAS(builtin_first, builtin_car)
+DEFINE_ALIAS(builtin_second, builtin_cadr)
+DEFINE_ALIAS(builtin_third, builtin_caddr)
+DEFINE_ALIAS(builtin_fourth, builtin_cadddr)
+DEFINE_ALIAS(builtin_rest, builtin_cdr)
+#undef DEFINE_ALIAS
 
 static LispObject *builtin_set_car_bang(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("set-car! requires 2 arguments");
-    }
+    CHECK_ARGS_2("set-car!");
 
     LispObject *pair = lisp_car(args);
     LispObject *value = lisp_car(lisp_cdr(args));
@@ -2206,9 +1809,7 @@ static LispObject *builtin_set_car_bang(LispObject *args, Environment *env)
 static LispObject *builtin_set_cdr_bang(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("set-cdr! requires 2 arguments");
-    }
+    CHECK_ARGS_2("set-cdr!");
 
     LispObject *pair = lisp_car(args);
     LispObject *value = lisp_car(lisp_cdr(args));
@@ -2224,9 +1825,7 @@ static LispObject *builtin_set_cdr_bang(LispObject *args, Environment *env)
 static LispObject *builtin_cons(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("cons requires 2 arguments");
-    }
+    CHECK_ARGS_2("cons");
 
     LispObject *car = lisp_car(args);
     LispObject *cdr = lisp_car(lisp_cdr(args));
@@ -2243,9 +1842,7 @@ static LispObject *builtin_list(LispObject *args, Environment *env)
 static LispObject *builtin_length(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("length requires 1 argument");
-    }
+    CHECK_ARGS_1("length");
 
     LispObject *obj = lisp_car(args);
 
@@ -2281,9 +1878,7 @@ static LispObject *builtin_length(LispObject *args, Environment *env)
 static LispObject *builtin_list_ref(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("list-ref requires 2 arguments");
-    }
+    CHECK_ARGS_2("list-ref");
 
     LispObject *lst = lisp_car(args);
     LispObject *index_obj = lisp_car(lisp_cdr(args));
@@ -2377,16 +1972,7 @@ static LispObject *builtin_append(LispObject *args, Environment *env)
         /* Copy elements from this list */
         LispObject *elem = list;
         while (elem != NIL && elem->type == LISP_CONS) {
-            LispObject *new_cons = lisp_make_cons(lisp_car(elem), NIL);
-
-            if (result == NIL) {
-                result = new_cons;
-                result_tail = new_cons;
-            } else {
-                result_tail->value.cons.cdr = new_cons;
-                result_tail = new_cons;
-            }
-
+            LIST_APPEND(result, result_tail, lisp_car(elem));
             elem = lisp_cdr(elem);
         }
 
@@ -2396,14 +1982,11 @@ static LispObject *builtin_append(LispObject *args, Environment *env)
     return result;
 }
 
-/* Predicates */
+/* Predicates (using DEFINE_TYPE_PRED-style inline) */
 static LispObject *builtin_null_question(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("null? requires 1 argument");
-    }
-
+    CHECK_ARGS_1("null?");
     LispObject *arg = lisp_car(args);
     return (arg == NIL || arg == NULL) ? LISP_TRUE : NIL;
 }
@@ -2411,106 +1994,83 @@ static LispObject *builtin_null_question(LispObject *args, Environment *env)
 static LispObject *builtin_atom_question(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("atom? requires 1 argument");
-    }
-
+    CHECK_ARGS_1("atom?");
     LispObject *arg = lisp_car(args);
     return (arg->type != LISP_CONS) ? LISP_TRUE : NIL;
 }
 
-/* Regex functions */
+/* Regex helper: extract pattern + string args, compile regex.
+ * Returns NULL on success (sets *re_out and *string_out).
+ * Returns error LispObject on failure. */
+static LispObject *regex_compile_args(LispObject *args, const char *name,
+                                      pcre2_code **re_out,
+                                      LispObject **string_out)
+{
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "%s requires 2 arguments", name);
+        return lisp_make_error(buf);
+    }
+    LispObject *pattern_obj = lisp_car(args);
+    *string_out = lisp_car(lisp_cdr(args));
+    if (pattern_obj->type != LISP_STRING || (*string_out)->type != LISP_STRING) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "%s requires strings", name);
+        return lisp_make_error(buf);
+    }
+    char *error_msg = NULL;
+    *re_out = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+    if (*re_out == NULL) {
+        char buf[512];
+        snprintf(buf, sizeof(buf), "%s: %s", name, error_msg);
+        return lisp_make_error(buf);
+    }
+    return NULL;
+}
+
 static LispObject *builtin_regex_match(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("regex-match? requires 2 arguments");
-    }
-
-    LispObject *pattern_obj = lisp_car(args);
-    LispObject *string_obj = lisp_car(lisp_cdr(args));
-
-    if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
-        return lisp_make_error("regex-match? requires strings");
-    }
-
-    char *error_msg = NULL;
-    pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
-
-    if (re == NULL) {
-        char error[512];
-        snprintf(error, sizeof(error), "regex-match?: %s", error_msg);
-        return lisp_make_error(error);
-    }
+    pcre2_code *re;
+    LispObject *string_obj;
+    LispObject *err = regex_compile_args(args, "regex-match?", &re, &string_obj);
+    if (err)
+        return err;
 
     pcre2_match_data *match_data = execute_regex(re, string_obj->value.string);
     int result = (match_data != NULL);
-
     free_regex_resources(re, match_data);
-
     return result ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_regex_find(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("regex-find requires 2 arguments");
-    }
-
-    LispObject *pattern_obj = lisp_car(args);
-    LispObject *string_obj = lisp_car(lisp_cdr(args));
-
-    if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
-        return lisp_make_error("regex-find requires strings");
-    }
-
-    char *error_msg = NULL;
-    pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
-
-    if (re == NULL) {
-        char error[512];
-        snprintf(error, sizeof(error), "regex-find: %s", error_msg);
-        return lisp_make_error(error);
-    }
+    pcre2_code *re;
+    LispObject *string_obj;
+    LispObject *err = regex_compile_args(args, "regex-find", &re, &string_obj);
+    if (err)
+        return err;
 
     pcre2_match_data *match_data = execute_regex(re, string_obj->value.string);
-
     if (match_data == NULL) {
         free_regex_resources(re, NULL);
         return NIL;
     }
-
     char *matched = extract_capture(match_data, string_obj->value.string, 0);
     LispObject *result = matched ? lisp_make_string(matched) : NIL;
-
     free_regex_resources(re, match_data);
-
     return result;
 }
 
 static LispObject *builtin_regex_find_all(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("regex-find-all requires 2 arguments");
-    }
-
-    LispObject *pattern_obj = lisp_car(args);
-    LispObject *string_obj = lisp_car(lisp_cdr(args));
-
-    if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
-        return lisp_make_error("regex-find-all requires strings");
-    }
-
-    char *error_msg = NULL;
-    pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
-
-    if (re == NULL) {
-        char error[512];
-        snprintf(error, sizeof(error), "regex-find-all: %s", error_msg);
-        return lisp_make_error(error);
-    }
+    pcre2_code *re;
+    LispObject *string_obj;
+    LispObject *err = regex_compile_args(args, "regex-find-all", &re, &string_obj);
+    if (err)
+        return err;
 
     LispObject *result = NIL;
     LispObject *tail = NULL;
@@ -2530,18 +2090,8 @@ static LispObject *builtin_regex_find_all(LispObject *args, Environment *env)
         }
 
         char *matched = extract_capture(match_data, subject, 0);
-        if (matched) {
-            LispObject *match_obj = lisp_make_string(matched);
-            LispObject *new_cons = lisp_make_cons(match_obj, NIL);
-
-            if (result == NIL) {
-                result = new_cons;
-                tail = new_cons;
-            } else {
-                tail->value.cons.cdr = new_cons;
-                tail = new_cons;
-            }
-        }
+        if (matched)
+            LIST_APPEND(result, tail, lisp_make_string(matched));
 
         PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
         offset = ovector[1];
@@ -2561,28 +2111,13 @@ static LispObject *builtin_regex_find_all(LispObject *args, Environment *env)
 static LispObject *builtin_regex_extract(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("regex-extract requires 2 arguments");
-    }
-
-    LispObject *pattern_obj = lisp_car(args);
-    LispObject *string_obj = lisp_car(lisp_cdr(args));
-
-    if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
-        return lisp_make_error("regex-extract requires strings");
-    }
-
-    char *error_msg = NULL;
-    pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
-
-    if (re == NULL) {
-        char error[512];
-        snprintf(error, sizeof(error), "regex-extract: %s", error_msg);
-        return lisp_make_error(error);
-    }
+    pcre2_code *re;
+    LispObject *string_obj;
+    LispObject *err = regex_compile_args(args, "regex-extract", &re, &string_obj);
+    if (err)
+        return err;
 
     pcre2_match_data *match_data = execute_regex(re, string_obj->value.string);
-
     if (match_data == NULL) {
         free_regex_resources(re, NULL);
         return NIL;
@@ -2592,46 +2127,31 @@ static LispObject *builtin_regex_extract(LispObject *args, Environment *env)
     LispObject *result = NIL;
     LispObject *tail = NULL;
 
-    /* Extract capture groups (skip group 0 which is the whole match) */
     for (int i = 1; i <= capture_count; i++) {
         char *captured = extract_capture(match_data, string_obj->value.string, i);
-        if (captured) {
-            LispObject *cap_obj = lisp_make_string(captured);
-            LispObject *new_cons = lisp_make_cons(cap_obj, NIL);
-
-            if (result == NIL) {
-                result = new_cons;
-                tail = new_cons;
-            } else {
-                tail->value.cons.cdr = new_cons;
-                tail = new_cons;
-            }
-        }
+        if (captured)
+            LIST_APPEND(result, tail, lisp_make_string(captured));
     }
 
     free_regex_resources(re, match_data);
-
     return result;
 }
 
 static LispObject *builtin_regex_replace(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL || lisp_cdr(lisp_cdr(args)) == NIL) {
-        return lisp_make_error("regex-replace requires 3 arguments");
-    }
+    CHECK_ARGS_3("regex-replace");
 
     LispObject *pattern_obj = lisp_car(args);
     LispObject *string_obj = lisp_car(lisp_cdr(args));
     LispObject *replacement_obj = lisp_car(lisp_cdr(lisp_cdr(args)));
 
-    if (pattern_obj->type != LISP_STRING || replacement_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
+    if (pattern_obj->type != LISP_STRING || replacement_obj->type != LISP_STRING ||
+        string_obj->type != LISP_STRING)
         return lisp_make_error("regex-replace requires strings");
-    }
 
     char *error_msg = NULL;
     pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
-
     if (re == NULL) {
         char error[512];
         snprintf(error, sizeof(error), "regex-replace: %s", error_msg);
@@ -2671,39 +2191,21 @@ static LispObject *builtin_regex_replace_all(LispObject *args, Environment *env)
 static LispObject *builtin_regex_split(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("regex-split requires 2 arguments");
-    }
-
-    LispObject *pattern_obj = lisp_car(args);
-    LispObject *string_obj = lisp_car(lisp_cdr(args));
-
-    if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
-        return lisp_make_error("regex-split requires strings");
-    }
-
-    char *error_msg = NULL;
-    pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
-
-    if (re == NULL) {
-        char error[512];
-        snprintf(error, sizeof(error), "regex-split: %s", error_msg);
-        return lisp_make_error(error);
-    }
+    pcre2_code *re;
+    LispObject *string_obj;
+    LispObject *err = regex_compile_args(args, "regex-split", &re, &string_obj);
+    if (err)
+        return err;
 
     LispObject *result = NIL;
     LispObject *tail = NULL;
-
     const char *subject = string_obj->value.string;
-    size_t offset = 0;
-    size_t last_end = 0;
+    size_t offset = 0, last_end = 0;
     size_t subject_len = strlen(subject);
 
     while (offset <= subject_len) {
         pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(re, NULL);
-
         int rc = pcre2_match(re, (PCRE2_SPTR)subject, subject_len, offset, 0, match_data, NULL);
-
         if (rc < 0) {
             pcre2_match_data_free(match_data);
             break;
@@ -2713,65 +2215,36 @@ static LispObject *builtin_regex_split(LispObject *args, Environment *env)
         size_t match_start = ovector[0];
         size_t match_end = ovector[1];
 
-        /* Add substring before match */
         size_t part_len = match_start - last_end;
         char *part = GC_malloc(part_len + 1);
         strncpy(part, subject + last_end, part_len);
         part[part_len] = '\0';
-
-        LispObject *part_obj = lisp_make_string(part);
-        LispObject *new_cons = lisp_make_cons(part_obj, NIL);
-
-        if (result == NIL) {
-            result = new_cons;
-            tail = new_cons;
-        } else {
-            tail->value.cons.cdr = new_cons;
-            tail = new_cons;
-        }
+        LIST_APPEND(result, tail, lisp_make_string(part));
 
         last_end = match_end;
         offset = match_end;
-
         pcre2_match_data_free(match_data);
-
-        if (offset == match_start) {
-            offset++; /* Avoid infinite loop */
-        }
+        if (offset == match_start)
+            offset++;
     }
 
-    /* Add remaining substring */
     if (last_end <= subject_len) {
         char *part = GC_malloc(subject_len - last_end + 1);
         strcpy(part, subject + last_end);
-
-        LispObject *part_obj = lisp_make_string(part);
-        LispObject *new_cons = lisp_make_cons(part_obj, NIL);
-
-        if (result == NIL) {
-            result = new_cons;
-        } else {
-            tail->value.cons.cdr = new_cons;
-        }
+        LIST_APPEND(result, tail, lisp_make_string(part));
     }
 
     pcre2_code_free(re);
-
     return result;
 }
 
 static LispObject *builtin_regex_escape(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("regex-escape requires 1 argument");
-    }
-
+    CHECK_ARGS_1("regex-escape");
     LispObject *string_obj = lisp_car(args);
-
-    if (string_obj->type != LISP_STRING) {
+    if (string_obj->type != LISP_STRING)
         return lisp_make_error("regex-escape requires a string");
-    }
 
     const char *str = string_obj->value.string;
     size_t len = strlen(str);
@@ -2794,15 +2267,10 @@ static LispObject *builtin_regex_escape(LispObject *args, Environment *env)
 static LispObject *builtin_regex_valid(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("regex-valid? requires 1 argument");
-    }
-
+    CHECK_ARGS_1("regex-valid?");
     LispObject *pattern_obj = lisp_car(args);
-
-    if (pattern_obj->type != LISP_STRING) {
+    if (pattern_obj->type != LISP_STRING)
         return lisp_make_error("regex-valid? requires a string");
-    }
 
     char *error_msg = NULL;
     pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
@@ -2861,9 +2329,7 @@ static LispObject *builtin_open(LispObject *args, Environment *env)
 static LispObject *builtin_close(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("close requires 1 argument");
-    }
+    CHECK_ARGS_1("close");
 
     LispObject *stream_obj = lisp_car(args);
     if (stream_obj->type != LISP_FILE_STREAM) {
@@ -2881,9 +2347,7 @@ static LispObject *builtin_close(LispObject *args, Environment *env)
 static LispObject *builtin_read_line(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("read-line requires 1 argument");
-    }
+    CHECK_ARGS_1("read-line");
 
     LispObject *stream_obj = lisp_car(args);
     if (stream_obj->type != LISP_FILE_STREAM) {
@@ -2975,9 +2439,7 @@ static LispObject *builtin_write_line(LispObject *args, Environment *env)
 static LispObject *builtin_read_sexp(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("read-sexp requires 1 argument");
-    }
+    CHECK_ARGS_1("read-sexp");
 
     LispObject *arg = lisp_car(args);
     FILE *file = NULL;
@@ -3053,15 +2515,7 @@ static LispObject *builtin_read_sexp(LispObject *args, Environment *env)
             return expr;
         }
 
-        /* Add to result list */
-        LispObject *cell = lisp_make_cons(expr, NIL);
-        if (result == NIL) {
-            result = cell;
-            last = cell;
-        } else {
-            last->value.cons.cdr = cell;
-            last = cell;
-        }
+        LIST_APPEND(result, last, expr);
     }
 
     /* Return single expression if only one, otherwise return list */
@@ -3076,9 +2530,7 @@ static LispObject *builtin_read_sexp(LispObject *args, Environment *env)
 static LispObject *builtin_read_json(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("read-json requires 1 argument");
-    }
+    CHECK_ARGS_1("read-json");
 
     LispObject *arg = lisp_car(args);
     FILE *file = NULL;
@@ -3308,9 +2760,7 @@ static LispObject *builtin_read_json(LispObject *args, Environment *env)
 /* Load and evaluate a Lisp file */
 static LispObject *builtin_load(LispObject *args, Environment *env)
 {
-    if (args == NIL) {
-        return lisp_make_error("load requires 1 argument");
-    }
+    CHECK_ARGS_1("load");
 
     LispObject *filename_obj = lisp_car(args);
     if (filename_obj->type != LISP_STRING) {
@@ -3769,9 +3219,7 @@ static LispObject *builtin_package_save(LispObject *args, Environment *env)
 
 static LispObject *builtin_in_package(LispObject *args, Environment *env)
 {
-    if (args == NIL) {
-        return lisp_make_error("in-package requires 1 argument");
-    }
+    CHECK_ARGS_1("in-package");
 
     LispObject *arg = lisp_car(args);
     LispObject *pkg_sym_obj;
@@ -3797,9 +3245,7 @@ static LispObject *builtin_current_package(LispObject *args, Environment *env)
 
 static LispObject *builtin_package_symbols(LispObject *args, Environment *env)
 {
-    if (args == NIL) {
-        return lisp_make_error("package-symbols requires 1 argument");
-    }
+    CHECK_ARGS_1("package-symbols");
 
     LispObject *arg = lisp_car(args);
     Symbol *target_pkg;
@@ -3864,9 +3310,7 @@ static LispObject *builtin_list_packages(LispObject *args, Environment *env)
 static LispObject *builtin_delete_file(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("delete-file requires 1 argument");
-    }
+    CHECK_ARGS_1("delete-file");
 
     LispObject *filename_obj = lisp_car(args);
     if (filename_obj->type != LISP_STRING) {
@@ -3890,9 +3334,7 @@ static LispObject *builtin_delete_file(LispObject *args, Environment *env)
 static LispObject *builtin_open_input_string(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("open-input-string requires 1 argument");
-    }
+    CHECK_ARGS_1("open-input-string");
 
     LispObject *str = lisp_car(args);
     if (str->type != LISP_STRING) {
@@ -3905,9 +3347,7 @@ static LispObject *builtin_open_input_string(LispObject *args, Environment *env)
 static LispObject *builtin_port_peek_char(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("port-peek-char requires 1 argument");
-    }
+    CHECK_ARGS_1("port-peek-char");
 
     LispObject *port = lisp_car(args);
     if (port->type != LISP_STRING_PORT) {
@@ -3925,9 +3365,7 @@ static LispObject *builtin_port_peek_char(LispObject *args, Environment *env)
 static LispObject *builtin_port_read_char(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("port-read-char requires 1 argument");
-    }
+    CHECK_ARGS_1("port-read-char");
 
     LispObject *port = lisp_car(args);
     if (port->type != LISP_STRING_PORT) {
@@ -3949,9 +3387,7 @@ static LispObject *builtin_port_read_char(LispObject *args, Environment *env)
 static LispObject *builtin_port_position(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("port-position requires 1 argument");
-    }
+    CHECK_ARGS_1("port-position");
 
     LispObject *port = lisp_car(args);
     if (port->type != LISP_STRING_PORT) {
@@ -3964,9 +3400,7 @@ static LispObject *builtin_port_position(LispObject *args, Environment *env)
 static LispObject *builtin_port_source(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("port-source requires 1 argument");
-    }
+    CHECK_ARGS_1("port-source");
 
     LispObject *port = lisp_car(args);
     if (port->type != LISP_STRING_PORT) {
@@ -3979,9 +3413,7 @@ static LispObject *builtin_port_source(LispObject *args, Environment *env)
 static LispObject *builtin_port_eof_question(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("port-eof? requires 1 argument");
-    }
+    CHECK_ARGS_1("port-eof?");
 
     LispObject *port = lisp_car(args);
     if (port->type != LISP_STRING_PORT) {
@@ -3997,9 +3429,7 @@ static LispObject *builtin_port_eof_question(LispObject *args, Environment *env)
 static LispObject *builtin_string_port_question(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("string-port? requires 1 argument");
-    }
+    CHECK_ARGS_1("string-port?");
 
     LispObject *obj = lisp_car(args);
     return (obj->type == LISP_STRING_PORT) ? LISP_TRUE : NIL;
@@ -4008,9 +3438,7 @@ static LispObject *builtin_string_port_question(LispObject *args, Environment *e
 static LispObject *builtin_princ(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("princ requires 1 argument");
-    }
+    CHECK_ARGS_1("princ");
 
     LispObject *obj = lisp_car(args);
     lisp_princ(obj);
@@ -4022,9 +3450,7 @@ static LispObject *builtin_princ(LispObject *args, Environment *env)
 static LispObject *builtin_prin1(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("prin1 requires 1 argument");
-    }
+    CHECK_ARGS_1("prin1");
 
     LispObject *obj = lisp_car(args);
     lisp_prin1(obj);
@@ -4036,9 +3462,7 @@ static LispObject *builtin_prin1(LispObject *args, Environment *env)
 static LispObject *builtin_print_cl(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("print requires 1 argument");
-    }
+    CHECK_ARGS_1("print");
 
     LispObject *obj = lisp_car(args);
     lisp_print_cl(obj);
@@ -4233,9 +3657,7 @@ static LispObject *builtin_home_directory(LispObject *args, Environment *env)
  */
 static LispObject *builtin_expand_path(LispObject *args, Environment *env)
 {
-    if (args == NIL) {
-        return lisp_make_error("expand-path requires 1 argument");
-    }
+    CHECK_ARGS_1("expand-path");
 
     LispObject *path_obj = lisp_car(args);
     if (path_obj->type != LISP_STRING) {
@@ -4393,145 +3815,41 @@ static LispObject *builtin_mkdir(LispObject *args, Environment *env)
 }
 
 /* Type predicates */
-static LispObject *builtin_integer_question(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("integer? requires 1 argument");
+#define DEFINE_TYPE_PRED(cname, opname, check)                   \
+    static LispObject *cname(LispObject *args, Environment *env) \
+    {                                                            \
+        (void)env;                                               \
+        CHECK_ARGS_1(opname);                                    \
+        LispObject *arg = lisp_car(args);                        \
+        return (check) ? LISP_TRUE : NIL;                        \
     }
-    LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_INTEGER) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_boolean_question(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("boolean? requires 1 argument");
-    }
-    LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_BOOLEAN) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_number_question(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("number? requires 1 argument");
-    }
-    LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_NUMBER || arg->type == LISP_INTEGER) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_vector_question(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("vector? requires 1 argument");
-    }
-    LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_VECTOR) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_hash_table_question(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("hash-table? requires 1 argument");
-    }
-    LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_HASH_TABLE) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_string_question(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("string? requires 1 argument");
-    }
-    LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_STRING) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_symbol_question(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("symbol? requires 1 argument");
-    }
-    LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_SYMBOL) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_list_question(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("list? requires 1 argument");
-    }
-    LispObject *arg = lisp_car(args);
-    /* A list is either NIL or a cons cell */
-    return (arg == NIL || arg->type == LISP_CONS) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_keyword_question(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("keyword? requires 1 argument");
-    }
-    LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_KEYWORD) ? LISP_TRUE : NIL;
-}
-
-/* Session introspection builtins */
-
-static LispObject *builtin_function_question(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("function? requires 1 argument");
-    }
-    LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_LAMBDA) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_macro_question(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("macro? requires 1 argument");
-    }
-    LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_MACRO) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_builtin_question(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("builtin? requires 1 argument");
-    }
-    LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_BUILTIN) ? LISP_TRUE : NIL;
-}
-
-static LispObject *builtin_callable_question(LispObject *args, Environment *env)
-{
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("callable? requires 1 argument");
-    }
-    LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_LAMBDA || arg->type == LISP_MACRO || arg->type == LISP_BUILTIN) ? LISP_TRUE : NIL;
-}
+DEFINE_TYPE_PRED(builtin_integer_question, "integer?", arg->type == LISP_INTEGER)
+DEFINE_TYPE_PRED(builtin_boolean_question, "boolean?", arg->type == LISP_BOOLEAN)
+DEFINE_TYPE_PRED(builtin_number_question, "number?",
+                 arg->type == LISP_NUMBER || arg->type == LISP_INTEGER)
+DEFINE_TYPE_PRED(builtin_vector_question, "vector?", arg->type == LISP_VECTOR)
+DEFINE_TYPE_PRED(builtin_hash_table_question, "hash-table?",
+                 arg->type == LISP_HASH_TABLE)
+DEFINE_TYPE_PRED(builtin_string_question, "string?", arg->type == LISP_STRING)
+DEFINE_TYPE_PRED(builtin_symbol_question, "symbol?", arg->type == LISP_SYMBOL)
+DEFINE_TYPE_PRED(builtin_list_question, "list?",
+                 arg == NIL || arg->type == LISP_CONS)
+DEFINE_TYPE_PRED(builtin_keyword_question, "keyword?",
+                 arg->type == LISP_KEYWORD)
+DEFINE_TYPE_PRED(builtin_function_question, "function?",
+                 arg->type == LISP_LAMBDA)
+DEFINE_TYPE_PRED(builtin_macro_question, "macro?", arg->type == LISP_MACRO)
+DEFINE_TYPE_PRED(builtin_builtin_question, "builtin?",
+                 arg->type == LISP_BUILTIN)
+DEFINE_TYPE_PRED(builtin_callable_question, "callable?",
+                 arg->type == LISP_LAMBDA || arg->type == LISP_MACRO ||
+                     arg->type == LISP_BUILTIN)
+#undef DEFINE_TYPE_PRED
 
 static LispObject *builtin_function_params(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("function-params requires 1 argument");
-    }
+    CHECK_ARGS_1("function-params");
     LispObject *arg = lisp_car(args);
     if (arg->type == LISP_LAMBDA) {
         return arg->value.lambda.params ? arg->value.lambda.params : NIL;
@@ -4545,9 +3863,7 @@ static LispObject *builtin_function_params(LispObject *args, Environment *env)
 static LispObject *builtin_function_body(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("function-body requires 1 argument");
-    }
+    CHECK_ARGS_1("function-body");
     LispObject *arg = lisp_car(args);
     if (arg->type == LISP_LAMBDA) {
         return arg->value.lambda.body ? arg->value.lambda.body : NIL;
@@ -4561,9 +3877,7 @@ static LispObject *builtin_function_body(LispObject *args, Environment *env)
 static LispObject *builtin_function_name(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("function-name requires 1 argument");
-    }
+    CHECK_ARGS_1("function-name");
     LispObject *arg = lisp_car(args);
     if (arg->type == LISP_LAMBDA) {
         return arg->value.lambda.name ? lisp_make_string(arg->value.lambda.name) : NIL;
@@ -4580,9 +3894,7 @@ static LispObject *builtin_function_name(LispObject *args, Environment *env)
 static LispObject *builtin_keyword_name(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("keyword-name requires 1 argument");
-    }
+    CHECK_ARGS_1("keyword-name");
     LispObject *arg = lisp_car(args);
     if (arg->type != LISP_KEYWORD) {
         return lisp_make_error("keyword-name requires a keyword argument");
@@ -4598,11 +3910,8 @@ static LispObject *builtin_keyword_name(LispObject *args, Environment *env)
 static LispObject *builtin_pair_question(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("pair? requires 1 argument");
-    }
+    CHECK_ARGS_1("pair?");
     LispObject *arg = lisp_car(args);
-    /* A pair is a cons cell (nil is NOT a pair) */
     return (arg->type == LISP_CONS) ? LISP_TRUE : NIL;
 }
 
@@ -4611,9 +3920,7 @@ static LispObject *builtin_pair_question(LispObject *args, Environment *env)
 static LispObject *builtin_symbol_to_string(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("symbol->string requires 1 argument");
-    }
+    CHECK_ARGS_1("symbol->string");
     LispObject *arg = lisp_car(args);
     if (arg->type != LISP_SYMBOL) {
         return lisp_make_error("symbol->string requires a symbol argument");
@@ -4624,9 +3931,7 @@ static LispObject *builtin_symbol_to_string(LispObject *args, Environment *env)
 static LispObject *builtin_string_to_symbol(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("string->symbol requires 1 argument");
-    }
+    CHECK_ARGS_1("string->symbol");
     LispObject *arg = lisp_car(args);
     if (arg->type != LISP_STRING) {
         return lisp_make_error("string->symbol requires a string argument");
@@ -4665,9 +3970,7 @@ static LispObject *builtin_make_vector(LispObject *args, Environment *env)
 static LispObject *builtin_vector_ref(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("vector-ref requires 2 arguments");
-    }
+    CHECK_ARGS_2("vector-ref");
     LispObject *vec_obj = lisp_car(args);
     if (vec_obj->type != LISP_VECTOR) {
         return lisp_make_error("vector-ref requires a vector");
@@ -4686,9 +3989,7 @@ static LispObject *builtin_vector_ref(LispObject *args, Environment *env)
 static LispObject *builtin_vector_set_bang(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL || lisp_cdr(lisp_cdr(args)) == NIL) {
-        return lisp_make_error("vector-set! requires 3 arguments");
-    }
+    CHECK_ARGS_3("vector-set!");
     LispObject *vec_obj = lisp_car(args);
     if (vec_obj->type != LISP_VECTOR) {
         return lisp_make_error("vector-set! requires a vector");
@@ -4725,9 +4026,7 @@ static LispObject *builtin_vector_set_bang(LispObject *args, Environment *env)
 static LispObject *builtin_vector_push_bang(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("vector-push! requires 2 arguments");
-    }
+    CHECK_ARGS_2("vector-push!");
     LispObject *vec_obj = lisp_car(args);
     if (vec_obj->type != LISP_VECTOR) {
         return lisp_make_error("vector-push! requires a vector");
@@ -4754,9 +4053,7 @@ static LispObject *builtin_vector_push_bang(LispObject *args, Environment *env)
 static LispObject *builtin_vector_pop_bang(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("vector-pop! requires 1 argument");
-    }
+    CHECK_ARGS_1("vector-pop!");
     LispObject *vec_obj = lisp_car(args);
     if (vec_obj->type != LISP_VECTOR) {
         return lisp_make_error("vector-pop! requires a vector");
@@ -4779,9 +4076,7 @@ static LispObject *builtin_make_hash_table(LispObject *args, Environment *env)
 static LispObject *builtin_hash_ref(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("hash-ref requires 2 arguments");
-    }
+    CHECK_ARGS_2("hash-ref");
 
     LispObject *table = lisp_car(args);
     if (table->type != LISP_HASH_TABLE) {
@@ -4801,9 +4096,7 @@ static LispObject *builtin_hash_ref(LispObject *args, Environment *env)
 static LispObject *builtin_hash_set_bang(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL || lisp_cdr(lisp_cdr(args)) == NIL) {
-        return lisp_make_error("hash-set! requires 3 arguments");
-    }
+    CHECK_ARGS_3("hash-set!");
 
     LispObject *table = lisp_car(args);
     if (table->type != LISP_HASH_TABLE) {
@@ -4820,9 +4113,7 @@ static LispObject *builtin_hash_set_bang(LispObject *args, Environment *env)
 static LispObject *builtin_hash_remove_bang(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("hash-remove! requires 2 arguments");
-    }
+    CHECK_ARGS_2("hash-remove!");
 
     LispObject *table = lisp_car(args);
     if (table->type != LISP_HASH_TABLE) {
@@ -4838,9 +4129,7 @@ static LispObject *builtin_hash_remove_bang(LispObject *args, Environment *env)
 static LispObject *builtin_hash_clear_bang(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("hash-clear! requires 1 argument");
-    }
+    CHECK_ARGS_1("hash-clear!");
 
     LispObject *table = lisp_car(args);
     if (table->type != LISP_HASH_TABLE) {
@@ -4854,9 +4143,7 @@ static LispObject *builtin_hash_clear_bang(LispObject *args, Environment *env)
 static LispObject *builtin_hash_count(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("hash-count requires 1 argument");
-    }
+    CHECK_ARGS_1("hash-count");
 
     LispObject *table = lisp_car(args);
     if (table->type != LISP_HASH_TABLE) {
@@ -4866,121 +4153,68 @@ static LispObject *builtin_hash_count(LispObject *args, Environment *env)
     return lisp_make_number((double)table->value.hash_table.entry_count);
 }
 
-static LispObject *builtin_hash_keys(LispObject *args, Environment *env)
+enum hash_iter_mode
 {
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("hash-keys requires 1 argument");
-    }
+    HASH_KEYS,
+    HASH_VALUES,
+    HASH_ENTRIES
+};
 
-    LispObject *table = lisp_car(args);
-    if (table->type != LISP_HASH_TABLE) {
-        return lisp_make_error("hash-keys requires a hash table");
-    }
-
+static LispObject *hash_table_collect(LispObject *table, enum hash_iter_mode mode)
+{
     struct HashEntry **buckets = (struct HashEntry **)table->value.hash_table.buckets;
     size_t bucket_count = table->value.hash_table.bucket_count;
-
     LispObject *result = NIL;
     LispObject *tail = NULL;
 
     for (size_t i = 0; i < bucket_count; i++) {
-        struct HashEntry *entry = buckets[i];
-        while (entry != NULL) {
-            LispObject *new_cons = lisp_make_cons(entry->key, NIL);
-
-            if (result == NIL) {
-                result = new_cons;
-                tail = new_cons;
-            } else {
-                tail->value.cons.cdr = new_cons;
-                tail = new_cons;
+        for (struct HashEntry *e = buckets[i]; e != NULL; e = e->next) {
+            LispObject *item;
+            switch (mode) {
+            case HASH_KEYS:
+                item = e->key;
+                break;
+            case HASH_VALUES:
+                item = e->value;
+                break;
+            case HASH_ENTRIES:
+                item = lisp_make_cons(e->key, e->value);
+                break;
             }
-
-            entry = entry->next;
+            LIST_APPEND(result, tail, item);
         }
     }
-
     return result;
+}
+
+static LispObject *builtin_hash_keys(LispObject *args, Environment *env)
+{
+    (void)env;
+    CHECK_ARGS_1("hash-keys");
+    LispObject *table = lisp_car(args);
+    if (table->type != LISP_HASH_TABLE)
+        return lisp_make_error("hash-keys requires a hash table");
+    return hash_table_collect(table, HASH_KEYS);
 }
 
 static LispObject *builtin_hash_values(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("hash-values requires 1 argument");
-    }
-
+    CHECK_ARGS_1("hash-values");
     LispObject *table = lisp_car(args);
-    if (table->type != LISP_HASH_TABLE) {
+    if (table->type != LISP_HASH_TABLE)
         return lisp_make_error("hash-values requires a hash table");
-    }
-
-    struct HashEntry **buckets = (struct HashEntry **)table->value.hash_table.buckets;
-    size_t bucket_count = table->value.hash_table.bucket_count;
-
-    LispObject *result = NIL;
-    LispObject *tail = NULL;
-
-    for (size_t i = 0; i < bucket_count; i++) {
-        struct HashEntry *entry = buckets[i];
-        while (entry != NULL) {
-            LispObject *value_obj = entry->value;
-            LispObject *new_cons = lisp_make_cons(value_obj, NIL);
-
-            if (result == NIL) {
-                result = new_cons;
-                tail = new_cons;
-            } else {
-                tail->value.cons.cdr = new_cons;
-                tail = new_cons;
-            }
-
-            entry = entry->next;
-        }
-    }
-
-    return result;
+    return hash_table_collect(table, HASH_VALUES);
 }
 
 static LispObject *builtin_hash_entries(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL) {
-        return lisp_make_error("hash-entries requires 1 argument");
-    }
-
+    CHECK_ARGS_1("hash-entries");
     LispObject *table = lisp_car(args);
-    if (table->type != LISP_HASH_TABLE) {
+    if (table->type != LISP_HASH_TABLE)
         return lisp_make_error("hash-entries requires a hash table");
-    }
-
-    struct HashEntry **buckets = (struct HashEntry **)table->value.hash_table.buckets;
-    size_t bucket_count = table->value.hash_table.bucket_count;
-
-    LispObject *result = NIL;
-    LispObject *tail = NULL;
-
-    for (size_t i = 0; i < bucket_count; i++) {
-        struct HashEntry *entry = buckets[i];
-        while (entry != NULL) {
-            /* Create (key . value) pair */
-            LispObject *pair = lisp_make_cons(entry->key, entry->value);
-            LispObject *new_cons = lisp_make_cons(pair, NIL);
-
-            if (result == NIL) {
-                result = new_cons;
-                tail = new_cons;
-            } else {
-                tail->value.cons.cdr = new_cons;
-                tail = new_cons;
-            }
-
-            entry = entry->next;
-        }
-    }
-
-    return result;
+    return hash_table_collect(table, HASH_ENTRIES);
 }
 
 /* Alist operations */
@@ -5069,94 +4303,50 @@ static int objects_equal_recursive(LispObject *a, LispObject *b)
     }
 }
 
+static int eq_pointer(LispObject *a, LispObject *b) { return a == b; }
+
+static LispObject *alist_find(LispObject *key, LispObject *alist,
+                              int (*eq)(LispObject *, LispObject *),
+                              const char *name)
+{
+    while (alist != NIL && alist != NULL) {
+        if (alist->type != LISP_CONS) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "%s requires an association list", name);
+            return lisp_make_error(buf);
+        }
+        LispObject *pair = lisp_car(alist);
+        if (pair != NIL && pair->type == LISP_CONS) {
+            if (eq(key, lisp_car(pair)))
+                return pair;
+        }
+        alist = lisp_cdr(alist);
+    }
+    return NIL;
+}
+
 static LispObject *builtin_assoc(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("assoc requires 2 arguments");
-    }
-
-    LispObject *key = lisp_car(args);
-    LispObject *alist = lisp_car(lisp_cdr(args));
-
-    /* Iterate through association list */
-    while (alist != NIL && alist != NULL) {
-        if (alist->type != LISP_CONS) {
-            return lisp_make_error("assoc requires an association list");
-        }
-
-        LispObject *pair = lisp_car(alist);
-        if (pair != NIL && pair->type == LISP_CONS) {
-            LispObject *pair_key = lisp_car(pair);
-            if (objects_equal_recursive(key, pair_key)) {
-                return pair;
-            }
-        }
-
-        alist = lisp_cdr(alist);
-    }
-
-    return NIL;
+    CHECK_ARGS_2("assoc");
+    return alist_find(lisp_car(args), lisp_car(lisp_cdr(args)),
+                      objects_equal_recursive, "assoc");
 }
 
 static LispObject *builtin_assq(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("assq requires 2 arguments");
-    }
-
-    LispObject *key = lisp_car(args);
-    LispObject *alist = lisp_car(lisp_cdr(args));
-
-    /* Iterate through association list using pointer equality (eq) */
-    while (alist != NIL && alist != NULL) {
-        if (alist->type != LISP_CONS) {
-            return lisp_make_error("assq requires an association list");
-        }
-
-        LispObject *pair = lisp_car(alist);
-        if (pair != NIL && pair->type == LISP_CONS) {
-            LispObject *pair_key = lisp_car(pair);
-            if (key == pair_key) {
-                return pair;
-            }
-        }
-
-        alist = lisp_cdr(alist);
-    }
-
-    return NIL;
+    CHECK_ARGS_2("assq");
+    return alist_find(lisp_car(args), lisp_car(lisp_cdr(args)),
+                      eq_pointer, "assq");
 }
 
 static LispObject *builtin_assv(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("assv requires 2 arguments");
-    }
-
-    LispObject *key = lisp_car(args);
-    LispObject *alist = lisp_car(lisp_cdr(args));
-
-    /* Iterate through association list using eqv equality (same as assoc for our purposes) */
-    while (alist != NIL && alist != NULL) {
-        if (alist->type != LISP_CONS) {
-            return lisp_make_error("assv requires an association list");
-        }
-
-        LispObject *pair = lisp_car(alist);
-        if (pair != NIL && pair->type == LISP_CONS) {
-            LispObject *pair_key = lisp_car(pair);
-            if (objects_equal_recursive(key, pair_key)) {
-                return pair;
-            }
-        }
-
-        alist = lisp_cdr(alist);
-    }
-
-    return NIL;
+    CHECK_ARGS_2("assv");
+    return alist_find(lisp_car(args), lisp_car(lisp_cdr(args)),
+                      objects_equal_recursive, "assv");
 }
 
 static LispObject *builtin_alist_get(LispObject *args, Environment *env)
@@ -5200,9 +4390,7 @@ static LispObject *builtin_alist_get(LispObject *args, Environment *env)
 static LispObject *builtin_member(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("member requires 2 arguments");
-    }
+    CHECK_ARGS_2("member");
 
     LispObject *item = lisp_car(args);
     LispObject *list = lisp_car(lisp_cdr(args));
@@ -5227,9 +4415,7 @@ static LispObject *builtin_member(LispObject *args, Environment *env)
 static LispObject *builtin_memq(LispObject *args, Environment *env)
 {
     (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("memq requires 2 arguments");
-    }
+    CHECK_ARGS_2("memq");
 
     LispObject *item = lisp_car(args);
     LispObject *list = lisp_car(lisp_cdr(args));
@@ -5308,184 +4494,109 @@ static LispObject *builtin_string_eq_predicate(LispObject *args, Environment *en
 
 /* Mapping operations */
 
-static LispObject *builtin_map(LispObject *args, Environment *env)
+/* Apply a unary function (builtin or lambda) to a single item */
+static LispObject *apply_unary(LispObject *func, LispObject *item,
+                               Environment *env, const char *name)
 {
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("map requires at least 2 arguments");
+    if (func->type == LISP_BUILTIN) {
+        return func->value.builtin.func(lisp_make_cons(item, NIL), env);
     }
 
+    /* Lambda */
+    Environment *lambda_env = env_create(func->value.lambda.closure);
+    LispObject *params = func->value.lambda.params;
+    if (params == NIL || params->type != LISP_CONS) {
+        env_free(lambda_env);
+        char buf[128];
+        snprintf(buf, sizeof(buf), "%s: lambda must have at least one parameter", name);
+        return lisp_make_error(buf);
+    }
+    LispObject *param = lisp_car(params);
+    if (param->type != LISP_SYMBOL) {
+        env_free(lambda_env);
+        char buf[128];
+        snprintf(buf, sizeof(buf), "%s: lambda parameter must be a symbol", name);
+        return lisp_make_error(buf);
+    }
+    env_define(lambda_env, param->value.symbol, item, NULL);
+
+    LispObject *body = func->value.lambda.body;
+    LispObject *result = NIL;
+    while (body != NIL && body != NULL) {
+        result = lisp_eval(lisp_car(body), lambda_env);
+        if (result->type == LISP_ERROR) {
+            env_free(lambda_env);
+            return result;
+        }
+        body = lisp_cdr(body);
+    }
+    env_free(lambda_env);
+    return result;
+}
+
+static LispObject *builtin_map(LispObject *args, Environment *env)
+{
+    CHECK_ARGS_2("map");
     LispObject *func = lisp_car(args);
     LispObject *list = lisp_car(lisp_cdr(args));
 
-    if (func->type != LISP_BUILTIN && func->type != LISP_LAMBDA) {
+    if (func->type != LISP_BUILTIN && func->type != LISP_LAMBDA)
         return lisp_make_error("map requires a function as first argument");
-    }
 
     LispObject *result = NIL;
     LispObject *tail = NULL;
 
     while (list != NIL && list != NULL) {
-        if (list->type != LISP_CONS) {
+        if (list->type != LISP_CONS)
             return lisp_make_error("map requires a list");
-        }
 
-        LispObject *item = lisp_car(list);
-        LispObject *func_args = lisp_make_cons(item, NIL);
-
-        LispObject *mapped;
-        if (func->type == LISP_BUILTIN) {
-            mapped = func->value.builtin.func(func_args, env);
-        } else {
-            /* Lambda function - manually apply it */
-            Environment *lambda_env = env_create(func->value.lambda.closure);
-
-            /* Bind parameter to argument */
-            LispObject *params = func->value.lambda.params;
-            if (params == NIL || params->type != LISP_CONS) {
-                return lisp_make_error("map: lambda must have at least one parameter");
-            }
-
-            LispObject *param = lisp_car(params);
-            if (param->type != LISP_SYMBOL) {
-                return lisp_make_error("map: lambda parameter must be a symbol");
-            }
-
-            /* Bind the parameter to the item */
-            env_define(lambda_env, param->value.symbol, item, NULL);
-
-            /* Check for extra parameters (should only have one for map) */
-            if (lisp_cdr(params) != NIL) {
-                return lisp_make_error("map: lambda should take exactly one argument");
-            }
-
-            /* Evaluate lambda body */
-            LispObject *body = func->value.lambda.body;
-            mapped = NIL;
-            while (body != NIL && body != NULL) {
-                mapped = lisp_eval(lisp_car(body), lambda_env);
-                if (mapped->type == LISP_ERROR) {
-                    env_free(lambda_env);
-                    return mapped;
-                }
-                body = lisp_cdr(body);
-            }
-
-            env_free(lambda_env);
-        }
-
-        if (mapped->type == LISP_ERROR) {
+        LispObject *mapped = apply_unary(func, lisp_car(list), env, "map");
+        if (mapped->type == LISP_ERROR)
             return mapped;
-        }
-
-        LispObject *new_cons = lisp_make_cons(mapped, NIL);
-        if (result == NIL) {
-            result = new_cons;
-            tail = new_cons;
-        } else {
-            tail->value.cons.cdr = new_cons;
-            tail = new_cons;
-        }
-
+        LIST_APPEND(result, tail, mapped);
         list = lisp_cdr(list);
     }
-
     return result;
 }
 
 static LispObject *builtin_mapcar(LispObject *args, Environment *env)
 {
-    /* mapcar is the same as map in this implementation */
     return builtin_map(args, env);
 }
 
 static LispObject *builtin_filter(LispObject *args, Environment *env)
 {
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("filter requires 2 arguments");
-    }
-
+    CHECK_ARGS_2("filter");
     LispObject *func = lisp_car(args);
     LispObject *list = lisp_car(lisp_cdr(args));
 
-    if (func->type != LISP_BUILTIN && func->type != LISP_LAMBDA) {
+    if (func->type != LISP_BUILTIN && func->type != LISP_LAMBDA)
         return lisp_make_error("filter requires a function as first argument");
-    }
 
     LispObject *result = NIL;
     LispObject *tail = NULL;
 
     while (list != NIL && list != NULL) {
-        if (list->type != LISP_CONS) {
+        if (list->type != LISP_CONS)
             return lisp_make_error("filter requires a list");
-        }
 
         LispObject *item = lisp_car(list);
-        LispObject *func_args = lisp_make_cons(item, NIL);
+        LispObject *pred = apply_unary(func, item, env, "filter");
+        if (pred->type == LISP_ERROR)
+            return pred;
 
-        LispObject *predicate_result;
-        if (func->type == LISP_BUILTIN) {
-            predicate_result = func->value.builtin.func(func_args, env);
-        } else {
-            /* Lambda function - manually apply it */
-            Environment *lambda_env = env_create(func->value.lambda.closure);
-
-            /* Bind parameter to argument */
-            LispObject *params = func->value.lambda.params;
-            if (params == NIL || params->type != LISP_CONS) {
-                return lisp_make_error("filter: lambda must have at least one parameter");
-            }
-
-            LispObject *param = lisp_car(params);
-            if (param->type != LISP_SYMBOL) {
-                return lisp_make_error("filter: lambda parameter must be a symbol");
-            }
-
-            /* Bind the parameter to the item */
-            env_define(lambda_env, param->value.symbol, item, NULL);
-
-            /* Evaluate lambda body */
-            LispObject *body = func->value.lambda.body;
-            predicate_result = NIL;
-            while (body != NIL && body != NULL) {
-                predicate_result = lisp_eval(lisp_car(body), lambda_env);
-                if (predicate_result->type == LISP_ERROR) {
-                    env_free(lambda_env);
-                    return predicate_result;
-                }
-                body = lisp_cdr(body);
-            }
-
-            env_free(lambda_env);
-        }
-
-        if (predicate_result->type == LISP_ERROR) {
-            return predicate_result;
-        }
-
-        /* If predicate returned non-nil (truthy), include this item */
-        if (predicate_result != NIL &&
-            !(predicate_result->type == LISP_BOOLEAN && predicate_result->value.boolean == 0)) {
-            LispObject *new_cons = lisp_make_cons(item, NIL);
-            if (result == NIL) {
-                result = new_cons;
-                tail = new_cons;
-            } else {
-                tail->value.cons.cdr = new_cons;
-                tail = new_cons;
-            }
-        }
+        if (pred != NIL &&
+            !(pred->type == LISP_BOOLEAN && pred->value.boolean == 0))
+            LIST_APPEND(result, tail, item);
 
         list = lisp_cdr(list);
     }
-
     return result;
 }
 
 static LispObject *builtin_apply(LispObject *args, Environment *env)
 {
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("apply requires 2 arguments");
-    }
+    CHECK_ARGS_2("apply");
 
     LispObject *func = lisp_car(args);
     LispObject *func_args = lisp_car(lisp_cdr(args));
@@ -5731,9 +4842,7 @@ static LispObject *builtin_documentation(LispObject *args, Environment *env)
 
 static LispObject *builtin_bound_p(LispObject *args, Environment *env)
 {
-    if (args == NIL) {
-        return lisp_make_error("bound? requires 1 argument");
-    }
+    CHECK_ARGS_1("bound?");
 
     LispObject *symbol = lisp_car(args);
 
@@ -5749,9 +4858,7 @@ static LispObject *builtin_bound_p(LispObject *args, Environment *env)
 
 static LispObject *builtin_eval(LispObject *args, Environment *env)
 {
-    if (args == NIL) {
-        return lisp_make_error("eval requires 1 argument");
-    }
+    CHECK_ARGS_1("eval");
 
     LispObject *expr = lisp_car(args);
 
@@ -5861,9 +4968,7 @@ static LispObject *builtin_set_documentation(LispObject *args, Environment *env)
 {
     (void)env; /* Unused - docstrings are stored on symbols, not bindings */
 
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("set-documentation! requires 2 arguments");
-    }
+    CHECK_ARGS_2("set-documentation!");
 
     LispObject *symbol = lisp_car(args);
     LispObject *docstring = lisp_car(lisp_cdr(args));
