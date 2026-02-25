@@ -36,6 +36,24 @@ libbloomlisp_a_SOURCES = \
     print.c \
     env.c \
     builtins.c \
+    builtins_arithmetic.c \
+    builtins_comparison.c \
+    builtins_strings.c \
+    builtins_characters.c \
+    builtins_lists.c \
+    builtins_vectors.c \
+    builtins_hash_tables.c \
+    builtins_regex.c \
+    builtins_file_io.c \
+    builtins_string_ports.c \
+    builtins_type_predicates.c \
+    builtins_symbols.c \
+    builtins_functions.c \
+    builtins_printing.c \
+    builtins_errors.c \
+    builtins_packages.c \
+    builtins_filesystem.c \
+    builtins_time_profiling.c \
     utf8.c \
     regex.c \
     hash_table.c \
