@@ -105,15 +105,8 @@ static int is_callable(LispObject *value)
  */
 static int is_special_form(const char *name)
 {
-    static const char *special_forms[] = {
-        "if", "define", "set!", "lambda", "quote", "quasiquote",
-        "let", "let*", "progn", "begin", "cond", "case",
-        "and", "or", "do", "defmacro", "defun", "defvar",
-        "defconst", "when", "unless", "condition-case", "unwind-protect", NULL
-    };
-
-    for (int i = 0; special_forms[i]; i++) {
-        if (strcmp(name, special_forms[i]) == 0)
+    for (int i = 0; lisp_special_forms[i]; i++) {
+        if (strcmp(name, lisp_special_forms[i]) == 0)
             return 1;
     }
     return 0;
@@ -229,22 +222,15 @@ char **lisp_get_completions(Environment *env, const char *prefix, LispCompleteCo
     /* Add special forms (they're not in the environment, handled by eval) */
     /* Skip for variable context - special forms are not variables */
     if (ctx != LISP_COMPLETE_VARIABLE) {
-        static const char *special_forms[] = {
-            "if", "define", "set!", "lambda", "quote", "quasiquote",
-            "let", "let*", "progn", "begin", "cond", "case",
-            "and", "or", "do", "defmacro", "defun", "defvar",
-            "defconst", "when", "unless", "condition-case", "unwind-protect", NULL
-        };
-
-        for (int i = 0; special_forms[i]; i++) {
+        for (int i = 0; lisp_special_forms[i]; i++) {
             /* Check prefix match */
-            if (!prefix_match(special_forms[i], prefix))
+            if (!prefix_match(lisp_special_forms[i], prefix))
                 continue;
 
             /* Check if already seen (some may be bound as macros too) */
             int already_seen = 0;
             for (int j = 0; j < seen_count; j++) {
-                if (strcmp(seen[j], special_forms[i]) == 0) {
+                if (strcmp(seen[j], lisp_special_forms[i]) == 0) {
                     already_seen = 1;
                     break;
                 }
@@ -276,7 +262,7 @@ char **lisp_get_completions(Environment *env, const char *prefix, LispCompleteCo
                 capacity = new_capacity;
             }
 
-            results[count] = strdup(special_forms[i]);
+            results[count] = strdup(lisp_special_forms[i]);
             seen[seen_count++] = results[count];
             count++;
         }

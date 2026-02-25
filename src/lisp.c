@@ -18,32 +18,28 @@ LispObject *symbol_table = NULL;
 /* Global keyword intern table */
 static LispObject *keyword_table = NULL;
 
-/* Pre-interned special form symbols for fast comparison */
-LispObject *sym_quote = NULL;
-LispObject *sym_quasiquote = NULL;
+/* Define special form symbol globals */
+#define DEFINE_SYM(c_name, lisp_name) LispObject *c_name = NULL;
+SPECIAL_FORMS(DEFINE_SYM)
+#undef DEFINE_SYM
+
+/* Non-special-form pre-interned symbols */
 LispObject *sym_unquote = NULL;
 LispObject *sym_unquote_splicing = NULL;
-LispObject *sym_if = NULL;
-LispObject *sym_define = NULL;
-LispObject *sym_set = NULL;
-LispObject *sym_lambda = NULL;
-LispObject *sym_defmacro = NULL;
-LispObject *sym_let = NULL;
-LispObject *sym_let_star = NULL;
-LispObject *sym_progn = NULL;
-LispObject *sym_do = NULL;
-LispObject *sym_cond = NULL;
-LispObject *sym_case = NULL;
-LispObject *sym_and = NULL;
-LispObject *sym_or = NULL;
-LispObject *sym_condition_case = NULL;
-LispObject *sym_unwind_protect = NULL;
 LispObject *sym_else = NULL;
 LispObject *sym_optional = NULL;
 LispObject *sym_rest = NULL;
 LispObject *sym_error = NULL;
 LispObject *sym_package_ref = NULL;
 LispObject *sym_star_package_star = NULL;
+
+/* Name array for completion API */
+const char *lisp_special_forms[] = {
+#define SF_NAME(c_name, lisp_name) lisp_name,
+    SPECIAL_FORMS(SF_NAME)
+#undef SF_NAME
+        NULL
+};
 Symbol *pkg_core = NULL;
 Symbol *pkg_user = NULL;
 
@@ -559,25 +555,11 @@ Environment *lisp_init(void)
     symbol_table = lisp_make_hash_table();
 
     /* Pre-intern special form symbols */
-    sym_quote = lisp_intern("quote");
-    sym_quasiquote = lisp_intern("quasiquote");
-    sym_unquote = lisp_intern("unquote");
-    sym_unquote_splicing = lisp_intern("unquote-splicing");
-    sym_if = lisp_intern("if");
-    sym_define = lisp_intern("define");
-    sym_set = lisp_intern("set!");
-    sym_lambda = lisp_intern("lambda");
-    sym_defmacro = lisp_intern("defmacro");
-    sym_let = lisp_intern("let");
-    sym_let_star = lisp_intern("let*");
-    sym_progn = lisp_intern("progn");
-    sym_do = lisp_intern("do");
-    sym_cond = lisp_intern("cond");
-    sym_case = lisp_intern("case");
-    sym_and = lisp_intern("and");
-    sym_or = lisp_intern("or");
-    sym_condition_case = lisp_intern("condition-case");
-    sym_unwind_protect = lisp_intern("unwind-protect");
+#define INIT_SYM(c_name, lisp_name) c_name = lisp_intern(lisp_name);
+    SPECIAL_FORMS(INIT_SYM)
+#undef INIT_SYM
+
+    /* Non-special-form pre-interned symbols */
     sym_else = lisp_intern("else");
     sym_optional = lisp_intern("&optional");
     sym_rest = lisp_intern("&rest");

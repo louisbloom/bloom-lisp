@@ -248,32 +248,43 @@ void lisp_set_docstring(const char *name, const char *docstring);
 /* Keyword interning */
 LispObject *lisp_make_keyword(const char *name);
 
-/* Pre-interned special form symbols (for fast pointer comparison) */
-extern LispObject *sym_quote;
-extern LispObject *sym_quasiquote;
+/* X(c_name, lisp_name) — single source of truth for special forms */
+#define SPECIAL_FORMS(X)                    \
+    X(sym_quote, "quote")                   \
+    X(sym_quasiquote, "quasiquote")         \
+    X(sym_if, "if")                         \
+    X(sym_define, "define")                 \
+    X(sym_set, "set!")                      \
+    X(sym_lambda, "lambda")                 \
+    X(sym_defmacro, "defmacro")             \
+    X(sym_let, "let")                       \
+    X(sym_let_star, "let*")                 \
+    X(sym_progn, "progn")                   \
+    X(sym_do, "do")                         \
+    X(sym_cond, "cond")                     \
+    X(sym_case, "case")                     \
+    X(sym_and, "and")                       \
+    X(sym_or, "or")                         \
+    X(sym_condition_case, "condition-case") \
+    X(sym_unwind_protect, "unwind-protect")
+
+/* Declare special form symbol globals */
+#define DECLARE_SYM(c_name, lisp_name) extern LispObject *c_name;
+SPECIAL_FORMS(DECLARE_SYM)
+#undef DECLARE_SYM
+
+/* Non-special-form pre-interned symbols */
 extern LispObject *sym_unquote;
 extern LispObject *sym_unquote_splicing;
-extern LispObject *sym_if;
-extern LispObject *sym_define;
-extern LispObject *sym_set;
-extern LispObject *sym_lambda;
-extern LispObject *sym_defmacro;
-extern LispObject *sym_let;
-extern LispObject *sym_let_star;
-extern LispObject *sym_progn;
-extern LispObject *sym_do;
-extern LispObject *sym_cond;
-extern LispObject *sym_case;
-extern LispObject *sym_and;
-extern LispObject *sym_or;
-extern LispObject *sym_condition_case;
-extern LispObject *sym_unwind_protect;
 extern LispObject *sym_else;
 extern LispObject *sym_optional;
 extern LispObject *sym_rest;
 extern LispObject *sym_error;
 extern LispObject *sym_package_ref;
 extern LispObject *sym_star_package_star;
+
+/* Name array for completion API */
+extern const char *lisp_special_forms[];
 extern Symbol *pkg_core;
 extern Symbol *pkg_user;
 
