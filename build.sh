@@ -122,6 +122,18 @@ configure_build() {
 	return 0
 }
 
+# Generate docstrings header from markdown files
+generate_docstrings() {
+	log_info "Generating docstrings from markdown..."
+	scripts/gen-docstrings.sh doc >src/docstrings.gen.h
+	if [ $? -ne 0 ]; then
+		log_error "Docstring generation failed"
+		return 1
+	fi
+	log_info "Docstrings generated successfully"
+	return 0
+}
+
 # Build the project
 build_project() {
 	local use_bear=${1:-false}
@@ -285,6 +297,11 @@ main() {
 			exit 1
 		fi
 
+		# Generate docstrings
+		if ! generate_docstrings; then
+			exit 1
+		fi
+
 		# Install project (skip build)
 		log_info "Installing project to $INSTALL_PREFIX"
 		if ! install_project; then
@@ -299,6 +316,11 @@ main() {
 
 		# Configure build
 		if ! configure_build; then
+			exit 1
+		fi
+
+		# Generate docstrings
+		if ! generate_docstrings; then
 			exit 1
 		fi
 

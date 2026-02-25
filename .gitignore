@@ -23,6 +23,9 @@ Makefile.in
 .libs/
 .deps/
 
+# Generated files
+/src/docstrings.gen.h
+
 # Executables
 /repl/bloom-repl
 
