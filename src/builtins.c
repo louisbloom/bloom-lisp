@@ -81,9 +81,9 @@ static LispObject *builtin_string_lt(LispObject *args, Environment *env);
 static LispObject *builtin_string_gt(LispObject *args, Environment *env);
 static LispObject *builtin_string_lte(LispObject *args, Environment *env);
 static LispObject *builtin_string_gte(LispObject *args, Environment *env);
-static LispObject *builtin_string_contains(LispObject *args, Environment *env);
+static LispObject *builtin_string_contains_question(LispObject *args, Environment *env);
 static LispObject *builtin_string_index(LispObject *args, Environment *env);
-static LispObject *builtin_string_match(LispObject *args, Environment *env);
+static LispObject *builtin_string_match_question(LispObject *args, Environment *env);
 static LispObject *builtin_substring(LispObject *args, Environment *env);
 static LispObject *builtin_string_ref(LispObject *args, Environment *env);
 static LispObject *builtin_string_prefix_question(LispObject *args, Environment *env);
@@ -105,9 +105,9 @@ static LispObject *builtin_char_lte(LispObject *args, Environment *env);
 static LispObject *builtin_char_gte(LispObject *args, Environment *env);
 static LispObject *builtin_char_upcase(LispObject *args, Environment *env);
 static LispObject *builtin_char_downcase(LispObject *args, Environment *env);
-static LispObject *builtin_char_alphabetic(LispObject *args, Environment *env);
-static LispObject *builtin_char_numeric(LispObject *args, Environment *env);
-static LispObject *builtin_char_whitespace(LispObject *args, Environment *env);
+static LispObject *builtin_char_alphabetic_question(LispObject *args, Environment *env);
+static LispObject *builtin_char_numeric_question(LispObject *args, Environment *env);
+static LispObject *builtin_char_whitespace_question(LispObject *args, Environment *env);
 
 /* Boolean operations */
 static LispObject *builtin_not(LispObject *args, Environment *env);
@@ -141,7 +141,7 @@ static LispObject *builtin_atom_question(LispObject *args, Environment *env);
 static LispObject *builtin_pair_question(LispObject *args, Environment *env);
 
 /* Regex operations */
-static LispObject *builtin_regex_match(LispObject *args, Environment *env);
+static LispObject *builtin_regex_match_question(LispObject *args, Environment *env);
 static LispObject *builtin_regex_find(LispObject *args, Environment *env);
 static LispObject *builtin_regex_find_all(LispObject *args, Environment *env);
 static LispObject *builtin_regex_extract(LispObject *args, Environment *env);
@@ -149,7 +149,7 @@ static LispObject *builtin_regex_replace(LispObject *args, Environment *env);
 static LispObject *builtin_regex_replace_all(LispObject *args, Environment *env);
 static LispObject *builtin_regex_split(LispObject *args, Environment *env);
 static LispObject *builtin_regex_escape(LispObject *args, Environment *env);
-static LispObject *builtin_regex_valid(LispObject *args, Environment *env);
+static LispObject *builtin_regex_valid_question(LispObject *args, Environment *env);
 
 /* Integer operations */
 static LispObject *builtin_quotient(LispObject *args, Environment *env);
@@ -255,7 +255,7 @@ static LispObject *builtin_error(LispObject *args, Environment *env);
 
 /* Docstring introspection */
 static LispObject *builtin_documentation(LispObject *args, Environment *env);
-static LispObject *builtin_bound_p(LispObject *args, Environment *env);
+static LispObject *builtin_bound_question(LispObject *args, Environment *env);
 static LispObject *builtin_set_documentation(LispObject *args, Environment *env);
 
 /* Eval */
@@ -271,9 +271,9 @@ static LispObject *builtin_profile_report(LispObject *args, Environment *env);
 static LispObject *builtin_profile_reset(LispObject *args, Environment *env);
 
 /* Equality predicates */
-static LispObject *builtin_eq_predicate(LispObject *args, Environment *env);
-static LispObject *builtin_equal_predicate(LispObject *args, Environment *env);
-static LispObject *builtin_string_eq_predicate(LispObject *args, Environment *env);
+static LispObject *builtin_eq_question(LispObject *args, Environment *env);
+static LispObject *builtin_equal_question(LispObject *args, Environment *env);
+static LispObject *builtin_string_eq_question(LispObject *args, Environment *env);
 
 /* Path expansion functions */
 static LispObject *builtin_home_directory(LispObject *args, Environment *env);
@@ -358,9 +358,9 @@ void register_builtins(Environment *env)
     REGISTER("string>?", builtin_string_gt);
     REGISTER("string<=?", builtin_string_lte);
     REGISTER("string>=?", builtin_string_gte);
-    REGISTER("string-contains?", builtin_string_contains);
+    REGISTER("string-contains?", builtin_string_contains_question);
     REGISTER("string-index", builtin_string_index);
-    REGISTER("string-match?", builtin_string_match);
+    REGISTER("string-match?", builtin_string_match_question);
     REGISTER("substring", builtin_substring);
     REGISTER("string-ref", builtin_string_ref);
     REGISTER("string-prefix?", builtin_string_prefix_question);
@@ -382,9 +382,9 @@ void register_builtins(Environment *env)
     REGISTER("char>=?", builtin_char_gte);
     REGISTER("char-upcase", builtin_char_upcase);
     REGISTER("char-downcase", builtin_char_downcase);
-    REGISTER("char-alphabetic?", builtin_char_alphabetic);
-    REGISTER("char-numeric?", builtin_char_numeric);
-    REGISTER("char-whitespace?", builtin_char_whitespace);
+    REGISTER("char-alphabetic?", builtin_char_alphabetic_question);
+    REGISTER("char-numeric?", builtin_char_numeric_question);
+    REGISTER("char-whitespace?", builtin_char_whitespace_question);
 
     REGISTER("not", builtin_not);
 
@@ -421,9 +421,9 @@ void register_builtins(Environment *env)
     REGISTER("memq", builtin_memq);
 
     /* Equality predicates */
-    REGISTER("eq?", builtin_eq_predicate);
-    REGISTER("equal?", builtin_equal_predicate);
-    REGISTER("string=?", builtin_string_eq_predicate);
+    REGISTER("eq?", builtin_eq_question);
+    REGISTER("equal?", builtin_equal_question);
+    REGISTER("string=?", builtin_string_eq_question);
 
     /* Mapping operations */
     REGISTER("map", builtin_map);
@@ -435,7 +435,7 @@ void register_builtins(Environment *env)
     REGISTER("atom?", builtin_atom_question);
     REGISTER("pair?", builtin_pair_question);
 
-    REGISTER("regex-match?", builtin_regex_match);
+    REGISTER("regex-match?", builtin_regex_match_question);
     REGISTER("regex-find", builtin_regex_find);
     REGISTER("regex-find-all", builtin_regex_find_all);
     REGISTER("regex-extract", builtin_regex_extract);
@@ -443,7 +443,7 @@ void register_builtins(Environment *env)
     REGISTER("regex-replace-all", builtin_regex_replace_all);
     REGISTER("regex-split", builtin_regex_split);
     REGISTER("regex-escape", builtin_regex_escape);
-    REGISTER("regex-valid?", builtin_regex_valid);
+    REGISTER("regex-valid?", builtin_regex_valid_question);
 
     /* File I/O functions */
     REGISTER("open", builtin_open);
@@ -550,7 +550,7 @@ void register_builtins(Environment *env)
 
     /* Docstring introspection functions */
     REGISTER("documentation", builtin_documentation);
-    REGISTER("bound?", builtin_bound_p);
+    REGISTER("bound?", builtin_bound_question);
     REGISTER("set-documentation!", builtin_set_documentation);
 
     /* Eval */
@@ -1243,7 +1243,7 @@ DEFINE_STR_CMP(builtin_string_lte, "string<=?", <=)
 DEFINE_STR_CMP(builtin_string_gte, "string>=?", >=)
 #undef DEFINE_STR_CMP
 
-static LispObject *builtin_string_contains(LispObject *args, Environment *env)
+static LispObject *builtin_string_contains_question(LispObject *args, Environment *env)
 {
     (void)env;
     CHECK_ARGS_2("string-contains?");
@@ -1290,7 +1290,7 @@ static LispObject *builtin_string_index(LispObject *args, Environment *env)
     return lisp_make_integer(char_index);
 }
 
-static LispObject *builtin_string_match(LispObject *args, Environment *env)
+static LispObject *builtin_string_match_question(LispObject *args, Environment *env)
 {
     (void)env;
     CHECK_ARGS_2("string-match?");
@@ -1676,7 +1676,7 @@ static LispObject *builtin_char_downcase(LispObject *args, Environment *env)
     return lisp_make_char(cp);
 }
 
-static LispObject *builtin_char_alphabetic(LispObject *args, Environment *env)
+static LispObject *builtin_char_alphabetic_question(LispObject *args, Environment *env)
 {
     (void)env;
     CHECK_ARGS_1("char-alphabetic?");
@@ -1690,7 +1690,7 @@ static LispObject *builtin_char_alphabetic(LispObject *args, Environment *env)
     return lisp_make_boolean(is_alpha);
 }
 
-static LispObject *builtin_char_numeric(LispObject *args, Environment *env)
+static LispObject *builtin_char_numeric_question(LispObject *args, Environment *env)
 {
     (void)env;
     CHECK_ARGS_1("char-numeric?");
@@ -1703,7 +1703,7 @@ static LispObject *builtin_char_numeric(LispObject *args, Environment *env)
     return lisp_make_boolean(is_numeric);
 }
 
-static LispObject *builtin_char_whitespace(LispObject *args, Environment *env)
+static LispObject *builtin_char_whitespace_question(LispObject *args, Environment *env)
 {
     (void)env;
     CHECK_ARGS_1("char-whitespace?");
@@ -2028,7 +2028,7 @@ static LispObject *regex_compile_args(LispObject *args, const char *name,
     return NULL;
 }
 
-static LispObject *builtin_regex_match(LispObject *args, Environment *env)
+static LispObject *builtin_regex_match_question(LispObject *args, Environment *env)
 {
     (void)env;
     pcre2_code *re;
@@ -2264,7 +2264,7 @@ static LispObject *builtin_regex_escape(LispObject *args, Environment *env)
     return lisp_make_string(escaped);
 }
 
-static LispObject *builtin_regex_valid(LispObject *args, Environment *env)
+static LispObject *builtin_regex_valid_question(LispObject *args, Environment *env)
 {
     (void)env;
     CHECK_ARGS_1("regex-valid?");
@@ -4439,7 +4439,7 @@ static LispObject *builtin_memq(LispObject *args, Environment *env)
 
 /* Equality predicates */
 
-static LispObject *builtin_eq_predicate(LispObject *args, Environment *env)
+static LispObject *builtin_eq_question(LispObject *args, Environment *env)
 {
     (void)env;
     /* Validate exactly 2 arguments */
@@ -4454,7 +4454,7 @@ static LispObject *builtin_eq_predicate(LispObject *args, Environment *env)
     return (a == b) ? LISP_TRUE : NIL;
 }
 
-static LispObject *builtin_equal_predicate(LispObject *args, Environment *env)
+static LispObject *builtin_equal_question(LispObject *args, Environment *env)
 {
     (void)env;
     /* Validate exactly 2 arguments */
@@ -4469,7 +4469,7 @@ static LispObject *builtin_equal_predicate(LispObject *args, Environment *env)
     return objects_equal_recursive(a, b) ? LISP_TRUE : NIL;
 }
 
-static LispObject *builtin_string_eq_predicate(LispObject *args, Environment *env)
+static LispObject *builtin_string_eq_question(LispObject *args, Environment *env)
 {
     (void)env;
     /* Validate exactly 2 arguments */
@@ -4840,7 +4840,7 @@ static LispObject *builtin_documentation(LispObject *args, Environment *env)
     return NIL;
 }
 
-static LispObject *builtin_bound_p(LispObject *args, Environment *env)
+static LispObject *builtin_bound_question(LispObject *args, Environment *env)
 {
     CHECK_ARGS_1("bound?");
 
