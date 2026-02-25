@@ -560,6 +560,8 @@ Environment *lisp_init(void)
 #undef INIT_SYM
 
     /* Non-special-form pre-interned symbols */
+    sym_unquote = lisp_intern("unquote");
+    sym_unquote_splicing = lisp_intern("unquote-splicing");
     sym_else = lisp_intern("else");
     sym_optional = lisp_intern("&optional");
     sym_rest = lisp_intern("&rest");
