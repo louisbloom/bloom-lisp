@@ -3,6 +3,7 @@ TESTS = \
     basic/alists.lisp \
     basic/and_or_list.lisp \
     basic/characters.lisp \
+    basic/filesystem.lisp \
     basic/format.lisp \
     basic/hash_tables.lisp \
     basic/integer_ops.lisp \

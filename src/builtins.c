@@ -619,6 +619,12 @@ static LispObject *builtin_string_eq_predicate(LispObject *args, Environment *en
 static LispObject *builtin_home_directory(LispObject *args, Environment *env);
 static LispObject *builtin_expand_path(LispObject *args, Environment *env);
 
+/* Environment and filesystem functions */
+static LispObject *builtin_getenv(LispObject *args, Environment *env);
+static LispObject *builtin_data_directory(LispObject *args, Environment *env);
+static LispObject *builtin_file_exists_question(LispObject *args, Environment *env);
+static LispObject *builtin_mkdir(LispObject *args, Environment *env);
+
 /* Helper for wildcard matching */
 static int match_char_class(const char **pattern, char c);
 static int wildcard_match(const char *pattern, const char *str);
@@ -2550,6 +2556,80 @@ static const char *doc_expand_path =
     "- `open` - Open file\n"
     "- `load` - Load Lisp file";
 
+/* Environment and filesystem functions */
+static const char *doc_getenv =
+    "Read an environment variable.\n"
+    "\n"
+    "## Parameters\n"
+    "- `name` - Environment variable name (string)\n"
+    "\n"
+    "## Returns\n"
+    "String value of the variable, or nil if not set.\n"
+    "\n"
+    "## Examples\n"
+    "```lisp\n"
+    "(getenv \"HOME\")            ; => \"/home/alice\"\n"
+    "(getenv \"NONEXISTENT\")     ; => nil\n"
+    "(getenv \"PATH\")            ; => \"/usr/bin:/bin:...\"\n"
+    "```\n";
+
+static const char *doc_data_directory =
+    "Return the platform-specific user data directory for an application.\n"
+    "\n"
+    "## Parameters\n"
+    "- `app` - Application name (string)\n"
+    "\n"
+    "## Returns\n"
+    "String path. Does not create the directory.\n"
+    "\n"
+    "## Platform Behavior\n"
+    "- **Linux/macOS**: `$XDG_DATA_HOME/app` or `~/.local/share/app`\n"
+    "- **Windows**: `%LOCALAPPDATA%\\app` or `%APPDATA%\\app`\n"
+    "\n"
+    "## Examples\n"
+    "```lisp\n"
+    "(data-directory \"my-app\")  ; => \"/home/alice/.local/share/my-app\"\n"
+    "(mkdir (data-directory \"my-app\"))  ; create it if needed\n"
+    "```\n"
+    "\n"
+    "## See Also\n"
+    "- `mkdir` - Create directories\n"
+    "- `getenv` - Read environment variables\n";
+
+static const char *doc_file_exists_question =
+    "Check if a file or directory exists.\n"
+    "\n"
+    "## Parameters\n"
+    "- `path` - File path (string)\n"
+    "\n"
+    "## Returns\n"
+    "#t if path exists, nil otherwise.\n"
+    "\n"
+    "## Examples\n"
+    "```lisp\n"
+    "(file-exists? \"/tmp\")          ; => #t\n"
+    "(file-exists? \"/no/such/path\") ; => nil\n"
+    "```\n";
+
+static const char *doc_mkdir =
+    "Create a directory and all parent directories (like mkdir -p).\n"
+    "\n"
+    "## Parameters\n"
+    "- `path` - Directory path (string)\n"
+    "\n"
+    "## Returns\n"
+    "#t on success. Succeeds silently if directory already exists.\n"
+    "\n"
+    "## Examples\n"
+    "```lisp\n"
+    "(mkdir \"/tmp/my-app/data\")  ; creates /tmp/my-app and /tmp/my-app/data\n"
+    "(mkdir (data-directory \"my-app\"))  ; create app data dir\n"
+    "```\n"
+    "\n"
+    "## See Also\n"
+    "- `data-directory` - Get platform data directory\n"
+    "- `file-exists?` - Check if path exists\n";
+
 /* Error handling functions */
 static const char *doc_error_question = "Test if value is an error object.\n"
                                         "\n"
@@ -3210,6 +3290,12 @@ void register_builtins(Environment *env)
     /* Path expansion functions */
     REGISTER("home-directory", builtin_home_directory, doc_home_directory);
     REGISTER("expand-path", builtin_expand_path, doc_expand_path);
+
+    /* Environment and filesystem functions */
+    REGISTER("getenv", builtin_getenv, doc_getenv);
+    REGISTER("data-directory", builtin_data_directory, doc_data_directory);
+    REGISTER("file-exists?", builtin_file_exists_question, doc_file_exists_question);
+    REGISTER("mkdir", builtin_mkdir, doc_mkdir);
 
     /* Common Lisp printing functions */
     REGISTER("princ", builtin_princ, doc_princ);
@@ -7056,6 +7142,112 @@ static LispObject *builtin_expand_path(LispObject *args, Environment *env)
 #endif
 
     return lisp_make_string(expanded);
+}
+
+/* Read an environment variable.
+ * Takes: String (variable name)
+ * Returns: String (value) or nil if not set
+ */
+static LispObject *builtin_getenv(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL)
+        return lisp_make_error("getenv requires 1 argument");
+
+    LispObject *name = lisp_car(args);
+    if (name->type != LISP_STRING)
+        return lisp_make_error("getenv requires a string argument");
+
+    const char *value = getenv(name->value.string);
+    if (!value)
+        return NIL;
+
+    return lisp_make_string(value);
+}
+
+/* Return platform-specific user data directory for an application.
+ * Takes: String (app name)
+ * Returns: String (path, not created) or error
+ * Unix: $XDG_DATA_HOME/app or ~/.local/share/app
+ * Windows: %LOCALAPPDATA%\app or %APPDATA%\app
+ */
+static LispObject *builtin_data_directory(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL)
+        return lisp_make_error("data-directory requires 1 argument");
+
+    LispObject *app = lisp_car(args);
+    if (app->type != LISP_STRING)
+        return lisp_make_error("data-directory requires a string argument");
+
+    const char *app_name = app->value.string;
+    char path[PATH_MAX];
+
+#if defined(_WIN32) || defined(_WIN64)
+    const char *dir = getenv("LOCALAPPDATA");
+    if (!dir)
+        dir = getenv("APPDATA");
+    if (!dir)
+        return lisp_make_error("data-directory: cannot determine data directory");
+    snprintf(path, sizeof(path), "%s\\%s", dir, app_name);
+#else
+    const char *dir = getenv("XDG_DATA_HOME");
+    if (dir && dir[0]) {
+        snprintf(path, sizeof(path), "%s/%s", dir, app_name);
+    } else {
+        const char *home = getenv("HOME");
+        if (!home)
+            return lisp_make_error("data-directory: cannot determine home directory");
+        snprintf(path, sizeof(path), "%s/.local/share/%s", home, app_name);
+    }
+#endif
+
+    return lisp_make_string(path);
+}
+
+/* Check if a file or directory exists.
+ * Takes: String (path)
+ * Returns: #t or nil
+ */
+static LispObject *builtin_file_exists_question(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL)
+        return lisp_make_error("file-exists? requires 1 argument");
+
+    LispObject *path = lisp_car(args);
+    if (path->type != LISP_STRING)
+        return lisp_make_error("file-exists? requires a string argument");
+
+    return file_exists(path->value.string) ? LISP_TRUE : NIL;
+}
+
+/* Create directory and all parents (mkdir -p).
+ * Takes: String (path)
+ * Returns: #t or error
+ */
+static LispObject *builtin_mkdir(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL)
+        return lisp_make_error("mkdir requires 1 argument");
+
+    LispObject *path = lisp_car(args);
+    if (path->type != LISP_STRING)
+        return lisp_make_error("mkdir requires a string argument");
+
+    if (file_exists(path->value.string))
+        return LISP_TRUE;
+
+    if (file_mkdir_p(path->value.string) != 0) {
+        char errbuf[256];
+        snprintf(errbuf, sizeof(errbuf), "mkdir: %s: %s", path->value.string,
+                 strerror(errno));
+        return lisp_make_error(errbuf);
+    }
+
+    return LISP_TRUE;
 }
 
 /* Type predicates */

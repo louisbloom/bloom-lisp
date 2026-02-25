@@ -42,6 +42,30 @@ int file_remove(const char *utf8_path);
  */
 int file_mkdir(const char *utf8_path);
 
+/* Check if a file or directory exists.
+ * On Windows: converts UTF-8 path to UTF-16 and uses _wstat()
+ * On Unix/macOS: calls stat() directly
+ *
+ * Parameters:
+ *   path - File path in UTF-8 encoding
+ *
+ * Returns:
+ *   1 if exists, 0 if not
+ */
+int file_exists(const char *path);
+
+/* Recursive directory creation (like mkdir -p).
+ * Creates all missing parent directories along the path.
+ * Succeeds silently if directory already exists.
+ *
+ * Parameters:
+ *   path - Directory path in UTF-8 encoding
+ *
+ * Returns:
+ *   0 on success, -1 on failure
+ */
+int file_mkdir_p(const char *path);
+
 /* Resolve a file path by searching XDG data directories.
  * For relative paths (not starting with / ./ ../), searches:
  *   1. Current working directory

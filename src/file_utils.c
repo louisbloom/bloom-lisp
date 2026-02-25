@@ -94,10 +94,24 @@ int file_remove(const char *utf8_path)
 #endif
 }
 
-static int file_exists(const char *path)
+int file_exists(const char *path)
 {
+    if (!path)
+        return 0;
+
+#ifdef _WIN32
+    wchar_t *wpath = utf8_to_utf16(path);
+    if (!wpath)
+        return 0;
+
+    struct _stat st;
+    int result = _wstat(wpath, &st) == 0;
+    free(wpath);
+    return result;
+#else
     struct stat st;
     return stat(path, &st) == 0;
+#endif
 }
 
 const char *file_resolve(const char *filename, char *resolved, size_t resolved_size)
@@ -178,4 +192,36 @@ int file_mkdir(const char *utf8_path)
     /* On Unix/macOS, mkdir() already handles UTF-8 */
     return mkdir(utf8_path, 0755);
 #endif
+}
+
+int file_mkdir_p(const char *path)
+{
+    if (!path || !path[0])
+        return -1;
+
+    size_t len = strlen(path);
+    char *buf = malloc(len + 1);
+    if (!buf)
+        return -1;
+    memcpy(buf, path, len + 1);
+
+    /* Walk path components and create each missing directory */
+    for (size_t i = 1; i <= len; i++) {
+        if (buf[i] == '/' || buf[i] == '\\' || buf[i] == '\0') {
+            char saved = buf[i];
+            buf[i] = '\0';
+
+            if (!file_exists(buf)) {
+                if (file_mkdir(buf) != 0) {
+                    free(buf);
+                    return -1;
+                }
+            }
+
+            buf[i] = saved;
+        }
+    }
+
+    free(buf);
+    return 0;
 }
