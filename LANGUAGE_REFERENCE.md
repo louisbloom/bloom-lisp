@@ -1196,6 +1196,7 @@ Keywords are self-evaluating, interned symbols that start with a colon (`:`). Th
 
 - `eval` - Evaluate an expression in the current environment
 - `bound?` - Check if a symbol is bound to a value
+- `exit` - Terminate the process with an optional exit code (default 0). `quit` is an alias.
 
 **Examples:**
 
@@ -1212,6 +1213,11 @@ Keywords are self-evaluating, interned symbols that start with a colon (`:`). Th
 (define x 42)
 (bound? 'x)                 ; => #t
 (bound? 'undefined-var)     ; => nil
+
+; exit terminates the process
+(exit)                       ; exits with code 0
+(exit 1)                     ; exits with code 1
+(quit)                       ; alias for (exit 0)
 ```
 
 ### Time Functions
