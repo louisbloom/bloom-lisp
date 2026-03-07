@@ -114,15 +114,9 @@ int file_exists(const char *path)
 #endif
 }
 
-const char *file_resolve(const char *filename, char *resolved, size_t resolved_size)
+/* Search cwd and XDG data dirs for a single filename */
+static const char *file_resolve_one(const char *filename, char *resolved, size_t resolved_size)
 {
-    if (!filename || !resolved || resolved_size == 0)
-        return NULL;
-
-    /* Absolute or explicitly relative paths: use as-is */
-    if (filename[0] == '/' || (filename[0] == '.' && (filename[1] == '/' || filename[1] == '.')))
-        return filename;
-
     /* Try relative to cwd first */
     if (file_exists(filename))
         return filename;
@@ -165,6 +159,54 @@ const char *file_resolve(const char *filename, char *resolved, size_t resolved_s
         dir = strtok_r(NULL, ":", &saveptr);
     }
     free(dirs_copy);
+
+    return NULL;
+}
+
+const char *file_resolve(const char *filename, char *resolved, size_t resolved_size)
+{
+    if (!filename || !resolved || resolved_size == 0)
+        return NULL;
+
+    /* Absolute or explicitly relative paths: use as-is */
+    if (filename[0] == '/' || (filename[0] == '.' && (filename[1] == '/' || filename[1] == '.')))
+        return filename;
+
+    /* Try exact name first */
+    const char *result = file_resolve_one(filename, resolved, resolved_size);
+    if (result)
+        return result;
+
+    size_t len = strlen(filename);
+    int has_lisp_ext = (len >= 5 && strcmp(filename + len - 5, ".lisp") == 0);
+    int has_lisp_prefix = (len >= 5 && strncmp(filename, "lisp/", 5) == 0);
+
+    /* Try with .lisp extension */
+    if (!has_lisp_ext) {
+        char name_buf[4096];
+        snprintf(name_buf, sizeof(name_buf), "%s.lisp", filename);
+        result = file_resolve_one(name_buf, resolved, resolved_size);
+        if (result)
+            return result;
+    }
+
+    /* Try with lisp/ prefix */
+    if (!has_lisp_prefix) {
+        char name_buf[4096];
+        snprintf(name_buf, sizeof(name_buf), "lisp/%s", filename);
+        result = file_resolve_one(name_buf, resolved, resolved_size);
+        if (result)
+            return result;
+    }
+
+    /* Try with both lisp/ prefix and .lisp extension */
+    if (!has_lisp_prefix && !has_lisp_ext) {
+        char name_buf[4096];
+        snprintf(name_buf, sizeof(name_buf), "lisp/%s.lisp", filename);
+        result = file_resolve_one(name_buf, resolved, resolved_size);
+        if (result)
+            return result;
+    }
 
     /* Not found anywhere, return original (will fail at open) */
     return filename;

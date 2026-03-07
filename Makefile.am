@@ -5,6 +5,9 @@ SUBDIRS = include src repl tests
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = bloom-lisp.pc
 
+bloomlispdir = $(datadir)/bloom-lisp/lisp
+bloomlisp_DATA = lisp/lisp-fmt.lisp
+
 EXTRA_DIST = \
     autogen.sh \
     bloom-lisp.pc.in \

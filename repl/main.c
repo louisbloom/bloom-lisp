@@ -618,7 +618,9 @@ int main(int argc, char **argv)
         }
 
         for (int i = 1; i < file_end; i++) {
-            FILE *file = file_open(argv[i], "rb");
+            char resolved[4096];
+            const char *path = file_resolve(argv[i], resolved, sizeof(resolved));
+            FILE *file = file_open(path, "rb");
             if (file == NULL) {
                 fprintf(stderr, "ERROR: Cannot open file: %s\n", argv[i]);
                 return 1;
