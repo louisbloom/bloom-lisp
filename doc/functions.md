@@ -234,3 +234,7 @@ Useful for evaluating quoted expressions and symbols to get their bound values.
 `(exit)` or `(exit code)`
 
 Terminates the process with the given exit code (default 0). `quit` is an alias.
+
+## `quit`
+
+Alias for `exit`. See `exit`.
