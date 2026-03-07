@@ -1243,7 +1243,8 @@
         (do ((remaining args (cdr remaining))) ((null? remaining))
           (let ((arg (car remaining)))
             (cond
-              ((or (string=? arg "-h") (string=? arg "--help")) (print-usage))
+              ((or (string=? arg "-h") (string=? arg "--help")) (print-usage)
+               (exit 0))
               ((string=? arg "-i") (set! inplace #t))
               ((string=? arg "--inplace") (set! inplace #t))
               (#t (set! files (cons arg files))))))

@@ -228,3 +228,9 @@ The result of evaluating the expression.
 ### Notes
 
 Useful for evaluating quoted expressions and symbols to get their bound values.
+
+## `exit`
+
+`(exit)` or `(exit code)`
+
+Terminates the process with the given exit code (default 0). `quit` is an alias.

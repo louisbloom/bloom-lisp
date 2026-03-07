@@ -116,6 +116,24 @@ static LispObject *builtin_eval(LispObject *args, Environment *env)
     return lisp_eval(expr, env);
 }
 
+static LispObject *builtin_exit(LispObject *args, Environment *env)
+{
+    (void)env;
+    int code = 0;
+    if (args != NIL) {
+        LispObject *arg = lisp_car(args);
+        if (arg->type == LISP_INTEGER) {
+            code = (int)arg->value.integer;
+        } else if (arg->type == LISP_NUMBER) {
+            code = (int)arg->value.number;
+        } else {
+            return lisp_make_error("exit: argument must be a number");
+        }
+    }
+    exit(code);
+    return NIL; /* unreachable */
+}
+
 void register_functions_builtins(Environment *env)
 {
     REGISTER("function-params", builtin_function_params);
@@ -125,4 +143,6 @@ void register_functions_builtins(Environment *env)
     REGISTER("bound?", builtin_bound_question);
     REGISTER("set-documentation!", builtin_set_documentation_bang);
     REGISTER("eval", builtin_eval);
+    REGISTER("exit", builtin_exit);
+    REGISTER("quit", builtin_exit);
 }
