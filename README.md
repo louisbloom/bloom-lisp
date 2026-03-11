@@ -40,7 +40,7 @@ Install the required dependencies:
 sudo apt-get install libgc-dev libpcre2-dev autoconf automake
 ```
 
-**Linux (Fedora):**
+**Linux (Fedora 41+):**
 
 ```bash
 sudo dnf install gc-devel pcre2-devel autoconf automake
