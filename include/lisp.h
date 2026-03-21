@@ -214,6 +214,17 @@ void lisp_cleanup(void);
 /* Advanced API */
 LispObject *lisp_read(const char **input);
 LispObject *lisp_eval(LispObject *expr, Environment *env);
+
+/* Apply a function to already-evaluated arguments.
+ * func must be LISP_BUILTIN or LISP_LAMBDA.
+ * args is a Lisp list of evaluated argument values (or NIL for no args). */
+LispObject *lisp_apply(LispObject *func, LispObject *args, Environment *env);
+
+/* Convenience wrappers for common arities */
+LispObject *lisp_call_0(LispObject *func, Environment *env);
+LispObject *lisp_call_1(LispObject *func, LispObject *arg1, Environment *env);
+LispObject *lisp_call_2(LispObject *func, LispObject *arg1, LispObject *arg2, Environment *env);
+LispObject *lisp_call_3(LispObject *func, LispObject *arg1, LispObject *arg2, LispObject *arg3, Environment *env);
 char *lisp_print(LispObject *obj);
 void lisp_princ(LispObject *obj);
 void lisp_prin1(LispObject *obj);
@@ -306,6 +317,7 @@ int hash_keys_equal(LispObject *a, LispObject *b);
 /* Object utilities */
 int lisp_is_truthy(LispObject *obj);
 int lisp_is_list(LispObject *obj);
+int lisp_is_callable(LispObject *obj);
 size_t lisp_list_length(LispObject *list);
 
 /* Environment functions */

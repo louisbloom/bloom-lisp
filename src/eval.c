@@ -48,6 +48,40 @@ LispObject *lisp_eval(LispObject *expr, Environment *env)
     return result;
 }
 
+/* Public apply function - calls a function with already-evaluated arguments */
+LispObject *lisp_apply(LispObject *func, LispObject *args, Environment *env)
+{
+    if (func == NULL || func == NIL) {
+        return lisp_make_error("lisp_apply: nil is not a function");
+    }
+    if (func->type != LISP_BUILTIN && func->type != LISP_LAMBDA) {
+        return lisp_make_error("lisp_apply: not a function");
+    }
+    return apply(func, args, env, 0);
+}
+
+LispObject *lisp_call_0(LispObject *func, Environment *env)
+{
+    return lisp_apply(func, NIL, env);
+}
+
+LispObject *lisp_call_1(LispObject *func, LispObject *arg1, Environment *env)
+{
+    return lisp_apply(func, lisp_make_cons(arg1, NIL), env);
+}
+
+LispObject *lisp_call_2(LispObject *func, LispObject *arg1, LispObject *arg2, Environment *env)
+{
+    return lisp_apply(func, lisp_make_cons(arg1, lisp_make_cons(arg2, NIL)), env);
+}
+
+LispObject *lisp_call_3(LispObject *func, LispObject *arg1, LispObject *arg2, LispObject *arg3, Environment *env)
+{
+    return lisp_apply(func,
+                      lisp_make_cons(arg1, lisp_make_cons(arg2, lisp_make_cons(arg3, NIL))),
+                      env);
+}
+
 /* Internal eval function with tail position tracking */
 static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in_tail_position)
 {

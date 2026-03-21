@@ -1,6 +1,7 @@
 # Test suite using Automake's parallel test harness
 TESTS = \
     basic/alists.lisp \
+    basic/apply.lisp \
     basic/and_or_list.lisp \
     basic/characters.lisp \
     basic/filesystem.lisp \

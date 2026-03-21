@@ -346,6 +346,12 @@ int lisp_is_list(LispObject *obj)
     return (obj == NIL);
 }
 
+int lisp_is_callable(LispObject *obj)
+{
+    return obj != NULL && obj != NIL &&
+           (obj->type == LISP_BUILTIN || obj->type == LISP_LAMBDA);
+}
+
 size_t lisp_list_length(LispObject *list)
 {
     size_t len = 0;

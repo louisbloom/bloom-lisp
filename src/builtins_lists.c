@@ -482,40 +482,8 @@ static LispObject *builtin_memq(LispObject *args, Environment *env)
 static LispObject *apply_unary(LispObject *func, LispObject *item,
                                Environment *env, const char *name)
 {
-    if (func->type == LISP_BUILTIN) {
-        return func->value.builtin.func(lisp_make_cons(item, NIL), env);
-    }
-
-    /* Lambda */
-    Environment *lambda_env = env_create(func->value.lambda.closure);
-    LispObject *params = func->value.lambda.params;
-    if (params == NIL || params->type != LISP_CONS) {
-        env_free(lambda_env);
-        char buf[128];
-        snprintf(buf, sizeof(buf), "%s: lambda must have at least one parameter", name);
-        return lisp_make_error(buf);
-    }
-    LispObject *param = lisp_car(params);
-    if (param->type != LISP_SYMBOL) {
-        env_free(lambda_env);
-        char buf[128];
-        snprintf(buf, sizeof(buf), "%s: lambda parameter must be a symbol", name);
-        return lisp_make_error(buf);
-    }
-    env_define(lambda_env, param->value.symbol, item, NULL);
-
-    LispObject *body = func->value.lambda.body;
-    LispObject *result = NIL;
-    while (body != NIL && body != NULL) {
-        result = lisp_eval(lisp_car(body), lambda_env);
-        if (result->type == LISP_ERROR) {
-            env_free(lambda_env);
-            return result;
-        }
-        body = lisp_cdr(body);
-    }
-    env_free(lambda_env);
-    return result;
+    (void)name;
+    return lisp_call_1(func, item, env);
 }
 
 static LispObject *builtin_map(LispObject *args, Environment *env)
@@ -593,82 +561,7 @@ static LispObject *builtin_apply(LispObject *args, Environment *env)
         return lisp_make_error("apply requires a list as second argument");
     }
 
-    /* Call function directly without re-evaluating arguments */
-    if (func->type == LISP_BUILTIN) {
-        return func->value.builtin.func(func_args, env);
-    }
-
-    /* Lambda: create new environment and bind parameters */
-    Environment *lambda_env = env_create(func->value.lambda.closure);
-
-    /* Bind parameters to arguments */
-    LispObject *params = func->value.lambda.params;
-    LispObject *arg_list = func_args;
-
-    while (params != NIL && params != NULL && params->type == LISP_CONS) {
-        LispObject *param = lisp_car(params);
-
-        /* Check for &optional (use interned symbol for fast pointer comparison) */
-        if (param == sym_optional) {
-            params = lisp_cdr(params);
-            /* Bind remaining optional parameters */
-            while (params != NIL && params != NULL && params->type == LISP_CONS) {
-                param = lisp_car(params);
-                if (param == sym_rest) {
-                    break;
-                }
-                if (param->type == LISP_SYMBOL) {
-                    if (arg_list != NIL && arg_list != NULL && arg_list->type == LISP_CONS) {
-                        env_define(lambda_env, param->value.symbol, lisp_car(arg_list), NULL);
-                        arg_list = lisp_cdr(arg_list);
-                    } else {
-                        env_define(lambda_env, param->value.symbol, NIL, NULL);
-                    }
-                }
-                params = lisp_cdr(params);
-            }
-            continue;
-        }
-
-        /* Check for &rest (use interned symbol for fast pointer comparison) */
-        if (param == sym_rest) {
-            params = lisp_cdr(params);
-            if (params != NIL && params->type == LISP_CONS) {
-                LispObject *rest_param = lisp_car(params);
-                if (rest_param->type == LISP_SYMBOL) {
-                    env_define(lambda_env, rest_param->value.symbol, arg_list, NULL);
-                }
-            }
-            break;
-        }
-
-        /* Regular required parameter */
-        if (param->type == LISP_SYMBOL) {
-            if (arg_list == NIL || arg_list == NULL) {
-                env_free(lambda_env);
-                return lisp_make_error("apply: too few arguments");
-            }
-            env_define(lambda_env, param->value.symbol, lisp_car(arg_list), NULL);
-            arg_list = lisp_cdr(arg_list);
-        }
-
-        params = lisp_cdr(params);
-    }
-
-    /* Evaluate lambda body */
-    LispObject *body = func->value.lambda.body;
-    LispObject *result = NIL;
-    while (body != NIL && body != NULL) {
-        result = lisp_eval(lisp_car(body), lambda_env);
-        if (result->type == LISP_ERROR) {
-            env_free(lambda_env);
-            return result;
-        }
-        body = lisp_cdr(body);
-    }
-
-    env_free(lambda_env);
-    return result;
+    return lisp_apply(func, func_args, env);
 }
 
 void register_lists_builtins(Environment *env)
