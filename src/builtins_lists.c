@@ -142,7 +142,7 @@ static LispObject *builtin_length(LispObject *args, Environment *env)
     case LISP_VECTOR:
     {
         /* Vector length */
-        return lisp_make_number((double)obj->value.vector.size);
+        return lisp_make_integer((long long)obj->value.vector.size);
     }
     default:
         return lisp_make_error("length requires a list, string, or vector");

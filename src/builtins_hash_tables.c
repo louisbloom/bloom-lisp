@@ -84,7 +84,7 @@ static LispObject *builtin_hash_count(LispObject *args, Environment *env)
         return lisp_make_error("hash-count requires a hash table");
     }
 
-    return lisp_make_number((double)table->value.hash_table.entry_count);
+    return lisp_make_integer((long long)table->value.hash_table.entry_count);
 }
 
 enum hash_iter_mode
