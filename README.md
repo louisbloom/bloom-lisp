@@ -215,18 +215,63 @@ myapp_LDADD = libs/bloom-lisp/src/libbloomlisp.a
 | `lisp_read(input)`     | Parse input into AST                  |
 | `lisp_eval(expr, env)` | Evaluate an expression                |
 | `lisp_print(obj)`      | Convert object to string (GC-managed) |
+| `lisp_princ(obj)`      | Print without quotes (human-readable) |
+| `lisp_prin1(obj)`      | Print with quotes (machine-readable)  |
+
+### Function Invocation
+
+| Function                             | Description                             |
+| ------------------------------------ | --------------------------------------- |
+| `lisp_apply(func, args, env)`        | Call a function with evaluated arg list |
+| `lisp_call_0(func, env)`             | Call a function with 0 arguments        |
+| `lisp_call_1(func, arg1, env)`       | Call a function with 1 argument         |
+| `lisp_call_2(func, arg1, arg2, env)` | Call a function with 2 arguments        |
+| `lisp_call_3(func, a1, a2, a3, env)` | Call a function with 3 arguments        |
 
 ### Object Creation
 
-| Function                   | Description                  |
-| -------------------------- | ---------------------------- |
-| `lisp_make_number(value)`  | Create floating-point number |
-| `lisp_make_integer(value)` | Create integer               |
-| `lisp_make_string(value)`  | Create string                |
-| `lisp_make_symbol(name)`   | Create symbol                |
-| `lisp_make_boolean(value)` | Create boolean               |
-| `lisp_make_cons(car, cdr)` | Create cons cell             |
-| `lisp_make_error(message)` | Create error object          |
+| Function                        | Description                                  |
+| ------------------------------- | -------------------------------------------- |
+| `lisp_make_number(value)`       | Create floating-point number                 |
+| `lisp_make_integer(value)`      | Create integer                               |
+| `lisp_make_char(codepoint)`     | Create character                             |
+| `lisp_make_string(value)`       | Create string                                |
+| `lisp_make_symbol(name)`        | Create symbol                                |
+| `lisp_make_boolean(value)`      | Create boolean                               |
+| `lisp_make_cons(car, cdr)`      | Create cons cell                             |
+| `lisp_make_vector(capacity)`    | Create vector                                |
+| `lisp_make_hash_table()`        | Create hash table                            |
+| `lisp_make_keyword(name)`       | Create keyword                               |
+| `lisp_make_error(message)`      | Create error object                          |
+| `lisp_make_builtin(func, name)` | Create builtin function                      |
+| `lisp_intern(name)`             | Intern a symbol (reuse existing if interned) |
+
+### Object Inspection
+
+| Function                 | Description                     |
+| ------------------------ | ------------------------------- |
+| `lisp_is_truthy(obj)`    | Test if object is truthy        |
+| `lisp_is_list(obj)`      | Test if object is a proper list |
+| `lisp_is_callable(obj)`  | Test if object is callable      |
+| `lisp_list_length(list)` | Return length of a list         |
+
+### List Access
+
+| Function           | Description           |
+| ------------------ | --------------------- |
+| `lisp_car(obj)`    | First element of cons |
+| `lisp_cdr(obj)`    | Rest of cons          |
+| `lisp_cadr(obj)`   | Second element        |
+| `lisp_caddr(obj)`  | Third element         |
+| `lisp_cadddr(obj)` | Fourth element        |
+
+### Hash Table Operations
+
+| Function                                | Description            |
+| --------------------------------------- | ---------------------- |
+| `hash_table_get_entry(table, key)`      | Look up entry by key   |
+| `hash_table_set_entry(table, key, val)` | Insert or update entry |
+| `hash_table_remove_entry(table, key)`   | Remove entry by key    |
 
 ### Environment Management
 
@@ -235,6 +280,8 @@ myapp_LDADD = libs/bloom-lisp/src/libbloomlisp.a
 | `env_create(parent)`                   | Create child environment frame |
 | `env_define(env, sym, value, package)` | Define variable in package     |
 | `env_lookup(env, sym)`                 | Look up variable               |
+| `env_set(env, sym, value)`             | Update existing variable       |
+| `env_current_package(env)`             | Get current package symbol     |
 
 ## Authors
 
