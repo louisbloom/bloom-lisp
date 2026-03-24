@@ -289,4 +289,4 @@ myapp_LDADD = libs/bloom-lisp/src/libbloomlisp.a
 
 ## License
 
-[MIT License](LICENSE)
+[MIT License](COPYING)
