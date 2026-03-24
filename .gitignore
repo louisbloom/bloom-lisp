@@ -45,6 +45,10 @@ Makefile.in
 /crush.json
 /.crushignore
 
+# Claude Code
+/.claude/
+/CLAUDE.md
+
 # Editor files
 *~
 *.swp
