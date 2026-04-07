@@ -12,6 +12,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 PROJECT_NAME="bloom-lisp"
+PROJECT_ROOT="$(pwd)"
 BUILD_DIR="build"
 INSTALL_PREFIX="$HOME/.local"
 ENABLE_DEBUG=true
@@ -197,6 +198,209 @@ install_project() {
 	return 0
 }
 
+# Cross-compile for Windows using mingw64
+build_mingw64() {
+	log_info "Cross-compiling for Windows (mingw64)..."
+
+	local MINGW_BUILD_DIR="build-mingw64"
+	local MINGW_HOST="x86_64-w64-mingw32"
+	local MINGW_CC="${MINGW_HOST}-gcc"
+	local MINGW_PKG_CONFIG="${MINGW_HOST}-pkg-config"
+	local MINGW_SYSROOT="/usr/x86_64-w64-mingw32/sys-root/mingw"
+	local DEPS_DIR="deps"
+	local GC_VERSION="8.2.6"
+	local GC_URL="https://github.com/ivmai/bdwgc/releases/download/v${GC_VERSION}/gc-${GC_VERSION}.tar.gz"
+	local GC_DIR="${DEPS_DIR}/gc-${GC_VERSION}"
+	local GC_TARBALL="${DEPS_DIR}/gc-${GC_VERSION}.tar.gz"
+	local AO_VERSION="7.8.2"
+	local AO_URL="https://github.com/ivmai/libatomic_ops/releases/download/v${AO_VERSION}/libatomic_ops-${AO_VERSION}.tar.gz"
+	local AO_TARBALL="${DEPS_DIR}/libatomic_ops-${AO_VERSION}.tar.gz"
+
+	# Check for cross-compiler
+	if ! command -v "$MINGW_CC" &>/dev/null; then
+		log_error "mingw64 cross-compiler not found: $MINGW_CC"
+		log_error "Install with: sudo dnf install mingw64-gcc"
+		exit 1
+	fi
+
+	# Check for required mingw64 packages
+	local missing_pkgs=()
+	for pkg in mingw64-pcre2; do
+		if ! rpm -q "$pkg" &>/dev/null; then
+			missing_pkgs+=("$pkg")
+		fi
+	done
+	if [ ${#missing_pkgs[@]} -gt 0 ]; then
+		log_error "Missing mingw64 packages: ${missing_pkgs[*]}"
+		log_error "Install with: sudo dnf install ${missing_pkgs[*]}"
+		exit 1
+	fi
+
+	# --- Cross-compile Boehm GC ---
+	mkdir -p "$DEPS_DIR"
+
+	if [ ! -f "$GC_TARBALL" ]; then
+		log_info "Downloading Boehm GC ${GC_VERSION}..."
+		curl -L -o "$GC_TARBALL" "$GC_URL"
+		if [ $? -ne 0 ]; then
+			log_error "Failed to download Boehm GC"
+			rm -f "$GC_TARBALL"
+			exit 1
+		fi
+	fi
+
+	if [ ! -d "$GC_DIR" ]; then
+		log_info "Extracting Boehm GC..."
+		tar -xzf "$GC_TARBALL" -C "$DEPS_DIR"
+	fi
+
+	# Download libatomic_ops (required by GC for Windows)
+	if [ ! -f "$AO_TARBALL" ]; then
+		log_info "Downloading libatomic_ops ${AO_VERSION}..."
+		curl -L -o "$AO_TARBALL" "$AO_URL"
+		if [ $? -ne 0 ]; then
+			log_error "Failed to download libatomic_ops"
+			rm -f "$AO_TARBALL"
+			exit 1
+		fi
+	fi
+
+	if [ ! -d "${GC_DIR}/libatomic_ops" ]; then
+		log_info "Extracting libatomic_ops into GC source tree..."
+		tar -xzf "$AO_TARBALL" -C "$DEPS_DIR"
+		mv "${DEPS_DIR}/libatomic_ops-${AO_VERSION}" "${GC_DIR}/libatomic_ops"
+	fi
+
+	local GC_PREFIX
+	GC_PREFIX="${PROJECT_ROOT}/${DEPS_DIR}/gc-mingw64-prefix"
+	if [ ! -f "${GC_PREFIX}/lib/libgc.a" ]; then
+		log_info "Cross-compiling Boehm GC for mingw64..."
+		local GC_BUILD="${GC_DIR}/build-mingw64"
+		mkdir -p "$GC_BUILD"
+		cd "$GC_DIR"
+		if [ ! -f configure ]; then
+			autoreconf -fvi
+		fi
+		cd "${PROJECT_ROOT}/${GC_BUILD}"
+		"${PROJECT_ROOT}/${GC_DIR}/configure" \
+			--host="${MINGW_HOST}" \
+			--prefix="${GC_PREFIX}" \
+			--disable-shared \
+			--enable-static \
+			--enable-threads=win32 \
+			--enable-munmap \
+			CFLAGS="-O2"
+		if [ $? -ne 0 ]; then
+			log_error "Boehm GC configure failed"
+			cd "$PROJECT_ROOT"
+			exit 1
+		fi
+		make -j"$PARALLEL_JOBS"
+		if [ $? -ne 0 ]; then
+			log_error "Boehm GC build failed"
+			cd "$PROJECT_ROOT"
+			exit 1
+		fi
+		make install
+		cd "$PROJECT_ROOT"
+
+		# Generate pkg-config file
+		mkdir -p "${GC_PREFIX}/lib/pkgconfig"
+		cat >"${GC_PREFIX}/lib/pkgconfig/bdw-gc.pc" <<-GCPC
+			prefix=${GC_PREFIX}
+			libdir=\${prefix}/lib
+			includedir=\${prefix}/include
+
+			Name: Boehm-Demers-Weiser Conservative Garbage Collector
+			Description: A garbage collector for C and C++
+			Version: ${GC_VERSION}
+			Libs: -L\${libdir} -lgc
+			Cflags: -I\${includedir}
+		GCPC
+		log_info "Boehm GC cross-compiled: ${GC_PREFIX}/lib/libgc.a"
+	else
+		log_info "Using cached Boehm GC: ${GC_PREFIX}/lib/libgc.a"
+	fi
+
+	# --- Generate configure script ---
+	cd "$PROJECT_ROOT"
+	if ! generate_configure; then
+		exit 1
+	fi
+
+	# --- Generate docstrings (host tool, text output) ---
+	if ! generate_docstrings; then
+		exit 1
+	fi
+
+	# --- Configure for cross-compilation ---
+	if [ -d "$MINGW_BUILD_DIR" ]; then
+		rm -rf "$MINGW_BUILD_DIR"
+	fi
+	mkdir -p "$MINGW_BUILD_DIR"
+	cd "$MINGW_BUILD_DIR"
+
+	local CONFIGURE_CMD="../configure"
+	CONFIGURE_CMD="$CONFIGURE_CMD --host=${MINGW_HOST}"
+	CONFIGURE_CMD="$CONFIGURE_CMD --prefix=${MINGW_SYSROOT}"
+	CONFIGURE_CMD="$CONFIGURE_CMD PKG_CONFIG=${MINGW_PKG_CONFIG}"
+	# Pass GC flags directly to avoid sysroot path mangling by mingw pkg-config
+	CONFIGURE_CMD="$CONFIGURE_CMD GC_CFLAGS=-I${GC_PREFIX}/include"
+	CONFIGURE_CMD="$CONFIGURE_CMD GC_LIBS=\"-L${GC_PREFIX}/lib -lgc\""
+
+	if [ "$ENABLE_DEBUG" = true ]; then
+		CONFIGURE_CMD="$CONFIGURE_CMD CFLAGS='-O0 -g3 -DDEBUG'"
+	fi
+
+	log_info "Running: $CONFIGURE_CMD"
+	eval "$CONFIGURE_CMD"
+
+	if [ $? -ne 0 ]; then
+		log_error "Cross-compilation configure failed"
+		if [ -f "config.log" ]; then
+			log_error "Last 50 lines of config.log:"
+			tail -50 config.log
+		fi
+		cd "$PROJECT_ROOT"
+		exit 1
+	fi
+
+	cd "$PROJECT_ROOT"
+
+	# --- Build ---
+	cd "$MINGW_BUILD_DIR"
+	log_info "Building with $PARALLEL_JOBS parallel jobs..."
+	make -j"$PARALLEL_JOBS"
+
+	if [ $? -ne 0 ]; then
+		log_error "Cross-compilation build failed"
+		cd "$PROJECT_ROOT"
+		exit 1
+	fi
+	cd "$PROJECT_ROOT"
+
+	# --- Collect DLLs alongside the binary ---
+	log_info "Collecting runtime DLLs..."
+	local DLL_DIR="${MINGW_SYSROOT}/bin"
+	local EXE_DIR="${MINGW_BUILD_DIR}/repl"
+	local DLLS=(
+		libpcre2-8-0.dll
+		libgcc_s_seh-1.dll
+		libwinpthread-1.dll
+	)
+
+	for dll in "${DLLS[@]}"; do
+		if [ -f "${DLL_DIR}/${dll}" ]; then
+			cp "${DLL_DIR}/${dll}" "${EXE_DIR}/"
+		else
+			log_warn "DLL not found: ${DLL_DIR}/${dll}"
+		fi
+	done
+
+	log_info "Cross-compilation complete!"
+	log_info "Binary: ${EXE_DIR}/bloom-repl.exe"
+}
+
 # Format source files
 format_sources() {
 	log_info "Formatting source files..."
@@ -329,6 +533,10 @@ main() {
 			INSTALL_PREFIX="${1#*=}"
 			shift
 			;;
+		--mingw64)
+			ACTION=mingw64
+			shift
+			;;
 		--format)
 			ACTION=format
 			shift
@@ -342,6 +550,7 @@ main() {
 			echo "  --install         Only configure and install (skip build)"
 			echo "  --bear            Generate compile_commands.json using bear"
 			echo "  --no-debug        Disable debug build"
+			echo "  --mingw64         Cross-compile for Windows using mingw64"
 			echo "  --format          Format source files (C, shell, markdown, Lisp)"
 			echo "  --prefix=PATH     Set installation prefix (default: $HOME/.local)"
 			echo "  --help            Show this help message"
@@ -360,6 +569,10 @@ main() {
 	build)
 		log_info "Starting build process for $PROJECT_NAME"
 		do_build
+		;;
+	mingw64)
+		log_info "Starting mingw64 cross-compilation for $PROJECT_NAME"
+		build_mingw64
 		;;
 	format)
 		format_sources

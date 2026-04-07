@@ -2,24 +2,29 @@
 #include <config.h>
 #endif
 
-#include "colors.h"
 #include "file_utils.h"
 #include "lisp.h"
+#include <locale.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifdef HAVE_BLOOM_BOBA
+#include "colors.h"
 #include "repl_app.h"
 #include <bloom-boba/ansi_sequences.h>
 #include <bloom-boba/cmd.h>
 #include <bloom-boba/runtime.h>
 #include <fcntl.h>
-#include <locale.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
+#endif
 
 /* Version information - fallback if not defined by autoconf */
 #ifndef BLOOM_LISP_VERSION
 #define BLOOM_LISP_VERSION "unknown"
 #endif
+
+#ifdef HAVE_BLOOM_BOBA
 
 /* Global state */
 static Environment *g_env = NULL;
@@ -141,6 +146,8 @@ static void echo_to_viewport(const char *text)
     }
 }
 
+#endif /* HAVE_BLOOM_BOBA */
+
 /* --- Non-interactive helpers --- */
 
 static LispObject *argv_to_list(int start, int end, char **argv)
@@ -177,6 +184,8 @@ static void print_help(void)
     printf("\n");
     printf("See LANGUAGE_REFERENCE.md for complete language documentation.\n");
 }
+
+#ifdef HAVE_BLOOM_BOBA
 
 static int handle_command(const char *input, Environment *env)
 {
@@ -542,6 +551,8 @@ static void run_interactive_repl(Environment *env)
     tui_runtime_run(g_runtime);
 }
 
+#endif /* HAVE_BLOOM_BOBA */
+
 /* --- Main --- */
 
 int main(int argc, char **argv)
@@ -560,7 +571,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "ERROR: Failed to initialize Lisp interpreter\n");
         return 1;
     }
+#ifdef HAVE_BLOOM_BOBA
     g_env = env;
+#endif
 
     env_define(env, lisp_intern("*command-line-args*")->value.symbol, NIL, pkg_user);
 
@@ -664,6 +677,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
+#ifdef HAVE_BLOOM_BOBA
     /* Interactive REPL */
     run_interactive_repl(env);
 
@@ -671,4 +685,10 @@ int main(int argc, char **argv)
     lisp_cleanup();
 
     return 0;
+#else
+    fprintf(stderr, "Interactive REPL requires bloom-boba (batch mode only)\n");
+    fprintf(stderr, "Usage: bloom-repl -e \"CODE\" or bloom-repl FILE\n");
+    lisp_cleanup();
+    return 1;
+#endif
 }

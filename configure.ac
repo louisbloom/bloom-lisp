@@ -1,7 +1,7 @@
 AC_PREREQ([2.69])
 AC_INIT([bloom-lisp],
         m4_esyscmd_s([cat version 2>/dev/null || echo "0.0.0-unknown"]),
-        [https://github.com/thomasc/bloom-lisp/issues])
+        [https://codeberg.org/thomasc/bloom-lisp/issues])
 AC_CONFIG_SRCDIR([src/lisp.c])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_AUX_DIR([build-aux])
@@ -14,6 +14,14 @@ AC_PROG_CC
 AC_PROG_RANLIB
 AM_PROG_AR
 
+# Detect cross-compilation target
+AC_CANONICAL_HOST
+case "$host_os" in
+  mingw*|msys*) host_windows=yes ;;
+  *)            host_windows=no ;;
+esac
+AM_CONDITIONAL([HOST_WINDOWS], [test "x$host_windows" = "xyes"])
+
 # Check for pkg-config
 PKG_PROG_PKG_CONFIG
 
@@ -24,8 +32,14 @@ PKG_CHECK_MODULES([GC], [bdw-gc], [],
 PKG_CHECK_MODULES([PCRE2], [libpcre2-8], [],
     [AC_MSG_ERROR([PCRE2 is required. Install with: apt install libpcre2-dev (Debian/Ubuntu), dnf install pcre2-devel (Fedora), or brew install pcre2 (macOS)])])
 
-PKG_CHECK_MODULES([BOBA], [bloom-boba], [],
-    [AC_MSG_ERROR([bloom-boba is required. Build and install bloom-boba first.])])
+# bloom-boba is optional (not available on Windows cross-builds)
+PKG_CHECK_MODULES([BOBA], [bloom-boba],
+    [have_bloom_boba=yes],
+    [have_bloom_boba=no])
+AM_CONDITIONAL([HAVE_BLOOM_BOBA], [test "x$have_bloom_boba" = "xyes"])
+if test "x$have_bloom_boba" = "xyes"; then
+    AC_DEFINE([HAVE_BLOOM_BOBA], [1], [Define if bloom-boba TUI library is available])
+fi
 
 # Check for math library
 AC_SEARCH_LIBS([floor], [m], [],

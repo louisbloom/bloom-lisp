@@ -40,6 +40,19 @@ tests/*) ;; # Already has tests/ prefix
 *) TEST_FILE="tests/$TEST_FILE" ;;
 esac
 
+# If the binary is a .exe, run it through wine64
+WINE_PREFIX=""
+case "$REPL" in
+*.exe)
+	if command -v wine64 >/dev/null 2>&1; then
+		WINE_PREFIX="wine64"
+	else
+		echo "ERROR: .exe found but wine64 not available" >&2
+		exit 1
+	fi
+	;;
+esac
+
 # Run from project root
 cd "$PROJECT_ROOT" || exit 1
-exec "$REPL" "$TEST_FILE"
+exec ${WINE_PREFIX:+$WINE_PREFIX} "$REPL" "$TEST_FILE"

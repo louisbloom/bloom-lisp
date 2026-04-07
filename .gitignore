@@ -1,5 +1,9 @@
-# Build directory
+# Build directories
 /build/
+/build-mingw64/
+
+# Cross-compilation dependencies
+/deps/
 
 # Autotools generated files
 /aclocal.m4

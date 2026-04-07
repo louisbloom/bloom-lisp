@@ -55,10 +55,30 @@ brew install bdw-gc pcre2 autoconf automake
 ### Build from Source
 
 ```bash
-./autogen.sh
-./configure
-make
-make check  # Run tests
+./build.sh              # Debug build, install to ~/.local
+./build.sh --no-debug   # Release build with optimizations
+./build.sh --bear       # Build + generate compile_commands.json
+make -C build check     # Run tests
+```
+
+### Cross-Compile for Windows
+
+Cross-compiles using the Fedora mingw64 toolchain. Boehm GC is downloaded and built from source automatically.
+
+```bash
+sudo dnf install mingw64-gcc mingw64-pcre2   # One-time setup
+./build.sh --mingw64                          # Build bloom-repl.exe
+```
+
+Output: `build-mingw64/repl/bloom-repl.exe` with DLLs (`libpcre2-8-0.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`).
+
+The Windows build includes file execution and `-e` eval modes but not the interactive TUI REPL, which requires [bloom-boba](https://codeberg.org/thomasc/bloom-boba) (a Windows port of bloom-boba is planned).
+
+Test with wine64:
+
+```bash
+wine64 build-mingw64/repl/bloom-repl.exe -e "(+ 1 2 3)"   # => 6
+make -C build-mingw64 check                                 # Full test suite
 ```
 
 ### Installation
