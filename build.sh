@@ -30,6 +30,21 @@ log_error() {
 	echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Compute version from git tags
+get_version() {
+	if git describe --tags --match 'v*' HEAD >/dev/null 2>&1; then
+		# v0.1 → "0.1", v0.1-5-gabc1234 → "0.1.5-abc1234"
+		git describe --tags --match 'v*' HEAD | sed 's/^v//;s/-\([0-9]*\)-g/.\1-/'
+	else
+		# No tags: 0.0.N-HASH
+		local count
+		count=$(git rev-list --count HEAD)
+		local hash
+		hash=$(git rev-parse --short HEAD)
+		echo "0.0.${count}-${hash}"
+	fi
+}
+
 # Setup local dependencies (user-installed packages in ~/.local)
 setup_local_deps() {
 	local local_pkgconfig="$HOME/.local/lib/pkgconfig"
@@ -62,6 +77,10 @@ check_os() {
 # Generate configure script
 generate_configure() {
 	log_info "Generating configure script..."
+
+	# Write version file for configure.ac
+	get_version >version
+	log_info "Version: $(cat version)"
 
 	# Clean up any existing generated files
 	log_info "Cleaning up generated files..."
@@ -228,11 +247,70 @@ format_sources() {
 	log_info "Formatting completed."
 }
 
+# Default build action
+do_build() {
+	check_os
+	setup_local_deps
+
+	if [ "${INSTALL_ONLY:-false}" = true ]; then
+		log_info "Installing project only (--install flag used)"
+
+		if ! generate_configure; then
+			exit 1
+		fi
+
+		if ! configure_build; then
+			exit 1
+		fi
+
+		if ! generate_docstrings; then
+			exit 1
+		fi
+
+		log_info "Installing project to $INSTALL_PREFIX"
+		if ! install_project; then
+			log_error "Installation failed"
+			exit 1
+		fi
+	else
+		if ! generate_configure; then
+			exit 1
+		fi
+
+		if ! configure_build; then
+			exit 1
+		fi
+
+		if ! generate_docstrings; then
+			exit 1
+		fi
+
+		if [ "${USE_BEAR:-false}" = true ]; then
+			if ! build_project true; then
+				exit 1
+			fi
+		else
+			if ! build_project; then
+				exit 1
+			fi
+		fi
+
+		# Install by default after building
+		if ! install_project; then
+			exit 1
+		fi
+	fi
+
+	log_info "Build process completed successfully!"
+	log_info "Build directory: $BUILD_DIR"
+	log_info "To run the REPL: ./$BUILD_DIR/repl/bloom-repl"
+}
+
 # Main execution
 main() {
-	log_info "Starting build process for $PROJECT_NAME"
+	local ACTION="build"
 
-	# Parse command line arguments
+	# Parse all arguments first, then dispatch
 	while [[ $# -gt 0 ]]; do
 		case $1 in
 		--install)
@@ -252,8 +330,8 @@ main() {
 			shift
 			;;
 		--format)
-			format_sources
-			exit 0
+			ACTION=format
+			shift
 			;;
 		--help)
 			echo "Usage: $0 [options]"
@@ -277,75 +355,16 @@ main() {
 		esac
 	done
 
-	# Check OS
-	check_os
-
-	# Setup local dependencies (bloom-boba)
-	setup_local_deps
-
-	# If --install flag is used, skip build and run steps
-	if [ "${INSTALL_ONLY:-false}" = true ]; then
-		log_info "Installing project only (--install flag used)"
-
-		# Generate configure script
-		if ! generate_configure; then
-			exit 1
-		fi
-
-		# Configure build
-		if ! configure_build; then
-			exit 1
-		fi
-
-		# Generate docstrings
-		if ! generate_docstrings; then
-			exit 1
-		fi
-
-		# Install project (skip build)
-		log_info "Installing project to $INSTALL_PREFIX"
-		if ! install_project; then
-			log_error "Installation failed"
-			exit 1
-		fi
-	else
-		# Generate configure script
-		if ! generate_configure; then
-			exit 1
-		fi
-
-		# Configure build
-		if ! configure_build; then
-			exit 1
-		fi
-
-		# Generate docstrings
-		if ! generate_docstrings; then
-			exit 1
-		fi
-
-		# Build project with bear if requested
-		if [ "${USE_BEAR:-false}" = true ]; then
-			# Build project with bear
-			if ! build_project true; then
-				exit 1
-			fi
-		else
-			# Build project normally
-			if ! build_project; then
-				exit 1
-			fi
-		fi
-
-		# Install by default after building
-		if ! install_project; then
-			exit 1
-		fi
-	fi
-
-	log_info "Build process completed successfully!"
-	log_info "Build directory: $BUILD_DIR"
-	log_info "To run the REPL: ./$BUILD_DIR/repl/bloom-repl"
+	# Dispatch action
+	case "$ACTION" in
+	build)
+		log_info "Starting build process for $PROJECT_NAME"
+		do_build
+		;;
+	format)
+		format_sources
+		;;
+	esac
 }
 
 # Run main function with all arguments
