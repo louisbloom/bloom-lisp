@@ -1374,12 +1374,17 @@ The condition system provides Emacs Lisp-style error handling with typed errors,
 
 ### File I/O Functions
 
-- `open` - Open a file (filename, mode) - returns file stream
+File streams are **EOL-aware** (Emacs Lisp style): on open-for-read, the stream auto-detects whether the source uses `"\n"` (LF) or `"\r\n"` (CRLF) by peeking the file bytes. The detected style is stored on the stream and used by `write-line` and `write-string`, so any `\n` in written text is transparently translated to the stream's EOL. A tool that wants to round-trip a file's line-ending style just queries `stream-eol` on the read stream and passes it as the third argument of `open` when creating the matching write stream — no manual `\r` juggling in user code.
+
+- `open` - Open a file. Signature: `(open filename [mode [eol]])`. Mode is `"r"` / `"w"` / `"a"` (default `"r"`). Optional `eol` argument (`"\n"` or `"\r\n"`) overrides detection — mainly used for write streams that need to inherit a specific style. Read streams auto-detect EOL; write streams default to LF.
 - `close` - Close a file stream
-- `read-line` - Read a line from file stream (returns string or nil at EOF), supports Unix (`\n`), Windows (`\r\n`), and Mac (`\r`) line endings
-- `write-line` - Write a line to file stream
+- `read-line` - Read a line from file stream (returns string or nil at EOF). Handles Unix (`\n`), Windows (`\r\n`), and classic Mac (`\r`) line endings transparently — the returned string never contains the terminator
+- `write-line` - Write a string to file stream followed by the stream's EOL. Any `\n` embedded in the string is also translated to the stream's EOL
+- `write-string` - Write a string verbatim to file stream with no trailing terminator. Any `\n` in the string is translated to the stream's EOL. Use this when you need to write pre-assembled content (e.g. a whole formatted file) without `write-line`'s forced terminator
+- `stream-eol` - Return the EOL style of a file stream as a string (`"\n"` or `"\r\n"`). On read streams this reflects the auto-detected style; on write streams it reflects either the default LF or the explicit argument to `open`
 - `read-sexp` - Read S-expressions from file (filename or file stream) - returns single expression or list of expressions
 - `read-json` - Read JSON from file (filename or file stream) - returns Lisp data structures (objects → hash tables, arrays → vectors, etc.)
+- `read-file-raw` - Read an entire file into a string verbatim, preserving every byte including carriage returns. Opens in binary mode; use when you need the exact on-disk bytes (tools that care about original formatting, CRLF preservation, etc.)
 - `delete-file` - Delete a file from the filesystem (filename) - returns nil on success, error if file doesn't exist or cannot be deleted
 - `load` - Load and evaluate a Lisp file (filename) - returns the result of the last expression evaluated, or an error if loading fails
 
@@ -2466,6 +2471,29 @@ message_count                        ; => 2
 (define f (open "data.txt" "a"))    ; Append mode
 (write-line f "new line")
 (close f)
+
+; EOL-aware I/O: auto-detect on read, preserve on write
+(define in (open "windows-file.txt" "r"))
+(stream-eol in)                     ; => "\r\n"  (auto-detected)
+(close in)
+
+; write-string writes verbatim with \n → stream EOL translation
+(define out (open "out.txt" "w" "\r\n"))  ; explicit CRLF mode
+(write-string out "line1\nline2\n")        ; "\n" becomes "\r\n" on disk
+(close out)                                ; exactly one \r\n at EOF
+
+; Round-trip a file's line-ending style
+(let* ((in (open "src.txt" "r"))
+       (eol (stream-eol in))              ; detect on the way in
+       (content (read-line in)))
+  (close in)
+  (let ((out (open "dest.txt" "w" eol)))  ; pass detected style to writer
+    (write-string out content)
+    (write-string out "\n")
+    (close out)))
+
+; Read raw file bytes (preserves \r, no line-ending normalisation)
+(read-file-raw "windows-file.txt")  ; => "line1\r\nline2\r\n"
 
 ; Read S-expressions from file
 (read-sexp "config.lisp")           ; => (list of expressions or single expression)

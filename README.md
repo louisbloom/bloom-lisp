@@ -26,6 +26,7 @@ See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for complete function lis
 - **UTF-8 Support**: Full Unicode string support with codepoint-based operations
   - `length`, `substring`, and `string-ref` use codepoint indexing
   - Handles multi-byte characters correctly (CJK, emoji, etc.)
+- **EOL-Aware File I/O**: File streams auto-detect their line-ending style (LF or CRLF) on open-for-read and transparently preserve it on write, Emacs Lisp style. `write-string` and `write-line` translate any embedded `\n` to the stream's stored EOL, so tools like source formatters can round-trip Windows files without any manual `\r` handling.
 - **Memory Management**: Automatic garbage collection with Boehm GC
 
 ## Building
