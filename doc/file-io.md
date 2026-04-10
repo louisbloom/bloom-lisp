@@ -10,29 +10,38 @@ Open a file for reading or writing.
 
 - `filename` - Path to file (string)
 - `mode` - Optional mode: `"r"` (read, default), `"w"` (write), `"a"` (append)
+- `eol` - Optional explicit end-of-line style: `"\n"` or `"\r\n"`.
+  If omitted, read-mode streams auto-detect the EOL by peeking up to
+  4 KB of the file; write-mode streams default to `"\n"`.
 
 ### Returns
 
-File stream object for use with `read-line`, `write-line`, `close`, etc.
-Returns error if file cannot be opened.
+File stream object for use with `read-line`, `write-line`, `write-string`,
+`close`, etc. Returns error if file cannot be opened.
 
 ### Examples
 
 ```lisp
-(define f (open "test.txt" "r"))  ; Open for reading
-(define f (open "out.txt" "w"))   ; Open for writing
-(define f (open "log.txt" "a"))   ; Open for appending
+(define f (open "test.txt" "r"))          ; Open for reading, auto-detect EOL
+(define f (open "out.txt" "w"))           ; Open for writing, defaults to LF
+(define f (open "out.txt" "w" "\r\n"))    ; Open for writing with CRLF
+(define f (open "log.txt" "a"))           ; Open for appending
 ```
 
 ### Notes
 
-Always close files with `(close stream)` when done. Files are not auto-closed.
+- Always close files with `(close stream)` when done. Files are not auto-closed.
+- The EOL style is stored on the stream and drives `write-line` and
+  `write-string`: both translate any `\n` in their input to the stored
+  EOL, Emacs-Lisp-style.
 
 ### See Also
 
 - `close` - Close file stream
 - `read-line` - Read line from file
 - `write-line` - Write line to file
+- `write-string` - Write string verbatim (with EOL translation)
+- `stream-eol` - Query the stream's current EOL style
 
 ## `close`
 
@@ -97,7 +106,7 @@ String containing the line (without newline), or `nil` at end-of-file.
 
 ## `write-line`
 
-Write string to file stream with newline.
+Write string to file stream with a trailing newline.
 
 ### Parameters
 
@@ -119,12 +128,95 @@ The text that was written.
 
 ### Notes
 
-- Automatically appends newline after text
-- Flushes output immediately
+- Automatically appends the stream's EOL after the text. This is
+  `"\n"` by default for write-mode streams, `"\r\n"` for CRLF streams
+  (auto-detected on read, or passed explicitly to `open`).
+- Any `\n` inside `text` is also translated to the stream's EOL.
+- Flushes output immediately.
 
 ### See Also
 
 - `read-line` - Read line from file
+- `write-string` - Write without appending a terminator
+
+## `write-string`
+
+Write a string to a file stream verbatim (no trailing terminator).
+Any `\n` in the string is translated to the stream's stored EOL.
+
+### Parameters
+
+- `stream` - File stream object from `open`
+- `text` - String to write
+
+### Returns
+
+The text that was written.
+
+### Examples
+
+```lisp
+;; Round-trip a CRLF file without double newlines at EOF:
+(let* ((in (open "src.txt" "r"))           ; auto-detects CRLF
+       (eol (stream-eol in)))
+  (close in)
+  (let ((out (open "dest.txt" "w" eol)))   ; inherit the style
+    (write-string out "line1\nline2\n")     ; "\n" becomes "\r\n"
+    (close out)))                           ; file ends with exactly one \r\n
+```
+
+### Notes
+
+- Unlike `write-line`, does **not** append any terminator. Pair it with
+  content that already ends in `\n` if you want a trailing EOL.
+- Any `\n` bytes inside the text are translated to the stream's EOL,
+  so an LF-internal string round-trips cleanly through a CRLF stream.
+- Flushes output immediately.
+
+### See Also
+
+- `write-line` - Write a line with a trailing terminator
+- `stream-eol` - Query the stream's EOL style
+- `open` - Set the EOL style explicitly
+
+## `stream-eol`
+
+Return the EOL style stored on a file stream.
+
+### Parameters
+
+- `stream` - File stream object from `open`
+
+### Returns
+
+`"\n"` for LF streams, `"\r\n"` for CRLF streams.
+
+### Examples
+
+```lisp
+(define f (open "windows.txt" "r"))
+(stream-eol f)  ; => "\r\n"  (auto-detected)
+(close f)
+
+(define g (open "unix.txt" "r"))
+(stream-eol g)  ; => "\n"
+(close g)
+```
+
+### Notes
+
+- On read-mode streams the EOL is auto-detected at `open` time by
+  peeking the first 4 KB of the file for a `\r\n` pair.
+- On write-mode streams the EOL is either `"\n"` (default) or the
+  explicit string passed as the third argument to `open`.
+- The returned value is safe to pass as the third argument of `open`
+  when creating a matching write stream — this is the normal pattern
+  for tools that want to round-trip a file's line-ending style.
+
+### See Also
+
+- `open` - Set the EOL explicitly via the third argument
+- `write-line` / `write-string` - Both respect the stream's EOL
 
 ## `read-sexp`
 

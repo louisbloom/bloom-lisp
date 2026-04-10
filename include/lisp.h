@@ -134,7 +134,18 @@ struct LispObject
             char *docstring; /* Documentation string (CommonMark format) */
         } macro;
         char *error;
-        FILE *file;
+        struct
+        {
+            FILE *fp;
+            /* End-of-line style: "\n" (LF) or "\r\n" (CRLF). For read
+             * streams, auto-detected on open by peeking up to 4 KB.
+             * For write streams, defaults to "\n" and may be set via
+             * set-stream-eol! or the optional third arg to open.
+             * write-line always appends this suffix; write-string
+             * translates each \n in its input to this string (Emacs
+             * Lisp-style transparent EOL handling). */
+            char eol[4];
+        } file;
         struct
         {
             LispObject **items;

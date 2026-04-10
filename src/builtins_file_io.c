@@ -1,12 +1,43 @@
 #include "builtins_internal.h"
 
-/* Helper function to create a file stream object */
+/* Helper function to create a file stream object. EOL state starts as
+ * LF ("\n"); read-mode opens subsequently run detect_eol_from_file to
+ * upgrade to "\r\n" if the source is CRLF. */
 LispObject *lisp_make_file_stream(FILE *file)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_FILE_STREAM;
-    obj->value.file = file;
+    obj->value.file.fp = file;
+    obj->value.file.eol[0] = '\n';
+    obj->value.file.eol[1] = '\0';
     return obj;
+}
+
+/* Peek up to 4 KB of the file looking for a \r\n pair. If found, set
+ * the stream's eol to "\r\n"; otherwise leave it as "\n". Restores
+ * the file position so the probe is invisible to subsequent reads. */
+static void detect_eol_from_file(LispObject *stream_obj)
+{
+    FILE *fp = stream_obj->value.file.fp;
+    if (fp == NULL) {
+        return;
+    }
+    long saved_pos = ftell(fp);
+    if (saved_pos < 0) {
+        return; /* non-seekable stream — keep default */
+    }
+    char probe[4096];
+    size_t n = fread(probe, 1, sizeof(probe), fp);
+    /* Restore position regardless of what we found. */
+    fseek(fp, saved_pos, SEEK_SET);
+    for (size_t i = 0; i + 1 < n; i++) {
+        if (probe[i] == '\r' && probe[i + 1] == '\n') {
+            stream_obj->value.file.eol[0] = '\r';
+            stream_obj->value.file.eol[1] = '\n';
+            stream_obj->value.file.eol[2] = '\0';
+            return;
+        }
+    }
 }
 
 static LispObject *builtin_open(LispObject *args, Environment *env)
@@ -23,12 +54,14 @@ static LispObject *builtin_open(LispObject *args, Environment *env)
 
     /* Default mode is "r" (read) */
     const char *mode = "r";
-    if (lisp_cdr(args) != NIL && lisp_cdr(args) != NULL) {
-        LispObject *mode_obj = lisp_car(lisp_cdr(args));
+    LispObject *rest = lisp_cdr(args);
+    if (rest != NIL && rest != NULL) {
+        LispObject *mode_obj = lisp_car(rest);
         if (mode_obj->type != LISP_STRING) {
             return lisp_make_error("open mode must be a string");
         }
         mode = mode_obj->value.string;
+        rest = lisp_cdr(rest);
     }
 
     FILE *file = file_open(filename_obj->value.string, mode);
@@ -38,7 +71,38 @@ static LispObject *builtin_open(LispObject *args, Environment *env)
         return lisp_make_error(error);
     }
 
-    return lisp_make_file_stream(file);
+    LispObject *stream = lisp_make_file_stream(file);
+
+    /* Optional third argument: explicit EOL style ("\n" or "\r\n"). */
+    if (rest != NIL && rest != NULL) {
+        LispObject *eol_obj = lisp_car(rest);
+        if (eol_obj != NIL && eol_obj != NULL) {
+            if (eol_obj->type != LISP_STRING) {
+                fclose(file);
+                return lisp_make_error("open: eol argument must be a string or nil");
+            }
+            const char *e = eol_obj->value.string;
+            if (strcmp(e, "\n") == 0) {
+                stream->value.file.eol[0] = '\n';
+                stream->value.file.eol[1] = '\0';
+            } else if (strcmp(e, "\r\n") == 0) {
+                stream->value.file.eol[0] = '\r';
+                stream->value.file.eol[1] = '\n';
+                stream->value.file.eol[2] = '\0';
+            } else {
+                fclose(file);
+                return lisp_make_error("open: eol must be \"\\n\" or \"\\r\\n\"");
+            }
+            return stream;
+        }
+    }
+
+    /* No explicit EOL: for read mode, auto-detect from the file bytes. */
+    if (mode[0] == 'r') {
+        detect_eol_from_file(stream);
+    }
+
+    return stream;
 }
 
 static LispObject *builtin_close(LispObject *args, Environment *env)
@@ -51,9 +115,9 @@ static LispObject *builtin_close(LispObject *args, Environment *env)
         return lisp_make_error("close requires a file stream");
     }
 
-    if (stream_obj->value.file != NULL) {
-        fclose(stream_obj->value.file);
-        stream_obj->value.file = NULL;
+    if (stream_obj->value.file.fp != NULL) {
+        fclose(stream_obj->value.file.fp);
+        stream_obj->value.file.fp = NULL;
     }
 
     return NIL;
@@ -69,7 +133,7 @@ static LispObject *builtin_read_line(LispObject *args, Environment *env)
         return lisp_make_error("read-line requires a file stream");
     }
 
-    FILE *file = stream_obj->value.file;
+    FILE *file = stream_obj->value.file.fp;
     if (file == NULL) {
         return lisp_make_error("read-line: file is closed");
     }
@@ -117,6 +181,28 @@ static LispObject *builtin_read_line(LispObject *args, Environment *env)
     return lisp_make_string(buffer);
 }
 
+/* Helper: write BYTES of LEN to FP, translating each '\n' byte into the
+ * stream's configured EOL sequence. Used by write-line and write-string
+ * so that any \n found in user-supplied text comes out as \r\n on a
+ * CRLF-mode stream, Emacs-Lisp-style. */
+static void write_with_eol_translation(FILE *fp, const char *bytes, size_t len,
+                                       const char *eol)
+{
+    size_t eol_len = strlen(eol);
+    /* Fast path: if EOL is just "\n", write bytes verbatim. */
+    if (eol_len == 1 && eol[0] == '\n') {
+        fwrite(bytes, 1, len, fp);
+        return;
+    }
+    for (size_t i = 0; i < len; i++) {
+        if (bytes[i] == '\n') {
+            fwrite(eol, 1, eol_len, fp);
+        } else {
+            fputc((unsigned char)bytes[i], fp);
+        }
+    }
+}
+
 static LispObject *builtin_write_line(LispObject *args, Environment *env)
 {
     (void)env;
@@ -129,7 +215,7 @@ static LispObject *builtin_write_line(LispObject *args, Environment *env)
         return lisp_make_error("write-line requires a file stream");
     }
 
-    FILE *file = stream_obj->value.file;
+    FILE *file = stream_obj->value.file.fp;
     if (file == NULL) {
         return lisp_make_error("write-line: file is closed");
     }
@@ -144,10 +230,66 @@ static LispObject *builtin_write_line(LispObject *args, Environment *env)
         return lisp_make_error("write-line requires a string");
     }
 
-    fprintf(file, "%s\n", text_obj->value.string);
+    const char *text = text_obj->value.string;
+    const char *eol = stream_obj->value.file.eol;
+    /* Write the body (translating any embedded \n), then the EOL. */
+    write_with_eol_translation(file, text, strlen(text), eol);
+    fwrite(eol, 1, strlen(eol), file);
     fflush(file);
 
     return text_obj;
+}
+
+static LispObject *builtin_write_string(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("write-string requires at least 1 argument");
+    }
+
+    LispObject *stream_obj = lisp_car(args);
+    if (stream_obj->type != LISP_FILE_STREAM) {
+        return lisp_make_error("write-string requires a file stream");
+    }
+
+    FILE *file = stream_obj->value.file.fp;
+    if (file == NULL) {
+        return lisp_make_error("write-string: file is closed");
+    }
+
+    LispObject *rest = lisp_cdr(args);
+    if (rest == NIL) {
+        return lisp_make_error("write-string requires a string to write");
+    }
+
+    LispObject *text_obj = lisp_car(rest);
+    if (text_obj->type != LISP_STRING) {
+        return lisp_make_error("write-string requires a string");
+    }
+
+    const char *text = text_obj->value.string;
+    const char *eol = stream_obj->value.file.eol;
+    /* Translate any \n in the string to the stream's EOL. No trailing
+     * terminator is added — this is the verbatim-with-EOL-translation
+     * primitive that lets callers write arbitrary content without
+     * worrying about double-newlines at EOF. */
+    write_with_eol_translation(file, text, strlen(text), eol);
+    fflush(file);
+
+    return text_obj;
+}
+
+static LispObject *builtin_stream_eol(LispObject *args, Environment *env)
+{
+    (void)env;
+    CHECK_ARGS_1("stream-eol");
+
+    LispObject *stream_obj = lisp_car(args);
+    if (stream_obj->type != LISP_FILE_STREAM) {
+        return lisp_make_error("stream-eol requires a file stream");
+    }
+
+    return lisp_make_string(stream_obj->value.file.eol);
 }
 
 /* Read S-expressions from file */
@@ -162,7 +304,7 @@ static LispObject *builtin_read_sexp(LispObject *args, Environment *env)
 
     /* Check if argument is file stream or filename */
     if (arg->type == LISP_FILE_STREAM) {
-        file = arg->value.file;
+        file = arg->value.file.fp;
         if (file == NULL) {
             return lisp_make_error("read-sexp: file is closed");
         }
@@ -253,7 +395,7 @@ static LispObject *builtin_read_json(LispObject *args, Environment *env)
 
     /* Check if argument is file stream or filename */
     if (arg->type == LISP_FILE_STREAM) {
-        file = arg->value.file;
+        file = arg->value.file.fp;
         if (file == NULL) {
             return lisp_make_error("read-json: file is closed");
         }
@@ -577,6 +719,8 @@ void register_file_io_builtins(Environment *env)
     REGISTER("close", builtin_close);
     REGISTER("read-line", builtin_read_line);
     REGISTER("write-line", builtin_write_line);
+    REGISTER("write-string", builtin_write_string);
+    REGISTER("stream-eol", builtin_stream_eol);
     REGISTER("read-sexp", builtin_read_sexp);
     REGISTER("read-json", builtin_read_json);
     REGISTER("read-file-raw", builtin_read_file_raw);

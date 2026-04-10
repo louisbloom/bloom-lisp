@@ -220,69 +220,106 @@
 ;; ============================================================
 ;; EOF newline and CRLF preservation
 ;; ============================================================
-;; Pure-string assertions on format-source-with-eol so we don't need
-;; temp files for the common cases.
-(assert-equal "(foo)\n"
- (format-source-with-eol "(foo)" "\n")
- "LF mode: trailing newline is exactly one \\n")
-(assert-equal "(foo)\r\n"
- (format-source-with-eol "(foo)" "\r\n")
- "CRLF mode: trailing newline is exactly one \\r\\n")
-(assert-equal "(foo)\n"
- (format-source-with-eol "(foo)\n\n\n" "\n")
- "LF mode: multiple trailing newlines collapse to one")
-(assert-equal "(foo)\r\n"
- (format-source-with-eol "(foo)\n\n\n" "\r\n")
- "CRLF mode: multiple trailing newlines collapse to one")
+;; These tests exercise the C I/O layer's EOL awareness directly and
+;; then confirm the round-trip through format-file-inplace.
 
-;; detect-eol-style
-(assert-equal "\r\n" (detect-eol-style "(a)\r\n(b)\r\n") "detect CRLF")
-(assert-equal "\n" (detect-eol-style "(a)\n(b)\n") "detect LF")
-(assert-equal "\n" (detect-eol-style "(no-newlines)") "no newlines → LF")
+;; stream-eol auto-detects CRLF on open.
+(let ((tmp "/tmp/bloom-lisp-fmt-detect-crlf.lisp"))
+  (let ((out (open tmp "w" "\r\n")))
+    (write-string out "(foo)\n(bar)\n")
+    (close out))
+  (let ((in (open tmp "r")))
+    (assert-equal "\r\n" (stream-eol in) "stream-eol detects CRLF on open")
+    (close in))
+  (delete-file tmp))
 
-;; normalize-to-lf
-(assert-equal "(a)\n(b)\n"
- (normalize-to-lf "(a)\r\n(b)\r\n")
- "normalize-to-lf: CRLF → LF")
-(assert-equal "(a)\r(b)\n"
- (normalize-to-lf "(a)\r(b)\n")
- "normalize-to-lf: lone \\r untouched")
+;; stream-eol reports LF for LF files.
+(let ((tmp "/tmp/bloom-lisp-fmt-detect-lf.lisp"))
+  (let ((out (open tmp "w")))
+    (write-string out "(foo)\n(bar)\n")
+    (close out))
+  (let ((in (open tmp "r")))
+    (assert-equal "\n" (stream-eol in) "stream-eol detects LF on open")
+    (close in))
+  (delete-file tmp))
 
-;; strip-last-newline
-(assert-equal "abc" (strip-last-newline "abc\n") "strip \\n")
-(assert-equal "abc\n" (strip-last-newline "abc\n\n") "strip only one \\n")
-(assert-equal "abc" (strip-last-newline "abc") "no \\n: unchanged")
-(assert-equal "abc\r" (strip-last-newline "abc\r\n") "strip \\n after \\r")
+;; write-string translates embedded \n to the stream's EOL.
+(let ((tmp "/tmp/bloom-lisp-fmt-ws-crlf.lisp"))
+  (let ((out (open tmp "w" "\r\n")))
+    (write-string out "line1\nline2\n")
+    (close out))
+  (assert-equal "line1\r\nline2\r\n" (read-file-raw tmp)
+   "write-string translates \\n to \\r\\n on a CRLF stream")
+  (delete-file tmp))
+(let ((tmp "/tmp/bloom-lisp-fmt-ws-lf.lisp"))
+  (let ((out (open tmp "w")))
+    (write-string out "line1\nline2\n")
+    (close out))
+  (assert-equal "line1\nline2\n" (read-file-raw tmp)
+   "write-string writes verbatim on an LF stream")
+  (delete-file tmp))
 
-;; File-level round-trip (LF): write, format in place, read raw, assert.
+;; write-string does NOT add a trailing terminator.
+(let ((tmp "/tmp/bloom-lisp-fmt-ws-noterm.lisp"))
+  (let ((out (open tmp "w")))
+    (write-string out "abc")
+    (close out))
+  (assert-equal "abc" (read-file-raw tmp)
+   "write-string does not append a trailing newline")
+  (delete-file tmp))
+
+;; File-level round-trip (LF): format-file-inplace preserves LF.
 (let ((tmp "/tmp/bloom-lisp-fmt-eol-lf.lisp"))
   (let ((file (open tmp "w")))
     (write-line file "(define  x  1)")
     (close file))
   (format-file-inplace tmp)
-  (assert-equal "(define x 1)\n"
-   (read-file-raw tmp)
+  (assert-equal "(define x 1)\n" (read-file-raw tmp)
    "LF file round-trip ends with exactly one \\n")
   (format-file-inplace tmp)
-  (assert-equal "(define x 1)\n"
-   (read-file-raw tmp)
+  (assert-equal "(define x 1)\n" (read-file-raw tmp)
    "LF file round-trip is idempotent")
   (delete-file tmp))
 
-;; File-level round-trip (CRLF): write raw bytes via write-line + manual
-;; trailing \r (which becomes \r\n on disk), format in place, assert.
+;; File-level round-trip (CRLF): format-file-inplace preserves CRLF.
 (let ((tmp "/tmp/bloom-lisp-fmt-eol-crlf.lisp"))
-  (let ((file (open tmp "w")))
-    (write-line file "(define  x  1)\r")
-    (close file))
+  (let ((out (open tmp "w" "\r\n")))
+    (write-string out "(define  x  1)\n")
+    (close out))
   (format-file-inplace tmp)
-  (assert-equal "(define x 1)\r\n"
-   (read-file-raw tmp)
+  (assert-equal "(define x 1)\r\n" (read-file-raw tmp)
    "CRLF file round-trip ends with exactly one \\r\\n")
   (format-file-inplace tmp)
-  (assert-equal "(define x 1)\r\n"
-   (read-file-raw tmp)
+  (assert-equal "(define x 1)\r\n" (read-file-raw tmp)
    "CRLF file round-trip is idempotent")
+  (delete-file tmp))
+
+;; Multi-trailing-newlines collapse to one (LF and CRLF).
+(let ((tmp "/tmp/bloom-lisp-fmt-multi-lf.lisp"))
+  (let ((out (open tmp "w")))
+    (write-string out "(define  x  1)\n\n\n")
+    (close out))
+  (format-file-inplace tmp)
+  (assert-equal "(define x 1)\n" (read-file-raw tmp)
+   "LF multiple trailing newlines collapse to one")
+  (delete-file tmp))
+(let ((tmp "/tmp/bloom-lisp-fmt-multi-crlf.lisp"))
+  (let ((out (open tmp "w" "\r\n")))
+    (write-string out "(define  x  1)\n\n\n")
+    (close out))
+  (format-file-inplace tmp)
+  (assert-equal "(define x 1)\r\n" (read-file-raw tmp)
+   "CRLF multiple trailing newlines collapse to one")
+  (delete-file tmp))
+
+;; No trailing newline on source → formatter adds exactly one.
+(let ((tmp "/tmp/bloom-lisp-fmt-notrail.lisp"))
+  (let ((out (open tmp "w")))
+    (write-string out "(define  x  1)")
+    (close out))
+  (format-file-inplace tmp)
+  (assert-equal "(define x 1)\n" (read-file-raw tmp)
+   "missing trailing newline gets added")
   (delete-file tmp))
 
 ;; ============================================================
