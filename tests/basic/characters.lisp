@@ -131,4 +131,3 @@
 (assert-equal (string-append "hello" " " "world") "hello world" "string-append")
 (assert-equal (string-append "a" "b" "c") "abc" "string-append multiple")
 (assert-equal (string-append) "" "string-append empty")
-

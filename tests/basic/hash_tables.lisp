@@ -134,4 +134,3 @@
 (hash-set! ht2 3.14 "tau/2")
 
 (assert-equal (hash-ref ht2 3.14) "tau/2" "float key value updated")
-

@@ -156,4 +156,3 @@
  "zero required with optional default")
 (assert-equal ((lambda (&optional x) (or x 99)) 55) 55
  "zero required with optional provided")
-

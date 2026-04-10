@@ -36,4 +36,3 @@
 (assert-equal (remainder 100 3) 1 "100 mod 3 equals 1")
 (assert-equal (remainder 100 4) 0 "100 mod 4 equals 0")
 (assert-equal (remainder 100 7) 2 "100 mod 7 equals 2")
-

@@ -68,4 +68,3 @@
 
 ;; String comparisons
 (assert-true (string<? "abc" "def") "string<? compares strings")
-

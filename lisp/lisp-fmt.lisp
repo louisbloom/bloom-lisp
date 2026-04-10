@@ -56,6 +56,59 @@
         (join (reverse lines) "\n"))
       (close file))))
 
+(defun detect-eol-style (raw)
+  "Return \"\\r\\n\" if RAW contains any \\r\\n sequence (scans up to
+   4 KB for speed), else \"\\n\"."
+  (let ((len (length raw))
+        (max-scan (if (> (length raw) 4096) 4096 (length raw)))
+        (i 0)
+        (found #f))
+    (do () ((or found (>= i (- max-scan 1))))
+      (when
+        (and (char=? (string-ref raw i) #\return)
+             (char=? (string-ref raw (+ i 1)) #\newline))
+        (set! found #t))
+      (set! i (+ i 1)))
+    (if found "\r\n" "\n")))
+
+(defun normalize-to-lf (s)
+  "Replace every \\r\\n in S with \\n. Leaves lone \\r untouched so
+   embedded CRs (not part of a CRLF) survive."
+  (let ((parts '())
+        (i 0)
+        (len (length s)))
+    (do () ((>= i len))
+      (let ((ch (string-ref s i)))
+        (cond
+          ((and (char=? ch #\return) (< (+ i 1) len)
+                (char=? (string-ref s (+ i 1)) #\newline))
+           (set! parts (cons "\n" parts))
+           (set! i (+ i 2)))
+          (#t (set! parts (cons (char->string ch) parts))
+           (set! i (+ i 1))))))
+    (apply string-append (reverse parts))))
+
+(defun convert-lf-to-crlf (s)
+  "Replace every \\n in S with \\r\\n."
+  (let ((parts '())
+        (i 0)
+        (len (length s)))
+    (do () ((>= i len))
+      (let ((ch (string-ref s i)))
+        (if (char=? ch #\newline)
+          (set! parts (cons "\r\n" parts))
+          (set! parts (cons (char->string ch) parts))))
+      (set! i (+ i 1)))
+    (apply string-append (reverse parts))))
+
+(defun strip-last-newline (s)
+  "Remove exactly one trailing \\n if present. Other newlines are
+   untouched, and S is returned unchanged if it does not end with \\n."
+  (let ((len (length s)))
+    (if (and (> len 0) (char=? (string-ref s (- len 1)) #\newline))
+      (substring s 0 (- len 1))
+      s)))
+
 ;;; ----------------------------------------------------------------------------
 ;;; Reader State Management
 ;;; ----------------------------------------------------------------------------
@@ -1380,18 +1433,34 @@
     (concat output "\n")))
 
 (defun format-file (filename)
-  "Format a Lisp file and return formatted content as string."
+  "Format a Lisp file and return formatted content as string (LF only —
+   used by the stdout path)."
   (format-source-string (read-file-to-string filename)))
 
+(defun format-source-with-eol (source eol)
+  "Format SOURCE (LF-only) and return the final output string with the
+   requested EOL style applied. Output always ends with exactly one EOL.
+   Keeps the I/O-free logic pure-string so tests can assert on it
+   without temp files."
+  (let ((formatted (format-source-string source)))
+    (if (string=? eol "\r\n") (convert-lf-to-crlf formatted) formatted)))
+
 (defun format-file-inplace (filename)
-  "Format a Lisp file in-place. Skip write if no changes."
-  (let* ((original (read-file-to-string filename))
-         (formatted (format-source-string original)))
-    ;; Compare trimmed versions to handle trailing newline differences
-    (if (string=? (string-trim original) (string-trim formatted))
+  "Format a Lisp file in-place. Preserves the file's original EOL style
+   (LF or CRLF) and guarantees exactly one trailing newline. Skips the
+   write if the raw bytes on disk already match the formatted output."
+  (let* ((raw (read-file-raw filename))
+         (eol (detect-eol-style raw))
+         (source-lf (normalize-to-lf raw))
+         (final (format-source-with-eol source-lf eol)))
+    (if (string=? raw final)
       (progn (princ filename) (princ " (unchanged)") (terpri))
       (let ((file (open filename "w")))
-        (write-line file formatted)
+        ;; write-line appends \n. We strip the trailing \n first so the
+        ;; combined result is exactly one trailing EOL in the target style:
+        ;;   LF mode:   "...last-line"    + write-line → "...last-line\n"
+        ;;   CRLF mode: "...last-line\r"  + write-line → "...last-line\r\n"
+        (write-line file (strip-last-newline final))
         (close file)
         (princ "Formatted: ")
         (princ filename)
@@ -1435,4 +1504,3 @@
                 (princ (format-file file))))))))))
 
 (when (and (bound? '*command-line-args*) *command-line-args*) (main))
-

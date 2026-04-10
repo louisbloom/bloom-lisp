@@ -12,4 +12,3 @@
 (define fib (lambda (n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))))
 
 (assert-equal (fib 10) 55 "Fibonacci of 10")
-

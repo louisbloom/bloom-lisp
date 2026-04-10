@@ -140,4 +140,3 @@
 ;; Test that #t from different sources is the same object
 (assert-true (eq? (if #t #t nil) #t) "eq? with #t from if expression")
 (assert-true (eq? (and #t #t) #t) "eq? with #t from and expression")
-

@@ -93,5 +93,3 @@
 
 (assert-true (function? my-add) "my-add is function?")
 (assert-true (macro? my-when) "my-when is macro?")
-
-

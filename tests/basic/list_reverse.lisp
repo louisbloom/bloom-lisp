@@ -35,4 +35,3 @@
 ;; Integration with cons and car/cdr
 (assert-equal (car (reverse '(1 2 3))) 3 "car of reversed list")
 (assert-equal (cdr (reverse '(1 2 3))) '(2 1) "cdr of reversed list")
-

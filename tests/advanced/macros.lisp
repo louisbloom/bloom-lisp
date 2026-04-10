@@ -49,4 +49,3 @@
 (defmacro quote-form (x) (list 'quote x))
 
 (assert-equal (quote-form (+ 1 2)) '(+ 1 2) "macro that quotes form")
-

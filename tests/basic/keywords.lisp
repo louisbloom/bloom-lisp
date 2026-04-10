@@ -37,4 +37,3 @@
 ;; Test printing
 (assert-equal (format nil "~S" :foo) ":foo" "keyword prints with colon")
 (assert-equal (format nil "~A" :foo) ":foo" "keyword princ with colon")
-

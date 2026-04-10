@@ -31,4 +31,3 @@
  "case mismatch uppercase to lowercase")
 (assert-nil (string-index "hello" "Hello")
  "case mismatch lowercase to uppercase")
-

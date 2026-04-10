@@ -35,4 +35,3 @@
  "replace Chinese characters")
 (assert-equal (string-replace "hello 世界" "o" "O") "hellO 世界"
  "replace ASCII in UTF-8 string")
-

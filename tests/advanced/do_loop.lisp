@@ -62,4 +62,3 @@
 ;; No result expression returns nil
 (assert-equal (do ((i 0 (+ i 1))) ((= i 1))) nil
  "do with no result expression returns nil")
-

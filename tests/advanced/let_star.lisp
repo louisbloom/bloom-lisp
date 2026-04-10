@@ -50,4 +50,3 @@
 ;; Body with multiple values - should return last
 (assert-equal (let* ((a 1) (b 2)) 10 20 30 (+ a b)) 3
  "let* body with multiple values returns last")
-

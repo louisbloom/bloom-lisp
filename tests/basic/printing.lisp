@@ -84,4 +84,3 @@
  "prin1 returns string with newline")
 (assert-equal (print "Hello\nWorld") "Hello\nWorld"
  "print returns string with newline")
-

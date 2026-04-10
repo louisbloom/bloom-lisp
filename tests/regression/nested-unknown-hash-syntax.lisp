@@ -44,4 +44,3 @@
 (test-parse-error "[1 2 #\\space 4]" "Vector with unknown syntax")
 ;; Nested in quoted form (errors during read, before quote is processed)
 (test-parse-error "'(foo #\\space bar)" "Quoted form with unknown syntax")
-

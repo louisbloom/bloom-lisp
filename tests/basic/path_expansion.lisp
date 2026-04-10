@@ -85,4 +85,3 @@
    (let ((result (expand-path "~\\test.txt")))
      (and (string? result) (string-prefix? (home-directory) result)))
    #t) "~\\path works on Windows")
-

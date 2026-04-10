@@ -164,4 +164,3 @@
 (assert-equal (test-order 25) "medium" "test order medium")
 (assert-equal (test-order 5) "small" "test order small")
 (assert-equal (test-order 0) "non-positive" "test order non-positive")
-

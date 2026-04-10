@@ -186,4 +186,3 @@ const-test ; => 2.71828
 (condition-case err (set-documentation! 'doc-test-var 42) (error 1)) ; => 1
 ; set-documentation! requires bound symbol
 (condition-case err (set-documentation! 'unbound-xyz "doc") (error 1)) ; => 1
-

@@ -197,6 +197,40 @@ Lisp object representing JSON:
 
 - `read-sexp` - Read Lisp S-expressions from file
 
+## `read-file-raw`
+
+Read an entire file into a string verbatim, preserving every byte
+including carriage returns.
+
+### Parameters
+
+- `filename` - Path to file (string)
+
+### Returns
+
+String containing the exact file contents (no newline normalisation).
+Returns error if file cannot be opened.
+
+### Examples
+
+```lisp
+(read-file-raw "unix.txt")     ; => "line1\nline2\n"
+(read-file-raw "windows.txt")  ; => "line1\r\nline2\r\n"
+```
+
+### Notes
+
+- Unlike `read-line`, this preserves CRLF sequences — useful for tools
+  that need to detect or round-trip the original line-ending style.
+- Opens the file in binary mode; suitable for text files only (the
+  return type is a Lisp string).
+- Reads the entire file into memory; avoid on very large files.
+
+### See Also
+
+- `read-line` - Read line by line with newline normalisation
+- `read-sexp` - Read Lisp S-expressions
+
 ## `delete-file`
 
 Delete a file from filesystem.

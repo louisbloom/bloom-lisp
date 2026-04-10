@@ -43,4 +43,3 @@
 (assert-equal (if 0 "yes" "no") "yes"
  "0 is truthy in conditional (only nil is falsy)")
 (assert-equal (if 1 "yes" "no") "yes" "Non-zero integer is truthy")
-

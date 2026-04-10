@@ -19,4 +19,3 @@
 ;; progn with conditional logic - evaluates all but returns last
 (assert-equal (progn (if (> 5 3) 1 0) (if (< 10 5) 2 0) 99) 99
  "progn evaluates all expressions but returns last")
-

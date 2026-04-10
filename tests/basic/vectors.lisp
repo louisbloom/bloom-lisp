@@ -71,4 +71,3 @@
  "empty vector literal is truthy")
 (assert-equal (if v1 "not empty" "empty") "not empty"
  "non-empty vector literal is truthy")
-

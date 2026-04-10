@@ -218,7 +218,74 @@
    "lisp-fmt.lisp self-format is byte-identical"))
 
 ;; ============================================================
+;; EOF newline and CRLF preservation
+;; ============================================================
+;; Pure-string assertions on format-source-with-eol so we don't need
+;; temp files for the common cases.
+(assert-equal "(foo)\n"
+ (format-source-with-eol "(foo)" "\n")
+ "LF mode: trailing newline is exactly one \\n")
+(assert-equal "(foo)\r\n"
+ (format-source-with-eol "(foo)" "\r\n")
+ "CRLF mode: trailing newline is exactly one \\r\\n")
+(assert-equal "(foo)\n"
+ (format-source-with-eol "(foo)\n\n\n" "\n")
+ "LF mode: multiple trailing newlines collapse to one")
+(assert-equal "(foo)\r\n"
+ (format-source-with-eol "(foo)\n\n\n" "\r\n")
+ "CRLF mode: multiple trailing newlines collapse to one")
+
+;; detect-eol-style
+(assert-equal "\r\n" (detect-eol-style "(a)\r\n(b)\r\n") "detect CRLF")
+(assert-equal "\n" (detect-eol-style "(a)\n(b)\n") "detect LF")
+(assert-equal "\n" (detect-eol-style "(no-newlines)") "no newlines → LF")
+
+;; normalize-to-lf
+(assert-equal "(a)\n(b)\n"
+ (normalize-to-lf "(a)\r\n(b)\r\n")
+ "normalize-to-lf: CRLF → LF")
+(assert-equal "(a)\r(b)\n"
+ (normalize-to-lf "(a)\r(b)\n")
+ "normalize-to-lf: lone \\r untouched")
+
+;; strip-last-newline
+(assert-equal "abc" (strip-last-newline "abc\n") "strip \\n")
+(assert-equal "abc\n" (strip-last-newline "abc\n\n") "strip only one \\n")
+(assert-equal "abc" (strip-last-newline "abc") "no \\n: unchanged")
+(assert-equal "abc\r" (strip-last-newline "abc\r\n") "strip \\n after \\r")
+
+;; File-level round-trip (LF): write, format in place, read raw, assert.
+(let ((tmp "/tmp/bloom-lisp-fmt-eol-lf.lisp"))
+  (let ((file (open tmp "w")))
+    (write-line file "(define  x  1)")
+    (close file))
+  (format-file-inplace tmp)
+  (assert-equal "(define x 1)\n"
+   (read-file-raw tmp)
+   "LF file round-trip ends with exactly one \\n")
+  (format-file-inplace tmp)
+  (assert-equal "(define x 1)\n"
+   (read-file-raw tmp)
+   "LF file round-trip is idempotent")
+  (delete-file tmp))
+
+;; File-level round-trip (CRLF): write raw bytes via write-line + manual
+;; trailing \r (which becomes \r\n on disk), format in place, assert.
+(let ((tmp "/tmp/bloom-lisp-fmt-eol-crlf.lisp"))
+  (let ((file (open tmp "w")))
+    (write-line file "(define  x  1)\r")
+    (close file))
+  (format-file-inplace tmp)
+  (assert-equal "(define x 1)\r\n"
+   (read-file-raw tmp)
+   "CRLF file round-trip ends with exactly one \\r\\n")
+  (format-file-inplace tmp)
+  (assert-equal "(define x 1)\r\n"
+   (read-file-raw tmp)
+   "CRLF file round-trip is idempotent")
+  (delete-file tmp))
+
+;; ============================================================
 ;; Success message
 ;; ============================================================
 (princ "All formatter tests passed!\n")
-

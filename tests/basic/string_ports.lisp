@@ -132,4 +132,3 @@
 (assert-equal (port-read-char p9) #\tab "special: tab")
 (assert-equal (port-read-char p9) #\c "special: after tab")
 (assert-equal (port-read-char p9) #\newline "special: newline")
-

@@ -203,4 +203,3 @@
        "package-save excludes redefined builtin (still core package)"))
     (define + my-plus))
   (delete-file test-shadow-file))
-

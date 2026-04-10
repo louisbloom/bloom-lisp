@@ -58,4 +58,3 @@
 (assert-equal (symbol->string '/) "/" "symbol->string converts '/")
 (assert-equal (symbol->string 'null?) "null?" "symbol->string converts 'null?")
 (assert-equal (symbol->string 'set!) "set!" "symbol->string converts 'set!")
-

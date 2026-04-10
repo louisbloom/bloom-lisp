@@ -47,4 +47,3 @@
 ;; All multi-line tests completed
 (assert-equal "Multi-line expression parsing works!"
  "Multi-line expression parsing works!" "Final completion test")
-

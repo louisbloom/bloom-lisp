@@ -135,4 +135,3 @@
 (define empty_vec #())
 
 (assert-equal (length empty_vec) 0 "empty vector length")
-

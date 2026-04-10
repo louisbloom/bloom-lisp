@@ -95,4 +95,3 @@
  (map (lambda (pair) (cons (car pair) (* (cdr pair) 2)))
   '((1 . 10) (2 . 20) (3 . 30)))
  '((1 . 20) (2 . 40) (3 . 60)) "map transforms alist values")
-

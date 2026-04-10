@@ -67,4 +67,3 @@
 (assert-equal (substring "🌍️🌎️🌏️" 4 6) "🌏️" "Third emoji+VS16")
 
 (princ "All length and substring tests passed!\n")
-

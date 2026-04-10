@@ -133,4 +133,3 @@
  "round-trip octal")
 ;; Floats
 (assert-equal (string->number (number->string 3.14)) 3.14 "round-trip float")
-

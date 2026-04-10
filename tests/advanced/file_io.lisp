@@ -91,4 +91,3 @@
     (delete-file "string.json")
     (delete-file "number.json")
     (delete-file "bool.json")))
-

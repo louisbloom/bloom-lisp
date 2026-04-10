@@ -61,4 +61,3 @@
        (error
         (format nil "Assertion failed: ~A (expected nil, got: ~S)" ,message
          result)))))
-

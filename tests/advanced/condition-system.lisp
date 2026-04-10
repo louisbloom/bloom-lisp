@@ -150,4 +150,3 @@
       (assert-equal (error-message e) "error from inner"
        "error message in stack trace")
       "handled"))) "handled" "error stack traces work")
-

@@ -40,4 +40,3 @@
 
 (assert-equal (make-adder 5) '(lambda (x) (+ x 5))
  "building code with quasiquote")
-

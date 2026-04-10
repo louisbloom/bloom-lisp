@@ -525,6 +525,52 @@ static LispObject *builtin_load(LispObject *args, Environment *env)
     return result ? result : NIL;
 }
 
+static LispObject *builtin_read_file_raw(LispObject *args, Environment *env)
+{
+    (void)env;
+    CHECK_ARGS_1("read-file-raw");
+
+    LispObject *filename_obj = lisp_car(args);
+    if (filename_obj->type != LISP_STRING) {
+        return lisp_make_error("read-file-raw requires a string filename");
+    }
+
+    FILE *file = file_open(filename_obj->value.string, "rb");
+    if (file == NULL) {
+        char error[512];
+        snprintf(error, sizeof(error), "read-file-raw: cannot open file '%s'",
+                 filename_obj->value.string);
+        return lisp_make_error(error);
+    }
+
+    /* Determine file size */
+    if (fseek(file, 0, SEEK_END) != 0) {
+        fclose(file);
+        return lisp_make_error("read-file-raw: fseek failed");
+    }
+    long size = ftell(file);
+    if (size < 0) {
+        fclose(file);
+        return lisp_make_error("read-file-raw: ftell failed");
+    }
+    rewind(file);
+
+    /* Read all bytes verbatim */
+    char *buffer = GC_malloc((size_t)size + 1);
+    if (buffer == NULL) {
+        fclose(file);
+        return lisp_make_error("read-file-raw: allocation failed");
+    }
+    size_t read = fread(buffer, 1, (size_t)size, file);
+    fclose(file);
+    if (read != (size_t)size) {
+        return lisp_make_error("read-file-raw: short read");
+    }
+    buffer[size] = '\0';
+
+    return lisp_make_string(buffer);
+}
+
 void register_file_io_builtins(Environment *env)
 {
     REGISTER("open", builtin_open);
@@ -533,6 +579,7 @@ void register_file_io_builtins(Environment *env)
     REGISTER("write-line", builtin_write_line);
     REGISTER("read-sexp", builtin_read_sexp);
     REGISTER("read-json", builtin_read_json);
+    REGISTER("read-file-raw", builtin_read_file_raw);
     REGISTER("delete-file", builtin_delete_file);
     REGISTER("load", builtin_load);
 }

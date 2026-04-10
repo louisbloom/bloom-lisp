@@ -26,4 +26,3 @@
 (condition-case err (list-ref 'nil 0) (error #t)) ; => #t
 ; Test 8: list-ref with index out of bounds
 (condition-case err (list-ref '(a b c) 10) (error #t)) ; => #t
-

@@ -64,4 +64,3 @@
 
 (assert-equal (multi-wrapper "test") "A-test-Z"
  "Multiple arguments with tail call")
-

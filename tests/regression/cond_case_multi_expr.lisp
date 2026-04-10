@@ -71,4 +71,3 @@ counter ; => 3
 ; => 300
 ; Test 8: cond returns value of last expression
 (cond (#t (define temp3 111) (define temp4 222) (+ temp3 temp4)))
-

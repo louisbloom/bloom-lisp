@@ -62,4 +62,3 @@
 (delete-file (concat (getenv "HOME") "/.cache/bloom-lisp-test"))
 
 (print "All tests passed!")
-

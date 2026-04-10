@@ -128,4 +128,3 @@
     (delete-file "load_test10.lisp")
     (delete-file "helper.lisp")
     (delete-file "main.lisp")))
-

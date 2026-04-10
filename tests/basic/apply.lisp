@@ -30,4 +30,3 @@
 ;; Error cases
 (assert-error (apply 42 (list 1)) "apply non-function")
 (assert-error (apply + 5) "apply non-list args")
-

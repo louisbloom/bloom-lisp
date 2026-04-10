@@ -83,4 +83,3 @@
  "format ~a directive (lowercase)")
 (assert-equal (format nil "~s lowercase" "test") "\"test\" lowercase"
  "format ~s directive (lowercase)")
-

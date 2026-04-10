@@ -107,4 +107,3 @@
  "or returns first truthy value (true)")
 
 (assert-equal x 0 "x was not modified by short-circuited expressions")
-
