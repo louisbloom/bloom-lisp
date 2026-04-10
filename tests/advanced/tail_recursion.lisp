@@ -20,8 +20,7 @@
    "tail-recursive factorial 1000 (overflows to min or max int64)"))
 
 ;; Test 3: Tail-recursive sum (count down)
-(define sum-to-n
-  (lambda (n acc) (if (= n 0) acc (sum-to-n (- n 1) (+ n acc)))))
+(define sum-to-n (lambda (n acc) (if (= n 0) acc (sum-to-n (- n 1) (+ n acc)))))
 
 (assert-equal (sum-to-n 10 0) 55 "tail-recursive sum 10")
 (assert-equal (sum-to-n 100 0) 5050 "tail-recursive sum 100")
@@ -83,8 +82,7 @@
 
 ;; Test 9: Tail recursion through case
 (define count-down-case
-  (lambda (n acc)
-    (case n ((0) acc) (else (count-down-case (- n 1) (+ acc 1))))))
+  (lambda (n acc) (case n ((0) acc) (else (count-down-case (- n 1) (+ acc 1))))))
 
 (assert-equal (count-down-case 10 0) 10 "tail recursion through case")
 

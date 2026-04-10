@@ -88,8 +88,7 @@
   (let ((ch (port-read-char (rs-port state))))
     (when ch
       (if (char=? ch #\newline)
-        (progn (rs-set-line! state (+ (rs-line state) 1))
-          (rs-set-col! state 1))
+        (progn (rs-set-line! state (+ (rs-line state) 1)) (rs-set-col! state 1))
         (rs-set-col! state (+ (rs-col state) 1))))
     ch))
 
@@ -948,7 +947,7 @@
           (if (symbol? head) (symbol->string head) (sexp-to-string head)))
          (rest (cdr lst))
          (body-indent (+ indent *indent-size*))
-         (lb (lb-create body-indent))
+         (lb (lb-create indent))
          (elem-count 0))
     ;; Start with opening paren and head
     (lb-append! lb "(")

@@ -71,8 +71,7 @@
 ;;; unwind-protect multiple cleanup forms
 (define counter 0)
 
-(unwind-protect (define counter (+ counter 1))
-  (define counter (+ counter 10))
+(unwind-protect (define counter (+ counter 1)) (define counter (+ counter 10))
   (define counter (+ counter 100)))
 
 (assert-equal counter 111 "unwind-protect multiple cleanup forms")

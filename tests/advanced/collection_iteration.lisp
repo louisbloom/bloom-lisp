@@ -78,10 +78,9 @@
 (assert-equal (list-ref lst 4) 5 "list-ref at index 4")
 ;; Iterate with index counter
 (assert-equal
- (do ((remaining lst (cdr remaining)) (i 0 (+ i 1)))
-   ((null? remaining) "done")
-   (car remaining)) "done"
- "iterate over list with index counter")
+ (do ((remaining lst (cdr remaining)) (i 0 (+ i 1))) ((null? remaining) "done")
+   (car remaining))
+ "done" "iterate over list with index counter")
 
 ;; ===========================================
 ;; Practical Examples: Filtering and Transformation
