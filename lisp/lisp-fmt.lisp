@@ -107,20 +107,18 @@
 ;;; ----------------------------------------------------------------------------
 ;;; Token Data Structure
 ;;; ----------------------------------------------------------------------------
-;;; Token: (type value leading-comment line column)
-(defun make-token (type value leading-comment line col)
-  "Create a token with type, value, leading comment, and position."
-  (list type value leading-comment line col))
+;;; Token: (type value line col)
+(defun make-token (type value line col)
+  "Create a token with type, value, and source position."
+  (list type value line col))
 
 (defun token-type (tok) (car tok))
 
 (defun token-value (tok) (cadr tok))
 
-(defun token-comment (tok) (caddr tok))
+(defun token-line (tok) (caddr tok))
 
-(defun token-line (tok) (cadddr tok))
-
-(defun token-col (tok) (car (cddr (cddr tok))))
+(defun token-col (tok) (cadddr tok))
 
 ;;; ----------------------------------------------------------------------------
 ;;; Comment Reading
@@ -134,37 +132,11 @@
       (reader-advance! state))
     (substring src start (rs-pos state))))
 
-(defun skip-whitespace-collect-comments (state)
-  "Skip whitespace and collect leading comments. Returns comment string or nil."
-  (let ((comments '()))
-    (do ()
-      ((let ((ch (reader-peek state)))
-         (not (or (and ch (char-whitespace? ch)) (and ch (char=? ch #\;))))))
-      (let ((ch (reader-peek state)))
-        (cond
-          ((char=? ch #\;)
-           (set! comments (cons (read-line-comment state) comments)))
-          (#t (reader-advance! state)))))
-    (if (null? comments) nil (join (reverse comments) "\n"))))
-
-(defun collect-inline-comment (state expr-end-line)
-  "Check for inline comment on EXPR-END-LINE. Returns comment string or nil."
-  (let ((found-comment nil))
-    (do ()
-      ((or found-comment
-           (let ((ch (reader-peek state)))
-             (or (null? ch) (char=? ch #\newline)
-                 (not
-                  (or (char=? ch #\space) (char=? ch #\tab) (char=? ch #\;)))))))
-      (let ((ch (reader-peek state)))
-        (cond
-          ((char=? ch #\;)
-           (if (= (rs-line state) expr-end-line)
-             (set! found-comment (read-line-comment state))
-             ;; Comment on different line - don't consume it
-             nil))
-          (#t (reader-advance! state)))))
-    found-comment))
+(defun skip-whitespace (state)
+  "Skip whitespace only. Comments are NOT consumed — they become tokens."
+  (do ()
+    ((let ((ch (reader-peek state))) (not (and ch (char-whitespace? ch)))))
+    (reader-advance! state)))
 
 ;;; ----------------------------------------------------------------------------
 ;;; String Token Reading
@@ -298,75 +270,82 @@
 ;;; ----------------------------------------------------------------------------
 ;;; Hash Token Reading (#t, #f, #\, #()
 ;;; ----------------------------------------------------------------------------
-(defun read-hash-token (state leading line col)
+(defun read-hash-token (state line col)
   "Read a # prefixed token."
   (reader-advance! state) ; skip #
   (let ((ch (reader-peek state)))
     (cond
       ((char=? ch #\t) (reader-advance! state)
-       (make-token 'boolean #t leading line col))
+       (make-token 'boolean #t line col))
       ((char=? ch #\f) (reader-advance! state)
-       (make-token 'boolean #f leading line col))
+       (make-token 'boolean #f line col))
       ((char=? ch #\() (reader-advance! state)
-       (make-token 'vector-start nil leading line col))
+       (make-token 'vector-start nil line col))
       ((char=? ch #\\)
        (let ((char-val (read-character-literal state)))
-         (make-token 'char char-val leading line col)))
+         (make-token 'char char-val line col)))
       (#t (error (format nil "Unknown # syntax: #~A at line ~A" ch line))))))
 
 ;;; ----------------------------------------------------------------------------
 ;;; Main Tokenizer
 ;;; ----------------------------------------------------------------------------
 (defun read-token (state)
-  "Read the next token with any leading comments."
-  (let* ((leading (skip-whitespace-collect-comments state))
-         (line (rs-line state))
+  "Read the next token. Semicolon comments become 'comment tokens."
+  (skip-whitespace state)
+  (let* ((line (rs-line state))
          (col (rs-col state))
          (ch (reader-peek state)))
     (cond
-      ((null? ch) (make-token 'eof nil leading line col))
+      ((null? ch) (make-token 'eof nil line col))
+      ((char=? ch #\;)
+       (let ((text (read-line-comment state)))
+         (make-token 'comment text line col)))
       ((char=? ch #\() (reader-advance! state)
-       (make-token 'lparen nil leading line col))
+       (make-token 'lparen nil line col))
       ((char=? ch #\)) (reader-advance! state)
-       (make-token 'rparen nil leading line col))
+       (make-token 'rparen nil line col))
       ((char=? ch #\') (reader-advance! state)
-       (make-token 'quote nil leading line col))
+       (make-token 'quote nil line col))
       ((char=? ch #\`) (reader-advance! state)
-       (make-token 'backquote nil leading line col))
+       (make-token 'backquote nil line col))
       ((char=? ch #\,) (reader-advance! state)
        (if (and (reader-peek state) (char=? (reader-peek state) #\@))
          (progn (reader-advance! state)
-           (make-token 'unquote-splicing nil leading line col))
-         (make-token 'unquote nil leading line col)))
+           (make-token 'unquote-splicing nil line col))
+         (make-token 'unquote nil line col)))
       ((char=? ch #\")
        (let* ((start (rs-pos state))
               (str-val (read-string-token state))
               (original (substring (rs-source state) start (rs-pos state))))
-         (make-token 'string (cons str-val original) leading line col)))
-      ((char=? ch #\#) (read-hash-token state leading line col))
+         (make-token 'string (cons str-val original) line col)))
+      ((char=? ch #\#) (read-hash-token state line col))
       ((char=? ch #\.)
        (let ((next-pos (+ (rs-pos state) 1))
              (src (rs-source state)))
          (if
            (or (>= next-pos (length src))
                (delimiter? (string-ref src next-pos)))
-           (progn (reader-advance! state)
-             (make-token 'dot nil leading line col))
+           (progn (reader-advance! state) (make-token 'dot nil line col))
            (let ((atom-val (read-atom-token state)))
-             (make-token 'atom atom-val leading line col)))))
+             (make-token 'atom atom-val line col)))))
       (#t
        (let ((atom-val (read-atom-token state)))
-         (make-token 'atom atom-val leading line col))))))
+         (make-token 'atom atom-val line col))))))
 
 ;;; ----------------------------------------------------------------------------
 ;;; Annotated Expression Data Structure
 ;;; ----------------------------------------------------------------------------
-;;; Wraps an S-expression with comment metadata and optional original form.
-;;; Structure: (annotated value comment-before comment-after original-form)
-;;; original-form preserves the exact source syntax (e.g., "nil" vs "()" vs "#f")
-(defun make-annotated (value before after &optional original-form)
-  "Create an annotated expression with comments and optional original form."
-  (list 'annotated value before after original-form))
+;;; Wraps an S-expression with source position metadata and optional original
+;;; form. Structure: (annotated value original-form start-line last-line)
+;;;   - original-form preserves the exact source syntax ("nil" vs "()" vs "#f")
+;;;   - start-line is the source line of the expression's first token
+;;;   - last-line is the source line of the expression's final token
+;;; The formatter uses start-line for vertical-intent preservation (detect
+;;; source newlines between sibling elements) and last-line for deciding
+;;; inline-vs-standalone placement of following comment nodes.
+(defun make-annotated (value original-form start-line last-line)
+  "Create an annotated expression."
+  (list 'annotated value original-form start-line last-line))
 
 (defun annotated? (obj)
   "Check if OBJ is an annotated expression."
@@ -374,25 +353,30 @@
 
 (defun ann-value (ann) (cadr ann))
 
-(defun ann-before (ann) (caddr ann))
+(defun ann-original-form (ann) (caddr ann))
 
-(defun ann-after (ann) (cadddr ann))
+(defun ann-start-line (ann) (cadddr ann))
 
-(defun ann-original-form (ann) (car (cddr (cddr ann))))
+(defun ann-last-line (ann) (car (cddr (cddr ann))))
 
-(defun ann-set-after! (ann comment)
-  "Set the inline comment on an annotated expression."
-  (set-car! (cdr (cddr ann)) comment))
+;;; ----------------------------------------------------------------------------
+;;; Comment Node — first-class AST peer of expressions
+;;; ----------------------------------------------------------------------------
+;;; Structure: (comment text line)
+;;; Comment nodes are cons'd into list elements alongside annotated
+;;; expressions. The formatter decides inline vs. free-standing at render
+;;; time by comparing comment.line with the preceding expression's last-line.
+(defun make-comment-node (text line)
+  "Create a comment node. TEXT includes the leading semicolons."
+  (list 'comment text line))
 
-;;; Comment access functions for annotated expressions
-;;; These are called by the formatter
-(defun comment-before (sexp)
-  "Get leading comment from expression (works with annotated or plain)."
-  (if (annotated? sexp) (ann-before sexp) nil))
+(defun comment-node? (obj)
+  "Check if OBJ is a comment node."
+  (and (pair? obj) (eq? (car obj) 'comment)))
 
-(defun comment-after (sexp)
-  "Get inline comment from expression (works with annotated or plain)."
-  (if (annotated? sexp) (ann-after sexp) nil))
+(defun comment-node-text (n) (cadr n))
+
+(defun comment-node-line (n) (caddr n))
 
 ;;; ----------------------------------------------------------------------------
 ;;; Parser State
@@ -400,27 +384,17 @@
 ;;; Parser uses one-token lookahead.
 (defun make-parser-state (reader-state)
   "Create parser state with one-token lookahead.
-   State: (reader-state current-token last-inline-comment)"
+   State: (reader-state current-token)"
   (let ((first-token (read-token reader-state)))
-    (list reader-state first-token nil)))
+    (list reader-state first-token)))
 
 (defun parser-reader (pstate) (car pstate))
 
 (defun parser-current (pstate) (cadr pstate))
 
-(defun parser-last-inline (pstate) (caddr pstate))
-
-(defun parser-set-last-inline! (pstate val) (set-car! (cddr pstate) val))
-
 (defun parser-advance! (pstate)
-  "Consume current token and read next. Returns consumed token.
-   Also collects any inline comment on the same line and stores it."
-  (let* ((current (parser-current pstate))
-         (end-line (rs-line (parser-reader pstate))))
-    ;; Collect inline comment BEFORE read-token consumes it
-    (parser-set-last-inline! pstate
-     (collect-inline-comment (parser-reader pstate) end-line))
-    ;; Now read next token
+  "Consume current token and read next. Returns consumed token."
+  (let ((current (parser-current pstate)))
     (set-car! (cdr pstate) (read-token (parser-reader pstate)))
     current))
 
@@ -439,79 +413,95 @@
 ;;; Expression Parser
 ;;; ----------------------------------------------------------------------------
 (defun parse-expression (pstate)
-  "Parse one expression, returning annotated result."
+  "Parse one expression, returning annotated result.
+   Comment tokens are NOT parsed here — parse-list, parse-vector, and
+   read-source-with-comments handle them as peer children."
   (let* ((tok (parser-current pstate))
-         (type (token-type tok))
-         (leading (token-comment tok)))
+         (type (token-type tok)))
     (cond
       ((eq? type 'eof) nil)
-      ((eq? type 'lparen) (parse-list pstate leading))
-      ((eq? type 'quote) (parse-quoted pstate 'quote leading))
-      ((eq? type 'backquote) (parse-quoted pstate 'quasiquote leading))
-      ((eq? type 'unquote) (parse-quoted pstate 'unquote leading))
-      ((eq? type 'unquote-splicing)
-       (parse-quoted pstate 'unquote-splicing leading))
-      ((eq? type 'vector-start) (parse-vector pstate leading))
-      ((eq? type 'atom) (parser-advance! pstate) ; Collects inline comment
-       ;; Pass original token string to preserve nil vs symbol distinction
-       (make-annotated (parse-atom-value (token-value tok)) leading
-        (parser-last-inline pstate) (token-value tok)))
-      ((eq? type 'string) (parser-advance! pstate)
-       ;; token-value is (parsed-string . original-source)
-       (let ((str-pair (token-value tok)))
-         (make-annotated (car str-pair) leading (parser-last-inline pstate)
-          (cdr str-pair))))
-      ((eq? type 'boolean) (parser-advance! pstate)
-       ;; Record original form: "#t" or "#f"
-       (make-annotated (token-value tok) leading (parser-last-inline pstate)
-        (if (token-value tok) "#t" "#f")))
-      ((eq? type 'char) (parser-advance! pstate)
-       (make-annotated (token-value tok) leading (parser-last-inline pstate)))
+      ((eq? type 'lparen) (parse-list pstate))
+      ((eq? type 'quote) (parse-quoted pstate 'quote))
+      ((eq? type 'backquote) (parse-quoted pstate 'quasiquote))
+      ((eq? type 'unquote) (parse-quoted pstate 'unquote))
+      ((eq? type 'unquote-splicing) (parse-quoted pstate 'unquote-splicing))
+      ((eq? type 'vector-start) (parse-vector pstate))
+      ((eq? type 'atom)
+       (let ((line (token-line tok))
+             (val (token-value tok)))
+         (parser-advance! pstate)
+         (make-annotated (parse-atom-value val) val line line)))
+      ((eq? type 'string)
+       (let ((line (token-line tok))
+             (str-pair (token-value tok)))
+         (parser-advance! pstate)
+         (make-annotated (car str-pair) (cdr str-pair) line line)))
+      ((eq? type 'boolean)
+       (let ((line (token-line tok))
+             (val (token-value tok)))
+         (parser-advance! pstate)
+         (make-annotated val (if val "#t" "#f") line line)))
+      ((eq? type 'char)
+       (let ((line (token-line tok))
+             (val (token-value tok)))
+         (parser-advance! pstate)
+         (make-annotated val nil line line)))
       (#t
        (error
         (format nil "Unexpected token type: ~A at line ~A" type
          (token-line tok)))))))
 
-(defun parse-list (pstate leading-comment)
-  "Parse a list expression (a b c) or dotted pair (a . b)."
-  (parser-advance! pstate) ; consume lparen
-  (let ((elements '())
-        (dotted-tail nil))
+(defun parse-list (pstate)
+  "Parse a list expression (a b c) or dotted pair (a . b).
+   Comment tokens inside the list become peer comment nodes in the
+   elements list, interleaved with annotated expressions."
+  (let ((open-line (token-line (parser-current pstate)))
+        (elements '())
+        (dotted-tail nil)
+        (close-line -1))
+    (parser-advance! pstate) ; consume lparen
     (do ()
       ((let ((tok (parser-current pstate)))
          (or (eq? (token-type tok) 'rparen) (eq? (token-type tok) 'dot)
              (eq? (token-type tok) 'eof))))
-      (set! elements (cons (parse-expression pstate) elements)))
+      (let ((tok (parser-current pstate)))
+        (cond
+          ((eq? (token-type tok) 'comment)
+           (parser-advance! pstate)
+           (set! elements
+            (cons (make-comment-node (token-value tok) (token-line tok))
+             elements)))
+          (#t (set! elements (cons (parse-expression pstate) elements))))))
     ;; Check for dotted pair
     (when (eq? (token-type (parser-current pstate)) 'dot)
       (parser-advance! pstate) ; consume dot
       (set! dotted-tail (parse-expression pstate)))
-    ;; Expect closing paren
+    ;; Expect closing paren; capture its line before advancing
     (if (eq? (token-type (parser-current pstate)) 'rparen)
-      (parser-advance! pstate) ; This collects inline comment into parser state
+      (progn (set! close-line (token-line (parser-current pstate)))
+        (parser-advance! pstate))
       (error
        (format nil "Expected ) at line ~A" (token-line (parser-current pstate)))))
-    ;; Build the list from annotated elements
-    ;; Note: elements are in reverse order from parsing, build-list-from-annotated handles this
-    (let* ((inline (parser-last-inline pstate)) ; Get inline comment from parser state
-           (result (build-list-from-annotated elements dotted-tail))
+    ;; Build the list from children (annotated + comment nodes mixed)
+    (let* ((result (build-list-from-children elements dotted-tail))
            ;; Mark empty lists with "()" to distinguish from nil atom
            (orig-form (if (and (null? result) (null? elements)) "()" nil)))
-      (make-annotated result leading-comment inline orig-form))))
+      (make-annotated result orig-form open-line close-line))))
 
-(defun build-list-from-annotated (elements dotted-tail)
-  "Build a list structure from annotated elements.
-   Elements come in reversed order (last element first)."
+(defun build-list-from-children (elements dotted-tail)
+  "Build a list structure from children (annotated expressions and comment
+   nodes mixed together). Elements come in reversed order."
   (let ((result (if dotted-tail (ann-value dotted-tail) nil)))
-    ;; Elements are in reversed order, so just cons them
     (do ((remaining elements (cdr remaining))) ((null? remaining) result)
       (set! result (cons (car remaining) result)))))
 
-(defun parse-quoted (pstate quote-sym leading-comment)
+(defun parse-quoted (pstate quote-sym)
   "Parse 'expr, `expr, ,expr, or ,@expr."
-  (parser-advance! pstate) ; consume quote token
-  (let ((inner (parse-expression pstate)))
-    (make-annotated (list quote-sym inner) leading-comment nil)))
+  (let ((start-line (token-line (parser-current pstate))))
+    (parser-advance! pstate) ; consume quote token
+    (let* ((inner (parse-expression pstate))
+           (last-line (if (annotated? inner) (ann-last-line inner) start-line)))
+      (make-annotated (list quote-sym inner) nil start-line last-line))))
 
 (defun list-to-vector (lst)
   "Convert a list to a vector."
@@ -522,30 +512,51 @@
       (vector-set! vec i (car remaining))
       (set! i (+ i 1)))))
 
-(defun parse-vector (pstate leading-comment)
-  "Parse #(elements...)."
-  (parser-advance! pstate) ; consume vector-start
-  (let ((elements '()))
-    (do () ((eq? (token-type (parser-current pstate)) 'rparen))
-      (set! elements (cons (parse-expression pstate) elements)))
-    (parser-advance! pstate) ; consume rparen - collects inline comment
-    (let ((inline (parser-last-inline pstate)))
-      (make-annotated (list-to-vector (reverse elements)) leading-comment
-       inline))))
+(defun parse-vector (pstate)
+  "Parse #(elements...). Comments inside vectors are dropped — there is
+   no multi-line vector formatter yet. Filed as a known follow-up."
+  (let ((open-line (token-line (parser-current pstate)))
+        (elements '())
+        (close-line -1))
+    (parser-advance! pstate) ; consume vector-start
+    (do ()
+      ((let ((tok (parser-current pstate)))
+         (or (eq? (token-type tok) 'rparen) (eq? (token-type tok) 'eof))))
+      (let ((tok (parser-current pstate)))
+        (cond
+          ((eq? (token-type tok) 'comment) (parser-advance! pstate))
+          (#t (set! elements (cons (parse-expression pstate) elements))))))
+    (when (eq? (token-type (parser-current pstate)) 'rparen)
+      (set! close-line (token-line (parser-current pstate)))
+      (parser-advance! pstate))
+    (make-annotated (list-to-vector (reverse elements)) nil open-line
+     close-line)))
 
 ;;; ----------------------------------------------------------------------------
 ;;; Top-Level Reader
 ;;; ----------------------------------------------------------------------------
-(defun read-file-with-comments (filename)
-  "Read all expressions from file with comment preservation."
-  (let* ((source (read-file-to-string filename))
-         (rstate (make-reader-state source))
+(defun read-source-with-comments (source)
+  "Parse a source string into a list of top-level children (annotated
+   expressions and comment nodes, in source order)."
+  (let* ((rstate (make-reader-state source))
          (pstate (make-parser-state rstate))
-         (expressions '()))
+         (children '()))
     (do () ((eq? (token-type (parser-current pstate)) 'eof))
-      (let ((expr (parse-expression pstate)))
-        (when expr (set! expressions (cons expr expressions)))))
-    (reverse expressions)))
+      (let ((tok (parser-current pstate)))
+        (cond
+          ((eq? (token-type tok) 'comment)
+           (parser-advance! pstate)
+           (set! children
+            (cons (make-comment-node (token-value tok) (token-line tok))
+             children)))
+          (#t
+           (let ((expr (parse-expression pstate)))
+             (when expr (set! children (cons expr children))))))))
+    (reverse children)))
+
+(defun read-file-with-comments (filename)
+  "Read all top-level children from a file."
+  (read-source-with-comments (read-file-to-string filename)))
 
 ;;; ============================================================================
 ;;; Form-Specific Rules Table
@@ -578,35 +589,6 @@
   "Build an indent string of n spaces (uncached, O(n))."
   (let ((result ""))
     (do ((i 0 (+ i 1))) ((>= i n) result) (set! result (concat result " ")))))
-
-;;; ============================================================================
-;;; Comment Formatting Helpers
-;;; ============================================================================
-(defun format-leading-comment (comment-text indent)
-  "Format leading comment with proper indentation.
-   Handles multi-line comments - first line has no indent (caller provides it),
-   subsequent lines are indented."
-  (if (null? comment-text)
-    ""
-    (let* ((indent-str (make-indent indent))
-           (lines (string-split comment-text "\n"))
-           (formatted-lines '())
-           (first-line #t))
-      ;; First line has no indent (caller provides it), subsequent lines are indented
-      (do ((remaining lines (cdr remaining))) ((null? remaining))
-        (let ((line (car remaining)))
-          (if first-line
-            (progn (set! formatted-lines (cons line formatted-lines))
-              (set! first-line #f))
-            (set! formatted-lines
-             (cons (concat indent-str line) formatted-lines)))))
-      ;; Join and add trailing newline
-      (concat (join (reverse formatted-lines) "\n") "\n"))))
-
-(defun format-inline-comment (comment-text)
-  "Format inline comment (adds space before if needed).
-   Comment-text already includes the semicolon."
-  (if (null? comment-text) "" (concat " " comment-text)))
 
 ;;; ============================================================================
 ;;; Line Builder Abstraction
@@ -702,8 +684,12 @@
        (pair? (cdr sexp)) (null? (cddr sexp))))
 
 (defun sexp-to-string (sexp)
-  "Convert s-expression to single-line string representation."
+  "Convert s-expression to single-line string representation.
+   Comment nodes render as empty strings here; the formatter's multi-line
+   branch handles them explicitly, and lists containing comment nodes always
+   take the multi-line path via has-nested-comments?."
   (cond
+    ((comment-node? sexp) "")
     ((annotated? sexp)
      ;; Check for original-form to preserve nil vs () vs #f distinction
      (let ((orig (ann-original-form sexp)))
@@ -736,7 +722,9 @@
     (concat "#(" (join (reverse parts) " ") ")")))
 
 (defun list-to-string (lst)
-  "Convert list to string like (a b c)."
+  "Convert list to string like (a b c). Comment-node children are skipped —
+   lists containing comments always render multi-line via format-list-multiline
+   so this single-line path is only a length-lower-bound and a fallback."
   (cond
     ((null? lst) "()")
     ((not (pair? lst))
@@ -745,9 +733,10 @@
     (#t
      (let ((parts '())
            (current lst))
-       ;; Handle proper list
+       ;; Handle proper list, skipping comment nodes
        (do () ((not (pair? current)))
-         (set! parts (cons (sexp-to-string (car current)) parts))
+         (unless (comment-node? (car current))
+           (set! parts (cons (sexp-to-string (car current)) parts)))
          (set! current (cdr current)))
        ;; Handle dotted pair
        (if (not (null? current))
@@ -777,19 +766,46 @@
     (#t (build-indent-string n))))
 
 (defun has-nested-comments? (sexp)
-  "Check if sexp or any nested element has comments attached."
+  "Check if sexp is, or contains, any comment node."
   (cond
     ((null? sexp) #f)
-    ((annotated? sexp)
-     ;; Annotated - check comments on this and recurse into value
-     (or (ann-before sexp) (ann-after sexp)
-         (has-nested-comments? (ann-value sexp))))
-    ((not (pair? sexp))
-     ;; Plain atom - no comments possible
-     #f)
+    ;; Comment-node arm MUST precede the pair? arm: comment nodes are pairs
+    ;; whose car is the symbol 'comment.
+    ((comment-node? sexp) #t)
+    ((annotated? sexp) (has-nested-comments? (ann-value sexp)))
+    ((not (pair? sexp)) #f)
     (#t
-     ;; Plain list - recurse on elements
      (or (has-nested-comments? (car sexp)) (has-nested-comments? (cdr sexp))))))
+
+(defun has-vertical-intent? (lst)
+  "Return #t if any two sibling annotated elements in LST are on different
+   source lines. Used to preserve user-chosen vertical layout in data
+   literals — if the user wrote each element on its own line, we keep
+   them on their own lines instead of flattening to fit *max-column*.
+   For quote-shorthand wrappers, recurses into the inner list so that
+   '(a\\n b\\n c) is detected as vertical even though the quote wrapper
+   itself has only one peer."
+  (cond
+    ((quote-shorthand? lst 'quote)
+     (has-vertical-intent? (unwrap-value (cadr lst))))
+    ((quote-shorthand? lst 'quasiquote)
+     (has-vertical-intent? (unwrap-value (cadr lst))))
+    ((quote-shorthand? lst 'unquote)
+     (has-vertical-intent? (unwrap-value (cadr lst))))
+    ((quote-shorthand? lst 'unquote-splicing)
+     (has-vertical-intent? (unwrap-value (cadr lst))))
+    ((not (pair? lst)) #f)
+    (#t
+     (let ((prev-start -1)
+           (found #f))
+       (do ((remaining lst (if (pair? remaining) (cdr remaining) nil)))
+         ((or found (not (pair? remaining))) found)
+         (let ((elem (car remaining)))
+           (when (annotated? elem)
+             (let ((sl (ann-start-line elem)))
+               (when (and (> prev-start 0) (not (= sl prev-start)))
+                 (set! found #t))
+               (set! prev-start sl)))))))))
 
 (defun fits-on-line? (sexp col)
   "Check if sexp fits on line starting at column col."
@@ -817,14 +833,18 @@
   (member sym '(let let*)))
 
 (defun format-sexp-inner (sexp indent)
-  "Format s-expression without comment handling. Returns string."
+  "Format s-expression value (unwrapped). Returns string."
   (cond
+    ;; Comment nodes render as their text (first-class AST peer)
+    ((comment-node? sexp) (comment-node-text sexp))
     ;; Atoms - just convert to string
     ((not (pair? sexp)) (sexp-to-string sexp))
     ;; Empty list
     ((null? sexp) "()")
     ;; If has nested comments, must use multi-line to preserve them
     ((has-nested-comments? sexp) (format-list-multiline sexp indent))
+    ;; Preserve user-chosen vertical layout
+    ((has-vertical-intent? sexp) (format-list-multiline sexp indent))
     ;; Try single line if no nested comments and fits
     ((fits-on-line? sexp indent) (sexp-to-string sexp))
     ;; Multi-line formatting needed
@@ -835,11 +855,17 @@
   (if (annotated? sexp) (ann-value sexp) sexp))
 
 (defun get-expr-head (expr)
-  "Get the head symbol of an expression, or nil if not a list with symbol head."
-  (let ((val (unwrap-value expr)))
-    (if (and (pair? val) (symbol? (unwrap-value (car val))))
-      (unwrap-value (car val))
-      nil)))
+  "Get the head symbol of an expression, or nil. Comment nodes have no
+   head — they always return nil so clustering logic ignores them."
+  (cond
+    ((comment-node? expr) nil)
+    (#t
+     (let ((val (unwrap-value expr)))
+       (if
+         (and (pair? val) (not (comment-node? val))
+              (symbol? (unwrap-value (car val))))
+         (unwrap-value (car val))
+         nil)))))
 
 (defun defining-form? (sym)
   "Check if SYM is a defining form that should not be clustered."
@@ -847,26 +873,16 @@
 
 (defun format-sexp (sexp indent)
   "Format s-expression with given base indentation. Returns string.
-   Preserves leading and inline comments attached to the expression."
-  (let* ((before (comment-before sexp))
-         (after (comment-after sexp))
-         (value (unwrap-value sexp))
-         ;; For annotated atoms, use sexp-to-string to preserve original-form
-         ;; For lists, use format-sexp-inner on the unwrapped value
-         (formatted
-          (if (and (annotated? sexp) (not (pair? value)))
-            (sexp-to-string sexp)
-            (format-sexp-inner value indent)))
-         (leading-comment (format-leading-comment before indent))
-         (inline-comment (format-inline-comment after)))
-    ;; Build result: leading comment + indentation + expression + inline comment
-    (let ((result formatted))
-      ;; Add inline comment if present
-      (when after (set! result (concat result inline-comment)))
-      ;; Add leading comment if present (with proper indentation)
-      (when (and before (not (string=? leading-comment "")))
-        (set! result (concat leading-comment (make-indent indent) result)))
-      result)))
+   Comment nodes render as their text; annotated expressions use
+   format-sexp-inner on the unwrapped value (or sexp-to-string for atoms
+   to preserve original-form)."
+  (cond
+    ((comment-node? sexp) (comment-node-text sexp))
+    (#t
+     (let ((value (unwrap-value sexp)))
+       (if (and (annotated? sexp) (not (pair? value)))
+         (sexp-to-string sexp)
+         (format-sexp-inner value indent))))))
 
 (defun format-list-multiline (lst indent)
   "Format a list across multiple lines."
@@ -903,7 +919,10 @@
   "Format let/let* forms with proper binding alignment.
    (let* ((var1 val1)
           (var2 val2))
-     body)"
+     body)
+   Comment-node peer children in the bindings list or body are rendered
+   at the appropriate indent; inline comments (same source line as the
+   previous element) are appended with a space."
   (let* ((head (unwrap-value (car lst)))
          (head-str (symbol->string head))
          (rest (cdr lst))
@@ -913,63 +932,132 @@
          (body-indent (+ indent *indent-size*))
          ;; Bindings start after "(let* ("
          (binding-indent (+ indent (length head-str) *let-binding-offset*))
-         (lb (lb-create indent)))
+         (lb (lb-create indent))
+         (force-break #f)
+         (prev-last-line -1))
     ;; Start: (let* (
     (lb-append! lb "(")
     (lb-append! lb head-str)
     (lb-append! lb " (")
-    ;; Format bindings - each on its own line for clarity
+    ;; Format bindings with comment-node support
     (if (pair? bindings)
       (let ((first-binding #t))
         (do ((remaining bindings (cdr remaining))) ((not (pair? remaining)))
-          (let ((binding-str (format-sexp (car remaining) binding-indent)))
-            (if first-binding
-              (progn (lb-append! lb binding-str) (set! first-binding #f))
-              (progn (lb-newline! lb binding-indent)
-                (lb-append! lb binding-str)))))
+          (let ((elem (car remaining)))
+            (cond
+              ((comment-node? elem)
+               (let ((cline (comment-node-line elem)))
+                 (cond
+                   ;; First child comment: attach directly after the ( of
+                   ;; bindings with no newline
+                   (first-binding (lb-append! lb (comment-node-text elem)))
+                   ((and (not force-break) (= cline prev-last-line))
+                    (lb-append-space! lb)
+                    (lb-append! lb (comment-node-text elem)))
+                   (#t (lb-newline! lb binding-indent)
+                    (lb-append! lb (comment-node-text elem))))
+                 (set! force-break #t)
+                 (set! prev-last-line cline)
+                 (set! first-binding #f)))
+              (#t
+               (let ((binding-str (format-sexp elem binding-indent)))
+                 (cond
+                   (first-binding (lb-append! lb binding-str)
+                    (set! first-binding #f))
+                   (#t (lb-newline! lb binding-indent)
+                    (lb-append! lb binding-str))))
+               (set! force-break #f)
+               (when (annotated? elem)
+                 (set! prev-last-line (ann-last-line elem)))))))
+        ;; Close bindings: if last was a comment, put ) on its own line
+        (when force-break (lb-newline! lb binding-indent))
         (lb-append! lb ")")
         (lb-newline! lb body-indent))
       ;; Empty bindings
       (progn (lb-append! lb ")") (lb-newline! lb body-indent)))
-    ;; Format body forms
-    (do ((remaining body (cdr remaining)) (first-body #t #f))
-      ((not (pair? remaining)))
-      (unless first-body (lb-newline! lb body-indent))
-      (lb-append! lb (format-sexp (car remaining) body-indent)))
-    ;; Close let form
+    ;; Format body forms with comment-node support
+    (set! force-break #f)
+    (set! prev-last-line -1)
+    (let ((first-body #t))
+      (do ((remaining body (cdr remaining))) ((not (pair? remaining)))
+        (let ((elem (car remaining)))
+          (cond
+            ((comment-node? elem)
+             (let ((cline (comment-node-line elem)))
+               (cond
+                 ((and (not first-body) (not force-break)
+                       (= cline prev-last-line))
+                  (lb-append-space! lb)
+                  (lb-append! lb (comment-node-text elem)))
+                 (#t (unless first-body (lb-newline! lb body-indent))
+                  (lb-append! lb (comment-node-text elem))))
+               (set! force-break #t)
+               (set! prev-last-line cline)
+               (set! first-body #f)))
+            (#t (unless first-body (lb-newline! lb body-indent))
+             (lb-append! lb (format-sexp elem body-indent))
+             (set! force-break #f)
+             (when (annotated? elem) (set! prev-last-line (ann-last-line elem)))
+             (set! first-body #f))))))
+    ;; Close let form: if last child was a comment, newline first
+    (when force-break (lb-newline! lb indent))
     (lb-append! lb ")")
     (lb-finish lb)))
 
 (defun format-special-form (lst indent)
-  "Format special forms like define, defun, let, etc."
-  (let* ((head (unwrap-value (car lst)))
+  "Format special forms like define, defun, let, etc.
+   Comment-node peer children are rendered inline if on the same line as
+   the previous element, otherwise on a new line at body-indent."
+  (let* ((head-raw (car lst))
+         (head (unwrap-value head-raw))
          (head-str
           (if (symbol? head) (symbol->string head) (sexp-to-string head)))
          (rest (cdr lst))
          (body-indent (+ indent *indent-size*))
          (lb (lb-create indent))
-         (elem-count 0))
-    ;; Start with opening paren and head
+         (elem-count 0)
+         (force-break #f)
+         (prev-last-line
+          (if (annotated? head-raw) (ann-last-line head-raw) -1)))
     (lb-append! lb "(")
     (lb-append! lb head-str)
-    ;; Add elements
     (do ((remaining rest (if (pair? remaining) (cdr remaining) nil)))
       ((not (pair? remaining))
        ;; Handle dotted tail
        (when (not (null? remaining)) (lb-append! lb " . ")
          (lb-append! lb (sexp-to-string remaining))))
-      (let* ((elem (car remaining))
-             (elem-single-len (sexp-length elem))
-             (try-len (+ (lb-col lb) 1 elem-single-len)))
-        (set! elem-count (+ elem-count 1))
-        ;; First *defun-inline-args* elements try to stay on same line
-        (if (and (<= elem-count *defun-inline-args*) (<= try-len *max-column*))
-          (progn (lb-append-space! lb)
-            (lb-append! lb (format-sexp elem (lb-col lb))))
-          ;; New line with body indentation
-          (progn (lb-newline! lb body-indent)
-            (lb-append! lb (format-sexp elem body-indent))))))
-    ;; Close form
+      (let ((elem (car remaining)))
+        (cond
+          ((comment-node? elem)
+           (let ((cline (comment-node-line elem)))
+             (cond
+               ((and (not force-break) (= cline prev-last-line))
+                (lb-append-space! lb)
+                (lb-append! lb (comment-node-text elem)))
+               (#t (lb-newline! lb body-indent)
+                (lb-append! lb (comment-node-text elem))))
+             (set! force-break #t)
+             (set! prev-last-line cline)))
+          (#t (set! elem-count (+ elem-count 1))
+           (let* ((elem-single-len (sexp-length elem))
+                  (try-len (+ (lb-col lb) 1 elem-single-len))
+                  (nested-comments? (has-nested-comments? elem)))
+             ;; First *defun-inline-args* elements try to stay on same line,
+             ;; but only if no force-break from a preceding comment and
+             ;; the element itself has no nested comments.
+             (if
+               (and (not force-break) (not nested-comments?)
+                    (<= elem-count *defun-inline-args*)
+                    (<= try-len *max-column*))
+               (progn (lb-append-space! lb)
+                 (lb-append! lb (format-sexp elem (lb-col lb))))
+               (progn (lb-newline! lb body-indent)
+                 (lb-append! lb (format-sexp elem body-indent)))))
+           (set! force-break #f)
+           (when (annotated? elem) (set! prev-last-line (ann-last-line elem)))))))
+    ;; If the last child was a comment, close ) on a new line so ; doesn't
+    ;; swallow the ).
+    (when force-break (lb-newline! lb indent))
     (lb-append! lb ")")
     (lb-finish lb)))
 
@@ -997,105 +1085,150 @@
 
 (defun format-cond-form (lst indent)
   "Format cond/case forms with each clause on its own line.
-   (cond
-     ((test1) result1)
-     ((test2) result2)
-     (#t default))"
-  (let* ((head (unwrap-value (car lst)))
+   Comment-node peer clauses render inline if on the same line as the
+   previous clause, otherwise on a new line at clause-indent."
+  (let* ((head-raw (car lst))
+         (head (unwrap-value head-raw))
          (head-str (symbol->string head))
          (clauses (cdr lst))
          (clause-indent (+ indent *indent-size*))
-         (lb (lb-create indent)))
-    ;; Start: (cond
+         (lb (lb-create indent))
+         (force-break #f)
+         (prev-last-line
+          (if (annotated? head-raw) (ann-last-line head-raw) -1)))
     (lb-append! lb "(")
     (lb-append! lb head-str)
-    ;; Format each clause on its own line
     (do ((remaining clauses (cdr remaining))) ((not (pair? remaining)))
-      (lb-newline! lb clause-indent)
-      (lb-append! lb (format-sexp (car remaining) clause-indent)))
-    ;; Close form
+      (let ((elem (car remaining)))
+        (cond
+          ((comment-node? elem)
+           (let ((cline (comment-node-line elem)))
+             (cond
+               ((and (not force-break) (= cline prev-last-line))
+                (lb-append-space! lb)
+                (lb-append! lb (comment-node-text elem)))
+               (#t (lb-newline! lb clause-indent)
+                (lb-append! lb (comment-node-text elem))))
+             (set! force-break #t)
+             (set! prev-last-line cline)))
+          (#t (lb-newline! lb clause-indent)
+           (lb-append! lb (format-sexp elem clause-indent))
+           (set! force-break #f)
+           (when (annotated? elem) (set! prev-last-line (ann-last-line elem)))))))
+    (when force-break (lb-newline! lb indent))
     (lb-append! lb ")")
     (lb-finish lb)))
 
 (defun format-if-form (lst indent)
-  "Format if forms with condition inline, then/else on separate lines if needed.
-   (if condition
-     then-expr
-     else-expr)"
-  (let* ((head (car lst))
+  "Format if forms with condition inline, then/else on separate lines.
+   Comment-node peer children are emitted at their natural position;
+   inline if on the same line as the previous element, otherwise on a
+   new line at body-indent."
+  (let* ((head-raw (car lst))
          (rest (cdr lst))
-         ;; Track existence of parts, not just values (nil is a valid value!)
-         (has-condition (pair? rest))
-         (has-then (and has-condition (pair? (cdr rest))))
-         (has-else (and has-then (pair? (cddr rest))))
-         (condition (if has-condition (car rest) nil))
-         (then-part (if has-then (cadr rest) nil))
-         (else-part (if has-else (caddr rest) nil))
          (body-indent (+ indent *indent-size*))
-         (lb (lb-create indent)))
-    ;; Start: (if
+         (lb (lb-create indent))
+         (force-break #f)
+         (prev-last-line
+          (if (annotated? head-raw) (ann-last-line head-raw) -1))
+         (value-count 0))
     (lb-append! lb "(if")
-    ;; Condition - try to keep inline if short enough
-    (when has-condition
-      (let ((cond-str (format-sexp condition (lb-col lb))))
-        (if (<= (+ (lb-col lb) 1 (length cond-str)) *max-column*)
-          (progn (lb-append-space! lb) (lb-append! lb cond-str))
-          (progn (lb-newline! lb body-indent)
-            (lb-append! lb (format-sexp condition body-indent))))))
-    ;; Then part
-    (when has-then (lb-newline! lb body-indent)
-      (lb-append! lb (format-sexp then-part body-indent)))
-    ;; Else part (if present)
-    (when has-else (lb-newline! lb body-indent)
-      (lb-append! lb (format-sexp else-part body-indent)))
-    ;; Close form
+    (do ((remaining rest (cdr remaining))) ((not (pair? remaining)))
+      (let ((elem (car remaining)))
+        (cond
+          ((comment-node? elem)
+           (let ((cline (comment-node-line elem)))
+             (cond
+               ((and (not force-break) (= cline prev-last-line))
+                (lb-append-space! lb)
+                (lb-append! lb (comment-node-text elem)))
+               (#t (lb-newline! lb body-indent)
+                (lb-append! lb (comment-node-text elem))))
+             (set! force-break #t)
+             (set! prev-last-line cline)))
+          (#t (set! value-count (+ value-count 1))
+           (cond
+             ((= value-count 1)
+              ;; Condition: try inline after "(if "
+              (let ((cond-str (format-sexp elem (lb-col lb))))
+                (if
+                  (and (not force-break)
+                       (<= (+ (lb-col lb) 1 (length cond-str)) *max-column*))
+                  (progn (lb-append-space! lb) (lb-append! lb cond-str))
+                  (progn (lb-newline! lb body-indent)
+                    (lb-append! lb (format-sexp elem body-indent))))))
+             (#t (lb-newline! lb body-indent)
+              (lb-append! lb (format-sexp elem body-indent))))
+           (set! force-break #f)
+           (when (annotated? elem) (set! prev-last-line (ann-last-line elem)))))))
+    (when force-break (lb-newline! lb indent))
     (lb-append! lb ")")
     (lb-finish lb)))
 
 (defun format-and-or-form (lst indent)
   "Format and/or forms with arguments aligned under first argument.
-   (or (condition-1)
-       (condition-2)
-       (condition-3))"
-  (let* ((head (unwrap-value (car lst)))
+   Comment-node peer children render inline or on a new line at
+   arg-indent based on source-line match with the previous element."
+  (let* ((head-raw (car lst))
+         (head (unwrap-value head-raw))
          (head-str (symbol->string head))
          (args (cdr lst))
          ;; Arguments align under first arg: (or + space = 4, (and + space = 5
          (arg-indent (+ indent 1 (length head-str) 1))
          (lb (lb-create indent))
-         (prev-had-inline-comment #f))
-    ;; Start: (and or (or
+         (force-break #f)
+         (prev-last-line
+          (if (annotated? head-raw) (ann-last-line head-raw) -1)))
     (lb-append! lb "(")
     (lb-append! lb head-str)
-    ;; Format arguments
     (do ((remaining args (cdr remaining)) (first-arg #t #f))
       ((not (pair? remaining)))
-      (let* ((arg (car remaining))
-             (arg-str (format-sexp arg arg-indent))
-             (arg-single-len (sexp-length arg))
-             (has-inline (comment-after arg)))
-        (if first-arg
-          ;; First arg: try to keep on same line
-          (if (<= (+ (lb-col lb) 1 arg-single-len) *max-column*)
-            (progn (lb-append-space! lb) (lb-append! lb arg-str))
-            (progn (lb-newline! lb arg-indent) (lb-append! lb arg-str)))
-          ;; Subsequent args: new line if prev had comment or doesn't fit
-          (if
-            (or prev-had-inline-comment
-                (> (+ (lb-col lb) 1 arg-single-len) *max-column*))
-            (progn (lb-newline! lb arg-indent) (lb-append! lb arg-str))
-            (progn (lb-append-space! lb) (lb-append! lb arg-str))))
-        (set! prev-had-inline-comment has-inline)))
-    ;; Close form
+      (let ((elem (car remaining)))
+        (cond
+          ((comment-node? elem)
+           (let ((cline (comment-node-line elem)))
+             (cond
+               ((and (not first-arg) (not force-break) (= cline prev-last-line))
+                (lb-append-space! lb)
+                (lb-append! lb (comment-node-text elem)))
+               (#t (lb-newline! lb arg-indent)
+                (lb-append! lb (comment-node-text elem))))
+             (set! force-break #t)
+             (set! prev-last-line cline)))
+          (#t
+           (let ((arg-str (format-sexp elem arg-indent))
+                 (arg-single-len (sexp-length elem)))
+             (if first-arg
+               ;; First arg: try to keep on same line
+               (if
+                 (and (not force-break)
+                      (<= (+ (lb-col lb) 1 arg-single-len) *max-column*))
+                 (progn (lb-append-space! lb) (lb-append! lb arg-str))
+                 (progn (lb-newline! lb arg-indent) (lb-append! lb arg-str)))
+               ;; Subsequent args
+               (if
+                 (or force-break
+                     (> (+ (lb-col lb) 1 arg-single-len) *max-column*))
+                 (progn (lb-newline! lb arg-indent) (lb-append! lb arg-str))
+                 (progn (lb-append-space! lb) (lb-append! lb arg-str)))))
+           (set! force-break #f)
+           (when (annotated? elem) (set! prev-last-line (ann-last-line elem)))))))
+    (when force-break (lb-newline! lb indent))
     (lb-append! lb ")")
     (lb-finish lb)))
 
 (defun format-aligned-list (lst indent)
-  "Format list with elements aligned under first element."
+  "Format list with elements aligned under first element.
+   Comment-node peer children render inline if on the same line as the
+   previous element, otherwise on a new line at elem-indent.
+   Vertical intent is preserved: if two sibling elements were on
+   different source lines, the formatter keeps them on different output
+   lines."
   (let* ((elem-indent (+ indent 1)) ; After opening paren
          (lb (lb-create elem-indent))
          (dotted-tail nil)
-         (prev-had-inline-comment #f))
+         (force-break #f)
+         (prev-last-line -1))
     ;; Start with opening paren
     (lb-set-parts! lb '("("))
     (lb-set-col! lb (+ indent 1))
@@ -1105,111 +1238,155 @@
        (first-elem #t #f))
       ((not (pair? remaining))
        (if (not (null? remaining)) (set! dotted-tail remaining)))
-      (let* ((elem (car remaining))
-             (elem-single-len (sexp-length elem))
-             (space-needed (if first-elem 0 1))
-             (try-col (if first-elem (lb-col lb) (+ (lb-col lb) 1)))
-             (elem-str (format-sexp elem try-col))
-             (is-multiline (string-contains? elem-str "\n"))
-             ;; Check if THIS element has an inline comment
-             (has-inline (comment-after elem)))
-        (if
-          (and (not first-elem)
-               (or prev-had-inline-comment ; Force newline if prev had comment
-                   (> (+ (lb-col lb) space-needed elem-single-len) *max-column*)
-                   is-multiline))
-          ;; New line needed
-          (let ((elem-str-aligned
-                 (if is-multiline (format-sexp elem elem-indent) elem-str)))
-            (lb-newline! lb elem-indent)
-            (lb-append! lb elem-str-aligned)
-            ;; Track column after first line of multi-line element
-            (let ((first-newline (string-index elem-str-aligned "\n")))
-              (when first-newline
-                (lb-set-col! lb (+ elem-indent first-newline)))))
-          ;; Fits on current line
-          (progn (unless first-elem (lb-append-space! lb))
-            (lb-append! lb elem-str)))
-        ;; Update prev-had-inline-comment for next iteration
-        (set! prev-had-inline-comment has-inline)))
-    ;; Handle dotted tail - also respect prev-had-inline-comment
+      (let ((elem (car remaining)))
+        (cond
+          ((comment-node? elem)
+           (let ((cline (comment-node-line elem)))
+             (cond
+               ;; First child comment: attach directly after ( with no break
+               (first-elem (lb-append! lb (comment-node-text elem)))
+               ;; Same source line as previous element → inline with space
+               ((and (not force-break) (= cline prev-last-line))
+                (lb-append-space! lb)
+                (lb-append! lb (comment-node-text elem)))
+               ;; Otherwise: new line at elem-indent
+               (#t (lb-newline! lb elem-indent)
+                (lb-append! lb (comment-node-text elem))))
+             (set! force-break #t)
+             (set! prev-last-line cline)))
+          (#t
+           (let* ((elem-single-len (sexp-length elem))
+                  (space-needed (if first-elem 0 1))
+                  (try-col (if first-elem (lb-col lb) (+ (lb-col lb) 1)))
+                  (elem-str (format-sexp elem try-col))
+                  (is-multiline (string-contains? elem-str "\n"))
+                  ;; Vertical-intent preservation: if the element's start
+                  ;; line is strictly after prev's last line in source, the
+                  ;; user wrote them on different lines → force newline.
+                  (source-gap?
+                   (and (annotated? elem) (> prev-last-line 0)
+                        (> (ann-start-line elem) prev-last-line))))
+             (if
+               (and (not first-elem)
+                    (or force-break source-gap?
+                        (> (+ (lb-col lb) space-needed elem-single-len)
+                         *max-column*)
+                        is-multiline))
+               ;; New line needed
+               (let ((elem-str-aligned
+                      (if is-multiline (format-sexp elem elem-indent) elem-str)))
+                 (lb-newline! lb elem-indent)
+                 (lb-append! lb elem-str-aligned)
+                 (let ((first-newline (string-index elem-str-aligned "\n")))
+                   (when first-newline
+                     (lb-set-col! lb (+ elem-indent first-newline)))))
+               ;; Fits on current line
+               (progn (unless first-elem (lb-append-space! lb))
+                 (lb-append! lb elem-str))))
+           (set! force-break #f)
+           (when (annotated? elem) (set! prev-last-line (ann-last-line elem)))))))
+    ;; Handle dotted tail - respect force-break too
     (when dotted-tail
       (let* ((tail-single-len (sexp-length dotted-tail))
              (tail-needed (+ 3 tail-single-len)))
-        (if
-          (or prev-had-inline-comment ; Force newline if prev had comment
-              (> (+ (lb-col lb) tail-needed 1) *max-column*))
+        (if (or force-break (> (+ (lb-col lb) tail-needed 1) *max-column*))
           (progn (lb-newline! lb elem-indent) (lb-append! lb ". ")
             (lb-append! lb (format-sexp dotted-tail elem-indent)))
           (progn (lb-append! lb " . ")
             (lb-append! lb (format-sexp dotted-tail (lb-col lb)))))))
-    ;; Close and finish
+    ;; If the last child was a comment, close ) on a new line so ; doesn't
+    ;; swallow the ).
+    (when force-break (lb-newline! lb indent))
     (lb-append! lb ")")
     (lb-finish lb)))
 
 ;;; ============================================================================
 ;;; File processing
 ;;; ============================================================================
-(defun looks-like-expr-list? (sexps)
-  "Check if sexps looks like a list of multiple expressions.
-   Returns #t if sexps is a list where first element is also a list
-   starting with a symbol (common pattern for top-level forms)."
-  (and (pair? sexps) (pair? (car sexps)) (symbol? (caar sexps))))
-
 (defun should-cluster? (prev-head curr-head)
   "Check if two consecutive expressions should be clustered (no blank line).
    Returns #t if both have the same head symbol and neither is a defining form."
   (and prev-head curr-head (eq? prev-head curr-head)
        (not (defining-form? prev-head))))
 
-(defun smart-join-results (results-with-heads)
-  "Join formatted results with smart spacing.
-   RESULTS-WITH-HEADS is a list of (formatted-string . head-symbol) pairs.
-   Uses single newline between same-head non-defining forms, double otherwise."
-  (if (null? results-with-heads)
-    ""
-    (let ((output (caar results-with-heads)) ; First formatted string
-          (prev-head (cdar results-with-heads)))
-      (do ((remaining (cdr results-with-heads) (cdr remaining)))
-        ((null? remaining) output)
-        (let* ((curr (car remaining))
-               (curr-str (car curr))
-               (curr-head (cdr curr))
-               (separator
-                (if (should-cluster? prev-head curr-head) "\n" "\n\n")))
-          (set! output (concat output separator curr-str))
-          (set! prev-head curr-head))))))
+(defun top-level-separator (prev elem)
+  "Return the separator string between two top-level children.
+   Rules:
+   - Same-line comment after expression: \" \" (inline).
+   - Two comments with source gap >= 2 lines: blank line between.
+   - Two adjacent comments: single newline (tight cluster).
+   - Comment → expression: single newline (comment belongs to next).
+   - Expression → comment with source gap >= 2: blank line; else single.
+   - Expression → expression: existing clustering logic."
+  (cond
+    ;; Same-line comment after expression → inline
+    ((and (comment-node? elem) (annotated? prev)
+          (= (comment-node-line elem) (ann-last-line prev)))
+     " ")
+    ;; Two comments: blank if source had gap
+    ((and (comment-node? prev) (comment-node? elem))
+     (if (>= (- (comment-node-line elem) (comment-node-line prev)) 2)
+       "\n\n"
+       "\n"))
+    ;; Comment → expression: single newline (attach comment to next)
+    ((comment-node? prev) "\n")
+    ;; Expression → comment: blank if source had gap
+    ((comment-node? elem)
+     (if
+       (>=
+        (- (comment-node-line elem)
+         (if (annotated? prev) (ann-last-line prev) 0))
+        2)
+       "\n\n"
+       "\n"))
+    ;; Expression → expression: clustering
+    (#t
+     (if (should-cluster? (get-expr-head prev) (get-expr-head elem))
+       "\n"
+       "\n\n"))))
+
+(defun format-source-string (source)
+  "Format a source string (read from a file or constructed in-memory).
+   Returns the formatted string with a trailing newline.
+   Maintains a 'logical prev' that skips over same-line inline comments
+   so that a top-level expression followed by an inline trailing comment
+   still gets the normal expression-to-expression separator before the
+   next top-level form."
+  (let ((children (read-source-with-comments source))
+        (output "")
+        (prev nil)
+        (expr-num 0))
+    (do ((remaining children (cdr remaining))) ((null? remaining))
+      (set! expr-num (+ expr-num 1))
+      (condition-case err
+        (let* ((elem (car remaining))
+               (formatted
+                (if (comment-node? elem)
+                  (comment-node-text elem)
+                  (format-sexp elem 0)))
+               (inline-after-prev
+                (and (comment-node? elem) (annotated? prev)
+                     (= (comment-node-line elem) (ann-last-line prev)))))
+          (cond
+            ((null? prev) (set! output formatted))
+            (#t
+             (set! output
+              (concat output (top-level-separator prev elem) formatted))))
+          ;; Inline same-line comments don't shift the logical prev.
+          (unless inline-after-prev (set! prev elem)))
+        (error (princ "Error formatting expression #") (princ expr-num)
+         (princ ": ") (princ (error-message err)) (terpri)
+         (signal 'format-error (error-message err)))))
+    (concat output "\n")))
 
 (defun format-file (filename)
   "Format a Lisp file and return formatted content as string."
-  (let ((sexps (read-file-with-comments filename))
-        (results '())
-        (expr-num 0))
-    ;; read-file-with-comments returns list of annotated expressions
-    ;; Format each top-level expression, storing (formatted . head-symbol) pairs
-    (do ((remaining sexps (cdr remaining))) ((null? remaining))
-      (set! expr-num (+ expr-num 1))
-      (condition-case err
-        (let* ((expr (car remaining))
-               (formatted (format-sexp expr 0))
-               (head (get-expr-head expr)))
-          (set! results (cons (cons formatted head) results)))
-        (error (princ "Error formatting expression #") (princ expr-num)
-         (princ ": ") (princ (error-message err)) (terpri)
-         (princ "Expression head: ")
-         (let ((expr (car remaining)))
-           (if (annotated? expr)
-             (let ((val (ann-value expr)))
-               (if (pair? val) (princ (car val)) (princ val)))
-             (if (pair? expr) (princ (car expr)) (princ expr)))) (terpri)
-         (signal 'format-error (error-message err)))))
-    ;; Join with smart spacing between top-level forms
-    (concat (smart-join-results (reverse results)) "\n")))
+  (format-source-string (read-file-to-string filename)))
 
 (defun format-file-inplace (filename)
   "Format a Lisp file in-place. Skip write if no changes."
   (let* ((original (read-file-to-string filename))
-         (formatted (format-file filename)))
+         (formatted (format-source-string original)))
     ;; Compare trimmed versions to handle trailing newline differences
     (if (string=? (string-trim original) (string-trim formatted))
       (progn (princ filename) (princ " (unchanged)") (terpri))
