@@ -15,6 +15,7 @@
 /config.log
 /config.status
 /configure
+/INSTALL
 /stamp-h1
 Makefile
 Makefile.in
