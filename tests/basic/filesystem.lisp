@@ -30,6 +30,20 @@
  "data-directory starts with HOME")
 
 ;; ============================================================================
+;; config-directory Tests
+;; ============================================================================
+(assert-error (config-directory) "config-directory requires an argument")
+(assert-error (config-directory 42) "config-directory requires a string")
+
+(define cd (config-directory "test-app"))
+
+(assert-true (string? cd) "config-directory returns a string")
+(assert-true (string-contains? cd "test-app")
+ "config-directory contains app name")
+(assert-true (string-prefix? (getenv "HOME") cd)
+ "config-directory starts with HOME")
+
+;; ============================================================================
 ;; file-exists? Tests
 ;; ============================================================================
 (assert-error (file-exists?) "file-exists? requires an argument")

@@ -1545,6 +1545,58 @@ Expand `~/` prefix in file paths to the user's home directory.
 - Returns error if home directory cannot be determined
 - Returns error if argument is not a string
 
+#### `(data-directory app)`
+
+Return the platform-specific user data directory for an application. Does not create the directory.
+
+**Arguments:**
+
+- `app` (string) - Application name
+
+**Returns:**
+
+- String path
+- Error if argument is missing or not a string
+- Error if the data directory cannot be determined
+
+**Platform behavior:**
+
+- **Linux/macOS:** `$XDG_DATA_HOME/app` or `~/.local/share/app`
+- **Windows:** `%LOCALAPPDATA%\app` or `%APPDATA%\app`
+
+**Examples:**
+
+```lisp
+(data-directory "my-app")              ; => "/home/alice/.local/share/my-app"
+(mkdir (data-directory "my-app"))      ; create it if needed
+```
+
+#### `(config-directory app)`
+
+Return the platform-specific user config directory for an application. Does not create the directory.
+
+**Arguments:**
+
+- `app` (string) - Application name
+
+**Returns:**
+
+- String path
+- Error if argument is missing or not a string
+- Error if the config directory cannot be determined
+
+**Platform behavior:**
+
+- **Linux/macOS:** `$XDG_CONFIG_HOME/app` or `~/.config/app`
+- **Windows:** `%APPDATA%\app`
+
+**Examples:**
+
+```lisp
+(config-directory "my-app")            ; => "/home/alice/.config/my-app"
+(mkdir (config-directory "my-app"))    ; create it if needed
+```
+
 ### Printing Functions (Common Lisp Style)
 
 - `princ` - Print object in human-readable form (strings without quotes), returns the object

@@ -144,6 +144,37 @@ String path. Does not create the directory.
 
 ### See Also
 
+- `config-directory` - Get platform config directory
+- `mkdir` - Create directories
+- `getenv` - Read environment variables
+
+## `config-directory`
+
+Return the platform-specific user config directory for an application.
+
+### Parameters
+
+- `app` - Application name (string)
+
+### Returns
+
+String path. Does not create the directory.
+
+### Platform Behavior
+
+- **Linux/macOS**: `$XDG_CONFIG_HOME/app` or `~/.config/app`
+- **Windows**: `%APPDATA%\app`
+
+### Examples
+
+```lisp
+(config-directory "my-app")  ; => "/home/alice/.config/my-app"
+(mkdir (config-directory "my-app"))  ; create it if needed
+```
+
+### See Also
+
+- `data-directory` - Get platform data directory
 - `mkdir` - Create directories
 - `getenv` - Read environment variables
 
@@ -188,4 +219,5 @@ Create a directory and all parent directories (like mkdir -p).
 ### See Also
 
 - `data-directory` - Get platform data directory
+- `config-directory` - Get platform config directory
 - `file-exists?` - Check if path exists

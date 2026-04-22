@@ -160,6 +160,45 @@ static LispObject *builtin_data_directory(LispObject *args, Environment *env)
     return lisp_make_string(path);
 }
 
+/* Return platform-specific user config directory for an application.
+ * Takes: String (app name)
+ * Returns: String (path, not created) or error
+ * Unix: $XDG_CONFIG_HOME/app or ~/.config/app
+ * Windows: %APPDATA%\app
+ */
+static LispObject *builtin_config_directory(LispObject *args, Environment *env)
+{
+    (void)env;
+    if (args == NIL)
+        return lisp_make_error("config-directory requires 1 argument");
+
+    LispObject *app = lisp_car(args);
+    if (app->type != LISP_STRING)
+        return lisp_make_error("config-directory requires a string argument");
+
+    const char *app_name = app->value.string;
+    char path[PATH_MAX];
+
+#if defined(_WIN32) || defined(_WIN64)
+    const char *dir = getenv("APPDATA");
+    if (!dir)
+        return lisp_make_error("config-directory: cannot determine config directory");
+    snprintf(path, sizeof(path), "%s\\%s", dir, app_name);
+#else
+    const char *dir = getenv("XDG_CONFIG_HOME");
+    if (dir && dir[0]) {
+        snprintf(path, sizeof(path), "%s/%s", dir, app_name);
+    } else {
+        const char *home = getenv("HOME");
+        if (!home)
+            return lisp_make_error("config-directory: cannot determine home directory");
+        snprintf(path, sizeof(path), "%s/.config/%s", home, app_name);
+    }
+#endif
+
+    return lisp_make_string(path);
+}
+
 /* Check if a file or directory exists.
  * Takes: String (path)
  * Returns: #t or nil
@@ -210,6 +249,7 @@ void register_filesystem_builtins(Environment *env)
     REGISTER("expand-path", builtin_expand_path);
     REGISTER("getenv", builtin_getenv);
     REGISTER("data-directory", builtin_data_directory);
+    REGISTER("config-directory", builtin_config_directory);
     REGISTER("file-exists?", builtin_file_exists_question);
     REGISTER("mkdir", builtin_mkdir);
 }
