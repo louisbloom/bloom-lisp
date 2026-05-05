@@ -1,14 +1,9 @@
 #!/bin/sh
-# Bootstrap script for bloom-lisp
-# Run this to generate configure and Makefile.in files
-
+# autogen.sh - regenerate version, then bootstrap the autotools build system.
 set -e
 
-echo "Generating build system files..."
-autoreconf --install --force
+srcdir=$(cd "$(dirname "$0")" && pwd)
+"$srcdir/build-aux/git-version.sh" "$srcdir" >"$srcdir/version"
+echo "Version: $(cat "$srcdir/version")"
 
-echo ""
-echo "Now run:"
-echo "  ./configure"
-echo "  make"
-echo "  make check"
+exec autoreconf -fi "$@"
