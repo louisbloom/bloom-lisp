@@ -1114,6 +1114,7 @@ Hash tables support all key types: strings, symbols, keywords, integers, floats,
 - `macro?` - Check if value is a macro
 - `builtin?` - Check if value is a builtin function
 - `callable?` - Check if value is callable (lambda, macro, or builtin)
+- `regex?` - Check if value is a compiled regex (produced by `regex-compile`)
 
 ### Introspection Functions
 
@@ -1362,12 +1363,16 @@ The condition system provides Emacs Lisp-style error handling with typed errors,
 
 ### Regex Functions (PCRE2)
 
+Every `pattern` argument below accepts either a string or a compiled regex object produced by `regex-compile`. Compile once and reuse when matching the same pattern repeatedly.
+
+- `regex-compile` - Compile a pattern string into a reusable regex object (argument: pattern-string)
+- `regex?` - Test if a value is a compiled regex object (argument: value)
 - `regex-match?` - Test if string matches pattern (arguments: pattern, string)
 - `regex-find` - Find first regex match (arguments: pattern, string)
 - `regex-find-all` - Find all regex matches (arguments: pattern, string)
 - `regex-extract` - Extract capture groups (arguments: pattern, string)
-- `regex-replace` - Replace all matches (arguments: pattern, replacement, string)
-- `regex-replace-all` - Replace all matches (arguments: pattern, replacement, string)
+- `regex-replace` - Replace all matches (arguments: pattern, string, replacement)
+- `regex-replace-all` - Replace all matches (arguments: pattern, string, replacement)
 - `regex-split` - Split string by regex pattern (arguments: pattern, string)
 - `regex-escape` - Escape special regex characters (arguments: string)
 - `regex-valid?` - Validate regex pattern syntax (arguments: pattern)
@@ -2201,6 +2206,16 @@ Convert to tail recursion by:
 ; Validating patterns
 (regex-valid? "\\d+")               ; => 1
 (regex-valid? "[invalid")           ; => nil
+
+; Precompiling for reuse — every regex function accepts either a string
+; or a compiled regex object. Pattern errors surface at compile time.
+(define digits (regex-compile "\\d+"))
+(regex? digits)                     ; => #t
+(regex? "\\d+")                     ; => nil (a pattern string is not a regex object)
+(regex-match? digits "abc123")      ; => #t
+(regex-find digits "x42y99")        ; => "42"
+(regex-find-all digits "a1b22c3")   ; => ("1" "22" "3")
+(regex-replace digits "a1b2" "X")   ; => "aXbX"
 ```
 
 ### Boolean Operations

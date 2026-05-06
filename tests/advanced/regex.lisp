@@ -148,3 +148,50 @@
  (regex-find-all "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"
   "Server at 192.168.1.1 and 10.0.0.1")
  '("192.168.1.1" "10.0.0.1") "extract IPv4 addresses")
+
+;; ===========================================
+;; Compiled regex objects (regex-compile)
+;; ===========================================
+(define digits-re (regex-compile "\\d+"))
+
+(assert-true (regex? digits-re) "regex? on compiled regex")
+
+(assert-false (regex? "\\d+") "regex? rejects pattern strings")
+(assert-false (regex? 42) "regex? rejects non-strings")
+
+(assert-true (regex-match? digits-re "abc123") "compiled: regex-match?")
+
+(assert-nil (regex-match? digits-re "abc") "compiled: regex-match? no match")
+
+(assert-equal (regex-find digits-re "abc123def") "123" "compiled: regex-find")
+(assert-equal (regex-find-all digits-re "a1b22c333") '("1" "22" "333")
+ "compiled: regex-find-all")
+(assert-equal (regex-replace digits-re "a1b2c3" "X") "aXbXcX"
+ "compiled: regex-replace")
+(assert-equal (regex-replace-all digits-re "a1b2c3" "X") "aXbXcX"
+ "compiled: regex-replace-all")
+(assert-equal (regex-split digits-re "a1b2c") '("a" "b" "c")
+ "compiled: regex-split")
+
+(assert-true (regex-valid? digits-re) "regex-valid? on compiled regex")
+
+;; Capture groups via compiled regex
+(define email-re (regex-compile "(\\w+)@(\\w+)"))
+
+(assert-equal (regex-extract email-re "user@host") '("user" "host")
+ "compiled: regex-extract")
+
+;; Reuse: same compiled regex across many calls
+(define re-word (regex-compile "\\w+"))
+
+(assert-equal (regex-find re-word "hello world") "hello" "reuse 1")
+(assert-equal (regex-find re-word "second") "second" "reuse 2")
+(assert-equal (regex-find-all re-word "a b c d") '("a" "b" "c" "d") "reuse 3")
+
+;; Bad pattern surfaces error at compile time
+(assert-error (regex-compile "[unclosed") "regex-compile rejects bad pattern")
+
+;; Type errors
+(assert-error (regex-compile 42) "regex-compile rejects non-strings")
+(assert-error (regex-match? 42 "abc")
+ "regex-match? rejects non-string non-regex pattern")

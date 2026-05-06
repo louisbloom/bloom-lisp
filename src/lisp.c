@@ -305,6 +305,28 @@ LispObject *lisp_make_string_port(const char *str)
     return obj;
 }
 
+/* PCRE2's compiled pattern is allocated outside Boehm GC, so the wrapping
+ * LispObject installs a finalizer to release it when the wrapper becomes
+ * unreachable. */
+static void regex_finalizer(void *obj, void *cd)
+{
+    (void)cd;
+    LispObject *r = obj;
+    if (r->value.regex.code != NULL) {
+        pcre2_code_free(r->value.regex.code);
+        r->value.regex.code = NULL;
+    }
+}
+
+LispObject *lisp_make_regex(pcre2_code *code)
+{
+    LispObject *obj = GC_malloc(sizeof(LispObject));
+    obj->type = LISP_REGEX;
+    obj->value.regex.code = code;
+    GC_register_finalizer(obj, regex_finalizer, NULL, NULL, NULL);
+    return obj;
+}
+
 /* Object utilities */
 int lisp_is_truthy(LispObject *obj)
 {

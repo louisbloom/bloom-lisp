@@ -243,6 +243,10 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
                  obj->value.string_port.char_len);
         append_str(buffer, size, pos, temp);
         break;
+
+    case LISP_REGEX:
+        append_str(buffer, size, pos, "#<regex>");
+        break;
     }
 }
 
@@ -418,6 +422,10 @@ static void princ_object(LispObject *obj)
 
     case LISP_STRING_PORT:
         printf("#<string-port %zu/%zu>", obj->value.string_port.char_pos, obj->value.string_port.char_len);
+        break;
+
+    case LISP_REGEX:
+        printf("#<regex>");
         break;
     }
 }

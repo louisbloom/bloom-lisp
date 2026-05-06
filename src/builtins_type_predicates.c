@@ -53,6 +53,7 @@ DEFINE_TYPE_PRED(builtin_builtin_question, "builtin?",
 DEFINE_TYPE_PRED(builtin_callable_question, "callable?",
                  arg->type == LISP_LAMBDA || arg->type == LISP_MACRO ||
                      arg->type == LISP_BUILTIN)
+DEFINE_TYPE_PRED(builtin_regex_question, "regex?", arg->type == LISP_REGEX)
 #undef DEFINE_TYPE_PRED
 
 void register_type_predicates_builtins(Environment *env)
@@ -73,4 +74,5 @@ void register_type_predicates_builtins(Environment *env)
     REGISTER("macro?", builtin_macro_question);
     REGISTER("builtin?", builtin_builtin_question);
     REGISTER("callable?", builtin_callable_question);
+    REGISTER("regex?", builtin_regex_question);
 }

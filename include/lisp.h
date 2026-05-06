@@ -84,7 +84,8 @@ typedef enum
     LISP_VECTOR,
     LISP_HASH_TABLE,
     LISP_TAIL_CALL,
-    LISP_STRING_PORT
+    LISP_STRING_PORT,
+    LISP_REGEX
 } LispType;
 
 /* Built-in function pointer type */
@@ -180,6 +181,10 @@ struct LispObject
             size_t byte_pos; /* Current byte position */
             size_t char_pos; /* Current character position */
         } string_port;
+        struct
+        {
+            pcre2_code *code; /* Compiled PCRE2 pattern; freed by GC finalizer */
+        } regex;
     } value;
 };
 
@@ -262,6 +267,7 @@ LispObject *lisp_make_vector(size_t capacity);
 LispObject *lisp_make_hash_table(void);
 LispObject *lisp_make_tail_call(LispObject *func, LispObject *args);
 LispObject *lisp_make_string_port(const char *str);
+LispObject *lisp_make_regex(pcre2_code *code);
 
 /* Symbol interning */
 LispObject *lisp_intern(const char *name);
