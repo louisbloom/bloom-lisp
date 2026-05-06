@@ -25,6 +25,7 @@ LispObject *sym_else = NULL;
 LispObject *sym_optional = NULL;
 LispObject *sym_rest = NULL;
 LispObject *sym_error = NULL;
+LispObject *sym_unclosed_input = NULL;
 LispObject *sym_package_ref = NULL;
 LispObject *sym_star_package_star = NULL;
 
@@ -594,6 +595,7 @@ Environment *lisp_init(void)
     sym_optional = lisp_intern("&optional");
     sym_rest = lisp_intern("&rest");
     sym_error = lisp_intern("error");
+    sym_unclosed_input = lisp_intern("unclosed-input");
     sym_package_ref = lisp_intern("package-ref");
     sym_star_package_star = lisp_intern("*package*");
     pkg_core = LISP_SYM_VAL(lisp_intern("core"));

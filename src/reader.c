@@ -249,7 +249,7 @@ static LispObject *read_list(const char **input)
     if (**input == ')') {
         (*input)++;
     } else {
-        return lisp_make_typed_error_simple("unclosed-input", "Unclosed list", NULL);
+        return lisp_make_typed_error(sym_unclosed_input, "Unclosed list", NIL, NULL);
     }
 
     return head;
@@ -301,7 +301,7 @@ static LispObject *read_vector(const char **input)
     if (**input == ')') {
         (*input)++;
     } else {
-        return lisp_make_typed_error_simple("unclosed-input", "Unclosed vector", NULL);
+        return lisp_make_typed_error(sym_unclosed_input, "Unclosed vector", NIL, NULL);
     }
 
     return vec;
