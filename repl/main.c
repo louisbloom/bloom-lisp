@@ -482,9 +482,9 @@ static void handle_app_cmd(TuiCmd *cmd, void *user_data)
 {
     (void)user_data;
 
-    if (LISP_TYPE(cmd) == TUI_CMD_LINE_SUBMIT) {
+    if (cmd->type == TUI_CMD_LINE_SUBMIT) {
         handle_line_submit(cmd->payload.line);
-    } else if (LISP_TYPE(cmd) == TUI_CMD_TAB_COMPLETE) {
+    } else if (cmd->type == TUI_CMD_TAB_COMPLETE) {
         handle_tab_complete(cmd);
     }
 

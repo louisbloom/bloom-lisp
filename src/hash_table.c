@@ -55,17 +55,26 @@ static size_t hash_lisp_key(LispObject *key, size_t bucket_count)
         hash = fnv_string(hash, LISP_SYM_VAL(key)->name);
         break;
     case LISP_INTEGER:
+    {
+        long long iv = LISP_INT_VAL(key);
         hash = fnv_byte(hash, 'I');
-        hash = fnv_bytes(hash, &LISP_INT_VAL(key), sizeof(int64_t));
+        hash = fnv_bytes(hash, &iv, sizeof(iv));
         break;
+    }
     case LISP_NUMBER:
+    {
+        double nv = LISP_NUM_VAL(key);
         hash = fnv_byte(hash, 'N');
-        hash = fnv_bytes(hash, &LISP_NUM_VAL(key), sizeof(double));
+        hash = fnv_bytes(hash, &nv, sizeof(nv));
         break;
+    }
     case LISP_CHAR:
+    {
+        uint32_t cv = LISP_CHAR_VAL(key);
         hash = fnv_byte(hash, 'C');
-        hash = fnv_bytes(hash, &LISP_CHAR_VAL(key), sizeof(unsigned int));
+        hash = fnv_bytes(hash, &cv, sizeof(cv));
         break;
+    }
     case LISP_BOOLEAN:
         hash = fnv_byte(hash, 'B');
         hash = fnv_byte(hash, LISP_BOOL_VAL(key) ? 1 : 0);

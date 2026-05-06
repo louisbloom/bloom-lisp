@@ -6,12 +6,10 @@
 LispObject *lisp_make_file_stream(FILE *file)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_FILE_STREAM;
-    LISP_FILE_FP(obj) = file;
-    LISP_FILE_EOL(obj)
-    [0] = '\n';
-    LISP_FILE_EOL(obj)
-    [1] = '\0';
+    obj->type = LISP_FILE_STREAM;
+    obj->value.file.fp = file;
+    obj->value.file.eol[0] = '\n';
+    obj->value.file.eol[1] = '\0';
     return obj;
 }
 

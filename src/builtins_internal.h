@@ -36,7 +36,7 @@
             (result) = _node;                            \
             (tail) = _node;                              \
         } else {                                         \
-            (tail)->value.cons.cdr = _node;              \
+            LISP_CDR(tail) = _node;                      \
             (tail) = _node;                              \
         }                                                \
     } while (0)
@@ -47,19 +47,20 @@
         LispObject *sym = lisp_intern(name);                                         \
         const char *_doc = lookup_builtin_doc(name);                                 \
         if (_doc != NULL)                                                            \
-            sym->value.symbol->docstring = (char *)_doc;                             \
-        env_define(env, sym->value.symbol, lisp_make_builtin(func, name), pkg_core); \
+            LISP_SYM_VAL(sym)->docstring = (char *)_doc;                             \
+        env_define(env, LISP_SYM_VAL(sym), lisp_make_builtin(func, name), pkg_core); \
     } while (0)
 
 /* Helper function to get numeric value */
 static inline double get_numeric_value(LispObject *obj, int *is_integer)
 {
-    if (obj->type == LISP_INTEGER) {
+    LispType t = LISP_TYPE(obj);
+    if (t == LISP_INTEGER) {
         *is_integer = 1;
-        return (double)obj->value.integer;
-    } else if (obj->type == LISP_NUMBER) {
+        return (double)LISP_INT_VAL(obj);
+    } else if (t == LISP_NUMBER) {
         *is_integer = 0;
-        return obj->value.number;
+        return LISP_NUM_VAL(obj);
     }
     return 0.0;
 }

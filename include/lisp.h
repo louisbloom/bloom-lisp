@@ -230,11 +230,8 @@ struct Environment
         for (struct Binding *binding = (env)->buckets[_efi]; binding; \
              binding = binding->next)
 
-/* Global NIL object */
-extern LispObject *NIL;
-
-/* Global boolean objects */
-extern LispObject *LISP_TRUE; /* #t */
+/* NIL and LISP_TRUE are tagged immediate values defined as macros in
+ * lisp_value.h (NIL = 0x3, LISP_TRUE = 0xB) — no heap objects behind them. */
 
 /* Simple API */
 Environment *lisp_init(void);

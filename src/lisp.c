@@ -4,13 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Global NIL object */
-LispObject nil_obj = { .type = LISP_NIL };
-LispObject *NIL = &nil_obj;
-
-/* Global boolean objects */
-LispObject true_obj = { .type = LISP_BOOLEAN, .value = { .boolean = 1 } };
-LispObject *LISP_TRUE = &true_obj;
+/* NIL and LISP_TRUE are tagged immediates (NIL = 0x3, LISP_TRUE = 0xB) —
+ * see lisp_value.h. No heap objects behind them. */
 
 /* Global symbol intern table */
 LispObject *symbol_table = NULL;
@@ -43,65 +38,49 @@ const char *lisp_special_forms[] = {
 Symbol *pkg_core = NULL;
 Symbol *pkg_user = NULL;
 
-/* Small integer cache: -1 through 255 (257 objects) */
-#define SMALL_INT_MIN   (-1)
-#define SMALL_INT_MAX   255
-#define SMALL_INT_COUNT (SMALL_INT_MAX - SMALL_INT_MIN + 1)
-static LispObject small_integers[SMALL_INT_COUNT];
-static int small_integers_initialized = 0;
-
-static void init_small_integers(void)
-{
-    for (int i = 0; i < SMALL_INT_COUNT; i++) {
-        small_integers[i].type = LISP_INTEGER;
-        small_integers[i].value.integer = SMALL_INT_MIN + i;
-    }
-    small_integers_initialized = 1;
-}
-
 /* Object creation functions */
 LispObject *lisp_make_number(double value)
 {
     LispObject *obj = GC_malloc_atomic(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_NUMBER;
-    LISP_NUM_VAL(obj) = value;
+    obj->type = LISP_NUMBER;
+    obj->value.number = value;
     return obj;
 }
 
+/* Fixnum range: signed values that survive the (n << 3) shift without
+ * losing the sign bit. */
+#define FIXNUM_MIN ((long long)-(1LL << 60))
+#define FIXNUM_MAX ((long long)((1LL << 60) - 1))
+
 LispObject *lisp_make_integer(long long value)
 {
-    if (small_integers_initialized && value >= SMALL_INT_MIN && value <= SMALL_INT_MAX) {
-        return &small_integers[value - SMALL_INT_MIN];
+    if (value >= FIXNUM_MIN && value <= FIXNUM_MAX) {
+        /* Tagged fixnum — no allocation. */
+        return (LispObject *)((uintptr_t)((value << 3) | LISP_TAG_FIXNUM));
     }
+    /* Big int falls back to the heap. */
     LispObject *obj = GC_malloc_atomic(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_INTEGER;
-    LISP_INT_VAL(obj) = value;
+    obj->type = LISP_INTEGER;
+    obj->value.integer = value;
     return obj;
 }
 
 LispObject *lisp_make_char(unsigned int codepoint)
 {
-    LispObject *obj = GC_malloc_atomic(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_CHAR;
-    LISP_CHAR_VAL(obj) = codepoint;
-    return obj;
+    /* Codepoint is 21 bits; fits comfortably with a 3-bit tag. */
+    return (LispObject *)((uintptr_t)(((uintptr_t)codepoint << 3) | LISP_TAG_CHAR));
 }
 
 LispObject *lisp_make_boolean(int value)
 {
-    /* Return interned boolean objects */
-    if (value) {
-        return LISP_TRUE;
-    } else {
-        return NIL; /* #f is NIL */
-    }
+    return value ? LISP_TRUE : NIL; /* #f is NIL */
 }
 
 LispObject *lisp_make_string(const char *value)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_STRING;
-    LISP_STR_VAL(obj) = GC_strdup(value);
+    obj->type = LISP_STRING;
+    obj->value.string = GC_strdup(value);
     return obj;
 }
 
@@ -126,8 +105,8 @@ LispObject *lisp_intern(const char *name)
 
     /* Create LispObject wrapper */
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_SYMBOL;
-    LISP_SYM_VAL(obj) = sym;
+    obj->type = LISP_SYMBOL;
+    obj->value.symbol = sym;
 
     /* Add to intern table */
     hash_table_set_entry(symbol_table, name_key, obj);
@@ -168,8 +147,8 @@ LispObject *lisp_make_keyword(const char *name)
 
     /* Create LispObject wrapper with LISP_KEYWORD type */
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_KEYWORD;
-    LISP_SYM_VAL(obj) = sym;
+    obj->type = LISP_KEYWORD;
+    obj->value.symbol = sym;
 
     /* Add to intern table */
     hash_table_set_entry(keyword_table, name_key, obj);
@@ -180,9 +159,9 @@ LispObject *lisp_make_keyword(const char *name)
 LispObject *lisp_make_cons(LispObject *car, LispObject *cdr)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_CONS;
-    LISP_CAR(obj) = car;
-    LISP_CDR(obj) = cdr;
+    obj->type = LISP_CONS;
+    obj->value.cons.car = car;
+    obj->value.cons.cdr = cdr;
     return obj;
 }
 
@@ -190,7 +169,7 @@ LispObject *lisp_make_cons(LispObject *car, LispObject *cdr)
 LispObject *lisp_make_typed_error(LispObject *error_type, const char *message, LispObject *data, Environment *env)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_ERROR;
+    obj->type = LISP_ERROR;
     obj->value.error_with_stack = GC_malloc(sizeof(ErrorInfo));
     LISP_ERROR_TYPE(obj) = error_type;
     LISP_ERROR_MESSAGE(obj) = GC_strdup(message);
@@ -231,16 +210,16 @@ LispObject *lisp_attach_stack_trace(LispObject *error, Environment *env)
 LispObject *lisp_make_builtin(BuiltinFunc func, const char *name)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_BUILTIN;
-    LISP_BUILTIN_FUNC(obj) = func;
-    LISP_BUILTIN_NAME(obj) = name;
+    obj->type = LISP_BUILTIN;
+    obj->value.builtin.func = func;
+    obj->value.builtin.name = name;
     return obj;
 }
 
 LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *closure, const char *name)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_LAMBDA;
+    obj->type = LISP_LAMBDA;
     obj->value.lambda = GC_malloc(sizeof(LambdaInfo));
     LISP_LAMBDA_PARAMS(obj) = params;
     LISP_LAMBDA_REQUIRED_PARAMS(obj) = params; /* For backward compat: all params are required */
@@ -260,7 +239,7 @@ LispObject *lisp_make_lambda_ext(LispObject *params, LispObject *required_params
                                  Environment *closure, const char *name)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_LAMBDA;
+    obj->type = LISP_LAMBDA;
     obj->value.lambda = GC_malloc(sizeof(LambdaInfo));
     LISP_LAMBDA_PARAMS(obj) = params;
     LISP_LAMBDA_REQUIRED_PARAMS(obj) = required_params;
@@ -278,7 +257,7 @@ LispObject *lisp_make_lambda_ext(LispObject *params, LispObject *required_params
 LispObject *lisp_make_macro(LispObject *params, LispObject *body, Environment *closure, const char *name)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_MACRO;
+    obj->type = LISP_MACRO;
     obj->value.macro = GC_malloc(sizeof(MacroInfo));
     LISP_MACRO_PARAMS(obj) = params;
     LISP_MACRO_BODY(obj) = body;
@@ -300,13 +279,13 @@ LispObject *lisp_make_tail_call(LispObject *func, LispObject *args)
 LispObject *lisp_make_string_port(const char *str)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_STRING_PORT;
+    obj->type = LISP_STRING_PORT;
     obj->value.string_port = GC_malloc(sizeof(StringPortInfo));
-    LISP_STRING_PORT_BUFFER(obj) = GC_strdup(str);
-    LISP_STRING_PORT_BYTE_LEN(obj) = strlen(str);
-    LISP_STRING_PORT_CHAR_LEN(obj) = utf8_strlen(str);
-    LISP_STRING_PORT_BYTE_POS(obj) = 0;
-    LISP_STRING_PORT_CHAR_POS(obj) = 0;
+    obj->value.string_port->buffer = GC_strdup(str);
+    obj->value.string_port->byte_len = strlen(str);
+    obj->value.string_port->char_len = utf8_strlen(str);
+    obj->value.string_port->byte_pos = 0;
+    obj->value.string_port->char_pos = 0;
     return obj;
 }
 
@@ -319,15 +298,15 @@ static void regex_finalizer(void *obj, void *cd)
     LispObject *r = obj;
     if (LISP_REGEX_CODE(r) != NULL) {
         pcre2_code_free(LISP_REGEX_CODE(r));
-        LISP_REGEX_CODE(r) = NULL;
+        r->value.regex.code = NULL;
     }
 }
 
 LispObject *lisp_make_regex(pcre2_code *code)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_REGEX;
-    LISP_REGEX_CODE(obj) = code;
+    obj->type = LISP_REGEX;
+    obj->value.regex.code = code;
     GC_register_finalizer(obj, regex_finalizer, NULL, NULL, NULL);
     return obj;
 }
@@ -392,7 +371,7 @@ size_t lisp_list_length(LispObject *list)
 LispObject *lisp_make_vector(size_t capacity)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_VECTOR;
+    obj->type = LISP_VECTOR;
     obj->value.vector = GC_malloc(sizeof(VectorInfo));
     LISP_VECTOR_CAPACITY(obj) = capacity > 0 ? capacity : 8;
     LISP_VECTOR_SIZE(obj) = 0;
@@ -408,7 +387,7 @@ LispObject *lisp_make_vector(size_t capacity)
 LispObject *lisp_make_hash_table(void)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
-    LISP_TYPE(obj) = LISP_HASH_TABLE;
+    obj->type = LISP_HASH_TABLE;
     obj->value.hash_table = GC_malloc(sizeof(HashTableInfo));
     LISP_HT_CAPACITY(obj) = 16;
     LISP_HT_BUCKET_COUNT(obj) = 16;
@@ -599,9 +578,6 @@ Environment *lisp_init(void)
 
     /* Initialize Boehm GC */
     GC_INIT();
-
-    /* Initialize small integer cache */
-    init_small_integers();
 
     /* Initialize symbol intern table */
     symbol_table = lisp_make_hash_table();

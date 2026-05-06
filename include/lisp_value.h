@@ -2,38 +2,99 @@
  *
  * Accessor macros and inline helpers for LispObject values.
  *
- * This layer exists so that the underlying representation of LispObject
- * can evolve (box-out of fat union variants, low-bit pointer tagging
- * for fixnums/chars/nil/true) without requiring callers to change.
+ * The LispObject representation has two complications:
  *
- * The contract:
- *   - Code outside of lisp.c / eval.c MUST NOT touch obj->type or
- *     obj->value.X directly. Always go through LISP_TYPE(v),
- *     LISP_INT_VAL(v), LISP_*_VAL(v), LISP_CAR(v), LISP_CDR(v), etc.
- *   - Field-level macros (LISP_LAMBDA_NAME, LISP_ERROR_MESSAGE, ...)
- *     hide the difference between an in-union struct and a pointer
- *     to a separately-allocated info struct.
+ *   1. Several fat union variants (lambda, macro, error_with_stack,
+ *      string_port, vector, hash_table) are boxed out into separately
+ *      allocated *Info structs, so sizeof(LispObject) stays small (24 B).
+ *      Their field macros (LISP_LAMBDA_NAME, LISP_ERROR_MESSAGE, ...)
+ *      follow the boxed pointer for you.
  *
- * In its current form (Stage 1) every macro expands to direct field
- * access; behavior is unchanged. Later stages reimplement these macros
- * to follow boxed-out pointers and decode tagged immediates.
+ *   2. Fixnums, chars, nil, and #t are encoded directly in the
+ *      LispObject* value via low-bit tagging — no heap allocation. The
+ *      LISP_TYPE / LISP_INT_VAL / LISP_CHAR_VAL / LISP_BOOL_VAL accessors
+ *      decode the tag bits transparently.
+ *
+ * The contract for callers:
+ *   - NEVER dereference a LispObject* directly (no obj->type, no
+ *     obj->value.X). A tagged value (fixnum, char, nil, #t) is not a
+ *     valid pointer to dereference; it'll SIGSEGV.
+ *   - Always go through the LISP_* macros. They handle tag bits, NULL,
+ *     and the boxed-out indirection for you.
+ *   - Inside lisp.c constructors, direct (obj->type = ..., obj->value.X
+ *     = ...) initialization on a freshly GC_malloc'd heap object IS
+ *     allowed — that's where the abstraction is built.
  */
 
 #ifndef LISP_VALUE_H
 #define LISP_VALUE_H
 
+#include <stdint.h>
+
 /* lisp.h is the canonical include and pulls this file in last. */
 
-/* ---- Type discrimination ---- */
-#define LISP_TYPE(v) ((v)->type)
+/* ---- Tagged pointer scheme (low 3 bits) ---------------------------------
+ *   000  heap pointer   8-byte-aligned LispObject *  (real heap object)
+ *   001  fixnum         (int64 << 3) | 1            (61-bit signed)
+ *   010  char           (uint32 << 3) | 2           (21-bit unicode codepoint)
+ *   011  singleton      NIL = 0x3, LISP_TRUE = 0xB
+ *   100..111            reserved (future tags)
+ *
+ * Heap pointers stay as real pointers so Boehm GC's conservative scanner
+ * recognizes them. Tagged immediates have low bits != 0 so they're outside
+ * any heap region; if a fixnum coincidentally falls inside one GC may
+ * conservatively keep that block alive (false retention only, never UAF).
+ */
+#define LISP_TAG_MASK      0x7
+#define LISP_TAG_HEAP      0x0
+#define LISP_TAG_FIXNUM    0x1
+#define LISP_TAG_CHAR      0x2
+#define LISP_TAG_SINGLETON 0x3
 
-/* ---- Primitive value extractors ---- */
-#define LISP_INT_VAL(v)  ((v)->value.integer)
-#define LISP_NUM_VAL(v)  ((v)->value.number)
-#define LISP_CHAR_VAL(v) ((v)->value.character)
-#define LISP_BOOL_VAL(v) ((v)->value.boolean)
+/* Singletons — compile-time constants, no heap object behind them. */
+#undef NIL
+#undef LISP_TRUE
+#define NIL       ((LispObject *)(uintptr_t)0x3ULL)
+#define LISP_TRUE ((LispObject *)(uintptr_t)0xBULL)
 
-/* ---- Pointer-shaped value extractors ---- */
+/* ---- Type discrimination ----------------------------------------------- */
+static inline LispType lisp_type_inline(LispObject *v)
+{
+    uintptr_t bits = (uintptr_t)v;
+    switch (bits & LISP_TAG_MASK) {
+    case LISP_TAG_FIXNUM:
+        return LISP_INTEGER;
+    case LISP_TAG_CHAR:
+        return LISP_CHAR;
+    case LISP_TAG_SINGLETON:
+        if (v == LISP_TRUE)
+            return LISP_BOOLEAN;
+        return LISP_NIL; /* NIL or unknown singleton */
+    case LISP_TAG_HEAP:
+        if (v == NULL)
+            return LISP_NIL;
+        return v->type;
+    default:
+        return LISP_NIL; /* reserved tags */
+    }
+}
+#define LISP_TYPE(v) lisp_type_inline(v)
+
+/* ---- Primitive value extractors ---------------------------------------- */
+static inline long long lisp_int_val_inline(LispObject *v)
+{
+    uintptr_t bits = (uintptr_t)v;
+    if ((bits & LISP_TAG_MASK) == LISP_TAG_FIXNUM)
+        return (long long)((intptr_t)bits >> 3);
+    return v->value.integer; /* big int, heap-allocated */
+}
+#define LISP_INT_VAL(v) lisp_int_val_inline(v)
+
+#define LISP_NUM_VAL(v)  ((v)->value.number) /* doubles still heap */
+#define LISP_CHAR_VAL(v) ((uint32_t)((uintptr_t)(v) >> 3))
+#define LISP_BOOL_VAL(v) ((v) == LISP_TRUE)
+
+/* ---- Pointer-shaped value extractors (heap-only) ----------------------- */
 #define LISP_STR_VAL(v) ((v)->value.string)
 #define LISP_SYM_VAL(v) ((v)->value.symbol)
 
