@@ -405,9 +405,13 @@ static LispObject *builtin_package_save(LispObject *args, Environment *env)
 
     fclose(f);
 
-    /* Optionally format the output using lisp-fmt's format-file */
+    /* Optionally format the output using lisp-fmt's format-file. The
+     * symbol is interned once over the program's lifetime — cheaper than
+     * doing the string lookup on every package-save :format call. */
     if (format_mode) {
-        LispObject *fmt_sym = lisp_intern("format-file");
+        static LispObject *fmt_sym = NULL;
+        if (fmt_sym == NULL)
+            fmt_sym = lisp_intern("format-file");
         LispObject *fmt_func = env_lookup(env, LISP_SYM_VAL(fmt_sym));
         if (fmt_func == NULL) {
             return lisp_make_error(
