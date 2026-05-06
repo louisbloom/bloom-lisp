@@ -1,16 +1,13 @@
 #include "builtins_internal.h"
 
 /* Resolve a pattern argument that may be a string or a precompiled regex.
- * On success returns NULL, sets *re_out, and sets *owns_re_out to 1 if the
- * caller is responsible for freeing *re_out (i.e. we just compiled it from
- * a string) or 0 if it's borrowed from a LISP_REGEX wrapper.
- * On failure returns an error LispObject. */
+ * On success returns NULL and sets *re_out. On failure returns an error
+ * LispObject. The caller owns *re_out iff pattern_obj->type != LISP_REGEX. */
 static LispObject *resolve_pattern(LispObject *pattern_obj, const char *name,
-                                   pcre2_code **re_out, int *owns_re_out)
+                                   pcre2_code **re_out)
 {
     if (pattern_obj->type == LISP_REGEX) {
         *re_out = pattern_obj->value.regex.code;
-        *owns_re_out = 0;
         return NULL;
     }
     if (pattern_obj->type != LISP_STRING) {
@@ -25,48 +22,39 @@ static LispObject *resolve_pattern(LispObject *pattern_obj, const char *name,
         snprintf(buf, sizeof(buf), "%s: %s", name, error_msg ? error_msg : "invalid pattern");
         return lisp_make_error(buf);
     }
-    *owns_re_out = 1;
     return NULL;
 }
 
-/* Regex helper: extract pattern + string args, compile regex if needed.
- * Returns NULL on success (sets *re_out, *string_out, *owns_re_out).
- * Returns error LispObject on failure. */
+/* Regex helper: extract pattern + string args and resolve the pattern to a
+ * pcre2_code. Returns NULL on success (sets *pattern_obj_out, *string_out,
+ * *re_out). Returns error LispObject on failure. The caller owns *re_out iff
+ * (*pattern_obj_out)->type != LISP_REGEX. */
 static LispObject *regex_compile_args(LispObject *args, const char *name,
-                                      pcre2_code **re_out,
+                                      LispObject **pattern_obj_out,
                                       LispObject **string_out,
-                                      int *owns_re_out)
+                                      pcre2_code **re_out)
 {
     if (args == NIL || lisp_cdr(args) == NIL) {
         char buf[128];
         snprintf(buf, sizeof(buf), "%s requires 2 arguments", name);
         return lisp_make_error(buf);
     }
-    LispObject *pattern_obj = lisp_car(args);
+    *pattern_obj_out = lisp_car(args);
     *string_out = lisp_car(lisp_cdr(args));
     if ((*string_out)->type != LISP_STRING) {
         char buf[128];
         snprintf(buf, sizeof(buf), "%s: subject must be a string", name);
         return lisp_make_error(buf);
     }
-    return resolve_pattern(pattern_obj, name, re_out, owns_re_out);
-}
-
-/* Free a pcre2_code only if we own it (compiled it ourselves). */
-static inline void release_re(pcre2_code *re, int owns_re)
-{
-    if (owns_re && re != NULL) {
-        pcre2_code_free(re);
-    }
+    return resolve_pattern(*pattern_obj_out, name, re_out);
 }
 
 static LispObject *builtin_regex_match_question(LispObject *args, Environment *env)
 {
     (void)env;
+    LispObject *pattern_obj, *string_obj;
     pcre2_code *re;
-    LispObject *string_obj;
-    int owns_re = 0;
-    LispObject *err = regex_compile_args(args, "regex-match?", &re, &string_obj, &owns_re);
+    LispObject *err = regex_compile_args(args, "regex-match?", &pattern_obj, &string_obj, &re);
     if (err)
         return err;
 
@@ -74,39 +62,39 @@ static LispObject *builtin_regex_match_question(LispObject *args, Environment *e
     int result = (match_data != NULL);
     if (match_data)
         pcre2_match_data_free(match_data);
-    release_re(re, owns_re);
+    if (pattern_obj->type != LISP_REGEX)
+        pcre2_code_free(re);
     return result ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_regex_find(LispObject *args, Environment *env)
 {
     (void)env;
+    LispObject *pattern_obj, *string_obj;
     pcre2_code *re;
-    LispObject *string_obj;
-    int owns_re = 0;
-    LispObject *err = regex_compile_args(args, "regex-find", &re, &string_obj, &owns_re);
+    LispObject *err = regex_compile_args(args, "regex-find", &pattern_obj, &string_obj, &re);
     if (err)
         return err;
 
     pcre2_match_data *match_data = execute_regex(re, string_obj->value.string);
-    if (match_data == NULL) {
-        release_re(re, owns_re);
-        return NIL;
+    LispObject *result = NIL;
+    if (match_data != NULL) {
+        char *matched = extract_capture(match_data, string_obj->value.string, 0);
+        if (matched)
+            result = lisp_make_string(matched);
+        pcre2_match_data_free(match_data);
     }
-    char *matched = extract_capture(match_data, string_obj->value.string, 0);
-    LispObject *result = matched ? lisp_make_string(matched) : NIL;
-    pcre2_match_data_free(match_data);
-    release_re(re, owns_re);
+    if (pattern_obj->type != LISP_REGEX)
+        pcre2_code_free(re);
     return result;
 }
 
 static LispObject *builtin_regex_find_all(LispObject *args, Environment *env)
 {
     (void)env;
+    LispObject *pattern_obj, *string_obj;
     pcre2_code *re;
-    LispObject *string_obj;
-    int owns_re = 0;
-    LispObject *err = regex_compile_args(args, "regex-find-all", &re, &string_obj, &owns_re);
+    LispObject *err = regex_compile_args(args, "regex-find-all", &pattern_obj, &string_obj, &re);
     if (err)
         return err;
 
@@ -141,7 +129,8 @@ static LispObject *builtin_regex_find_all(LispObject *args, Environment *env)
         }
     }
 
-    release_re(re, owns_re);
+    if (pattern_obj->type != LISP_REGEX)
+        pcre2_code_free(re);
 
     return result;
 }
@@ -149,31 +138,26 @@ static LispObject *builtin_regex_find_all(LispObject *args, Environment *env)
 static LispObject *builtin_regex_extract(LispObject *args, Environment *env)
 {
     (void)env;
+    LispObject *pattern_obj, *string_obj;
     pcre2_code *re;
-    LispObject *string_obj;
-    int owns_re = 0;
-    LispObject *err = regex_compile_args(args, "regex-extract", &re, &string_obj, &owns_re);
+    LispObject *err = regex_compile_args(args, "regex-extract", &pattern_obj, &string_obj, &re);
     if (err)
         return err;
 
     pcre2_match_data *match_data = execute_regex(re, string_obj->value.string);
-    if (match_data == NULL) {
-        release_re(re, owns_re);
-        return NIL;
-    }
-
-    int capture_count = get_capture_count(re);
     LispObject *result = NIL;
-    LispObject *tail = NULL;
-
-    for (int i = 1; i <= capture_count; i++) {
-        char *captured = extract_capture(match_data, string_obj->value.string, i);
-        if (captured)
-            LIST_APPEND(result, tail, lisp_make_string(captured));
+    if (match_data != NULL) {
+        int capture_count = get_capture_count(re);
+        LispObject *tail = NULL;
+        for (int i = 1; i <= capture_count; i++) {
+            char *captured = extract_capture(match_data, string_obj->value.string, i);
+            if (captured)
+                LIST_APPEND(result, tail, lisp_make_string(captured));
+        }
+        pcre2_match_data_free(match_data);
     }
-
-    pcre2_match_data_free(match_data);
-    release_re(re, owns_re);
+    if (pattern_obj->type != LISP_REGEX)
+        pcre2_code_free(re);
     return result;
 }
 
@@ -190,8 +174,7 @@ static LispObject *builtin_regex_replace(LispObject *args, Environment *env)
         return lisp_make_error("regex-replace: subject and replacement must be strings");
 
     pcre2_code *re;
-    int owns_re = 0;
-    LispObject *err = resolve_pattern(pattern_obj, "regex-replace", &re, &owns_re);
+    LispObject *err = resolve_pattern(pattern_obj, "regex-replace", &re);
     if (err)
         return err;
 
@@ -205,7 +188,8 @@ static LispObject *builtin_regex_replace(LispObject *args, Environment *env)
                               NULL,                                                               /* match context */
                               (PCRE2_SPTR)replacement_obj->value.string, PCRE2_ZERO_TERMINATED, output, &output_len);
 
-    release_re(re, owns_re);
+    if (pattern_obj->type != LISP_REGEX)
+        pcre2_code_free(re);
 
     if (rc < 0) {
         char error[256];
@@ -228,10 +212,9 @@ static LispObject *builtin_regex_replace_all(LispObject *args, Environment *env)
 static LispObject *builtin_regex_split(LispObject *args, Environment *env)
 {
     (void)env;
+    LispObject *pattern_obj, *string_obj;
     pcre2_code *re;
-    LispObject *string_obj;
-    int owns_re = 0;
-    LispObject *err = regex_compile_args(args, "regex-split", &re, &string_obj, &owns_re);
+    LispObject *err = regex_compile_args(args, "regex-split", &pattern_obj, &string_obj, &re);
     if (err)
         return err;
 
@@ -272,7 +255,8 @@ static LispObject *builtin_regex_split(LispObject *args, Environment *env)
         LIST_APPEND(result, tail, lisp_make_string(part));
     }
 
-    release_re(re, owns_re);
+    if (pattern_obj->type != LISP_REGEX)
+        pcre2_code_free(re);
     return result;
 }
 
