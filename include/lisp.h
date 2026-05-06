@@ -385,4 +385,8 @@ char *extract_capture(pcre2_match_data *match_data, const char *subject, int cap
 int get_capture_count(pcre2_code *re);
 void free_regex_resources(pcre2_code *re, pcre2_match_data *match_data);
 
+/* Accessor macros for the LispObject value (LISP_TYPE, LISP_INT_VAL, ...).
+ * Pulled in last so it can reference everything declared above. */
+#include "lisp_value.h"
+
 #endif /* LISP_H */

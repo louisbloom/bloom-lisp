@@ -432,6 +432,22 @@ LispObject *lisp_cdr(LispObject *obj)
     return obj->value.cons.cdr;
 }
 
+LispObject *lisp_set_car(LispObject *cell, LispObject *new_car)
+{
+    if (cell == NULL || cell == NIL || cell->type != LISP_CONS)
+        return lisp_make_error("set-car: argument must be a cons cell");
+    cell->value.cons.car = new_car;
+    return cell;
+}
+
+LispObject *lisp_set_cdr(LispObject *cell, LispObject *new_cdr)
+{
+    if (cell == NULL || cell == NIL || cell->type != LISP_CONS)
+        return lisp_make_error("set-cdr: argument must be a cons cell");
+    cell->value.cons.cdr = new_cdr;
+    return cell;
+}
+
 /* c*r combination helpers */
 LispObject *lisp_caar(LispObject *obj)
 {
