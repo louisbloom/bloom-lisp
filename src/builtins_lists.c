@@ -142,7 +142,7 @@ static LispObject *builtin_length(LispObject *args, Environment *env)
     case LISP_VECTOR:
     {
         /* Vector length */
-        return lisp_make_integer((long long)obj->value.vector.size);
+        return lisp_make_integer((long long)LISP_VECTOR_SIZE(obj));
     }
     default:
         return lisp_make_error("length requires a list, string, or vector");
@@ -298,12 +298,12 @@ int objects_equal_recursive(LispObject *a, LispObject *b)
 
     case LISP_VECTOR:
         /* Compare vector lengths */
-        if (a->value.vector.size != b->value.vector.size) {
+        if (LISP_VECTOR_SIZE(a) != LISP_VECTOR_SIZE(b)) {
             return 0;
         }
         /* Compare each element */
-        for (size_t i = 0; i < a->value.vector.size; i++) {
-            if (!objects_equal_recursive(a->value.vector.items[i], b->value.vector.items[i])) {
+        for (size_t i = 0; i < LISP_VECTOR_SIZE(a); i++) {
+            if (!objects_equal_recursive(LISP_VECTOR_ITEMS(a)[i], LISP_VECTOR_ITEMS(b)[i])) {
                 return 0;
             }
         }
@@ -312,13 +312,13 @@ int objects_equal_recursive(LispObject *a, LispObject *b)
     case LISP_HASH_TABLE:
     {
         /* Compare hash table sizes */
-        if (a->value.hash_table.entry_count != b->value.hash_table.entry_count) {
+        if (LISP_HT_ENTRY_COUNT(a) != LISP_HT_ENTRY_COUNT(b)) {
             return 0;
         }
         /* Compare each key-value pair */
         /* Iterate through all buckets in hash table a */
-        struct HashEntry **a_buckets = (struct HashEntry **)a->value.hash_table.buckets;
-        for (size_t i = 0; i < a->value.hash_table.bucket_count; i++) {
+        struct HashEntry **a_buckets = (struct HashEntry **)LISP_HT_BUCKETS(a);
+        for (size_t i = 0; i < LISP_HT_BUCKET_COUNT(a); i++) {
             struct HashEntry *entry = a_buckets[i];
             while (entry != NULL) {
                 /* Look up the key in hash table b */

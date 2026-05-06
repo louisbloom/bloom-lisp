@@ -18,10 +18,11 @@ static LispObject *builtin_make_vector(LispObject *args, Environment *env)
     if (lisp_cdr(args) != NIL) {
         LispObject *init_val = lisp_car(lisp_cdr(args));
         for (size_t i = 0; i < size; i++) {
-            vec->value.vector.items[i] = init_val;
+            LISP_VECTOR_ITEMS(vec)
+            [i] = init_val;
         }
         /* Set the size to match the capacity when initializing */
-        vec->value.vector.size = size;
+        LISP_VECTOR_SIZE(vec) = size;
     }
 
     return vec;
@@ -40,10 +41,10 @@ static LispObject *builtin_vector_ref(LispObject *args, Environment *env)
         return lisp_make_error("vector-ref index must be a number");
     }
     size_t idx = (size_t)(idx_obj->type == LISP_INTEGER ? idx_obj->value.integer : idx_obj->value.number);
-    if (idx >= vec_obj->value.vector.size) {
+    if (idx >= LISP_VECTOR_SIZE(vec_obj)) {
         return lisp_make_error("vector-ref: index out of bounds");
     }
-    return vec_obj->value.vector.items[idx];
+    return LISP_VECTOR_ITEMS(vec_obj)[idx];
 }
 
 static LispObject *builtin_vector_set_bang(LispObject *args, Environment *env)
@@ -59,27 +60,28 @@ static LispObject *builtin_vector_set_bang(LispObject *args, Environment *env)
         return lisp_make_error("vector-set! index must be a number");
     }
     size_t idx = (size_t)(idx_obj->type == LISP_INTEGER ? idx_obj->value.integer : idx_obj->value.number);
-    if (idx >= vec_obj->value.vector.size) {
-        vec_obj->value.vector.size = idx + 1;
+    if (idx >= LISP_VECTOR_SIZE(vec_obj)) {
+        LISP_VECTOR_SIZE(vec_obj) = idx + 1;
         /* Expand capacity if needed */
-        if (vec_obj->value.vector.size > vec_obj->value.vector.capacity) {
-            size_t new_capacity = vec_obj->value.vector.capacity;
-            while (new_capacity < vec_obj->value.vector.size) {
+        if (LISP_VECTOR_SIZE(vec_obj) > LISP_VECTOR_CAPACITY(vec_obj)) {
+            size_t new_capacity = LISP_VECTOR_CAPACITY(vec_obj);
+            while (new_capacity < LISP_VECTOR_SIZE(vec_obj)) {
                 new_capacity *= 2;
             }
             LispObject **new_items = GC_malloc(sizeof(LispObject *) * new_capacity);
-            for (size_t i = 0; i < vec_obj->value.vector.size - 1; i++) {
-                new_items[i] = vec_obj->value.vector.items[i];
+            for (size_t i = 0; i < LISP_VECTOR_SIZE(vec_obj) - 1; i++) {
+                new_items[i] = LISP_VECTOR_ITEMS(vec_obj)[i];
             }
-            for (size_t i = vec_obj->value.vector.size - 1; i < new_capacity; i++) {
+            for (size_t i = LISP_VECTOR_SIZE(vec_obj) - 1; i < new_capacity; i++) {
                 new_items[i] = NIL;
             }
-            vec_obj->value.vector.items = new_items;
-            vec_obj->value.vector.capacity = new_capacity;
+            LISP_VECTOR_ITEMS(vec_obj) = new_items;
+            LISP_VECTOR_CAPACITY(vec_obj) = new_capacity;
         }
     }
     LispObject *value = lisp_car(lisp_cdr(lisp_cdr(args)));
-    vec_obj->value.vector.items[idx] = value;
+    LISP_VECTOR_ITEMS(vec_obj)
+    [idx] = value;
     return value;
 }
 
@@ -93,20 +95,22 @@ static LispObject *builtin_vector_push_bang(LispObject *args, Environment *env)
     }
     LispObject *value = lisp_car(lisp_cdr(args));
     /* Check if we need to expand */
-    if (vec_obj->value.vector.size >= vec_obj->value.vector.capacity) {
-        size_t new_capacity = vec_obj->value.vector.capacity * 2;
+    if (LISP_VECTOR_SIZE(vec_obj) >= LISP_VECTOR_CAPACITY(vec_obj)) {
+        size_t new_capacity = LISP_VECTOR_CAPACITY(vec_obj) * 2;
         LispObject **new_items = GC_malloc(sizeof(LispObject *) * new_capacity);
-        for (size_t i = 0; i < vec_obj->value.vector.size; i++) {
-            new_items[i] = vec_obj->value.vector.items[i];
+        for (size_t i = 0; i < LISP_VECTOR_SIZE(vec_obj); i++) {
+            new_items[i] = LISP_VECTOR_ITEMS(vec_obj)[i];
         }
-        for (size_t i = vec_obj->value.vector.size; i < new_capacity; i++) {
+        for (size_t i = LISP_VECTOR_SIZE(vec_obj); i < new_capacity; i++) {
             new_items[i] = NIL;
         }
-        vec_obj->value.vector.items = new_items;
-        vec_obj->value.vector.capacity = new_capacity;
+        LISP_VECTOR_ITEMS(vec_obj) = new_items;
+        LISP_VECTOR_CAPACITY(vec_obj) = new_capacity;
     }
-    vec_obj->value.vector.items[vec_obj->value.vector.size] = value;
-    vec_obj->value.vector.size++;
+    LISP_VECTOR_ITEMS(vec_obj)
+    [LISP_VECTOR_SIZE(vec_obj)] = value;
+    LISP_VECTOR_SIZE(vec_obj)
+    ++;
     return value;
 }
 
@@ -118,11 +122,12 @@ static LispObject *builtin_vector_pop_bang(LispObject *args, Environment *env)
     if (vec_obj->type != LISP_VECTOR) {
         return lisp_make_error("vector-pop! requires a vector");
     }
-    if (vec_obj->value.vector.size == 0) {
+    if (LISP_VECTOR_SIZE(vec_obj) == 0) {
         return lisp_make_error("vector-pop!: cannot pop from empty vector");
     }
-    vec_obj->value.vector.size--;
-    return vec_obj->value.vector.items[vec_obj->value.vector.size];
+    LISP_VECTOR_SIZE(vec_obj)
+    --;
+    return LISP_VECTOR_ITEMS(vec_obj)[LISP_VECTOR_SIZE(vec_obj)];
 }
 
 void register_vectors_builtins(Environment *env)

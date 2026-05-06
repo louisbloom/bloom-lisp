@@ -6,10 +6,10 @@ static LispObject *builtin_function_params(LispObject *args, Environment *env)
     CHECK_ARGS_1("function-params");
     LispObject *arg = lisp_car(args);
     if (arg->type == LISP_LAMBDA) {
-        return arg->value.lambda.params ? arg->value.lambda.params : NIL;
+        return LISP_LAMBDA_PARAMS(arg) ? LISP_LAMBDA_PARAMS(arg) : NIL;
     }
     if (arg->type == LISP_MACRO) {
-        return arg->value.macro.params ? arg->value.macro.params : NIL;
+        return LISP_MACRO_PARAMS(arg) ? LISP_MACRO_PARAMS(arg) : NIL;
     }
     return lisp_make_error("function-params requires a lambda or macro");
 }
@@ -20,10 +20,10 @@ static LispObject *builtin_function_body(LispObject *args, Environment *env)
     CHECK_ARGS_1("function-body");
     LispObject *arg = lisp_car(args);
     if (arg->type == LISP_LAMBDA) {
-        return arg->value.lambda.body ? arg->value.lambda.body : NIL;
+        return LISP_LAMBDA_BODY(arg) ? LISP_LAMBDA_BODY(arg) : NIL;
     }
     if (arg->type == LISP_MACRO) {
-        return arg->value.macro.body ? arg->value.macro.body : NIL;
+        return LISP_MACRO_BODY(arg) ? LISP_MACRO_BODY(arg) : NIL;
     }
     return lisp_make_error("function-body requires a lambda or macro");
 }
@@ -34,10 +34,10 @@ static LispObject *builtin_function_name(LispObject *args, Environment *env)
     CHECK_ARGS_1("function-name");
     LispObject *arg = lisp_car(args);
     if (arg->type == LISP_LAMBDA) {
-        return arg->value.lambda.name ? lisp_make_string(arg->value.lambda.name) : NIL;
+        return LISP_LAMBDA_NAME(arg) ? lisp_make_string(LISP_LAMBDA_NAME(arg)) : NIL;
     }
     if (arg->type == LISP_MACRO) {
-        return arg->value.macro.name ? lisp_make_string(arg->value.macro.name) : NIL;
+        return LISP_MACRO_NAME(arg) ? lisp_make_string(LISP_MACRO_NAME(arg)) : NIL;
     }
     if (arg->type == LISP_BUILTIN) {
         return arg->value.builtin.name ? lisp_make_string(arg->value.builtin.name) : NIL;

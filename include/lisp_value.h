@@ -45,53 +45,53 @@
 #define LISP_BUILTIN_FUNC(v) ((v)->value.builtin.func)
 #define LISP_BUILTIN_NAME(v) ((v)->value.builtin.name)
 
-/* ---- Lambda fields (boxed-out in Stage 2) ---- */
-#define LISP_LAMBDA_PARAMS(v)          ((v)->value.lambda.params)
-#define LISP_LAMBDA_REQUIRED_PARAMS(v) ((v)->value.lambda.required_params)
-#define LISP_LAMBDA_OPTIONAL_PARAMS(v) ((v)->value.lambda.optional_params)
-#define LISP_LAMBDA_REST_PARAM(v)      ((v)->value.lambda.rest_param)
-#define LISP_LAMBDA_REQUIRED_COUNT(v)  ((v)->value.lambda.required_count)
-#define LISP_LAMBDA_OPTIONAL_COUNT(v)  ((v)->value.lambda.optional_count)
-#define LISP_LAMBDA_BODY(v)            ((v)->value.lambda.body)
-#define LISP_LAMBDA_CLOSURE(v)         ((v)->value.lambda.closure)
-#define LISP_LAMBDA_NAME(v)            ((v)->value.lambda.name)
-#define LISP_LAMBDA_DOCSTRING(v)       ((v)->value.lambda.docstring)
+/* ---- Lambda fields (boxed out — pointer indirection) ---- */
+#define LISP_LAMBDA_PARAMS(v)          ((v)->value.lambda->params)
+#define LISP_LAMBDA_REQUIRED_PARAMS(v) ((v)->value.lambda->required_params)
+#define LISP_LAMBDA_OPTIONAL_PARAMS(v) ((v)->value.lambda->optional_params)
+#define LISP_LAMBDA_REST_PARAM(v)      ((v)->value.lambda->rest_param)
+#define LISP_LAMBDA_REQUIRED_COUNT(v)  ((v)->value.lambda->required_count)
+#define LISP_LAMBDA_OPTIONAL_COUNT(v)  ((v)->value.lambda->optional_count)
+#define LISP_LAMBDA_BODY(v)            ((v)->value.lambda->body)
+#define LISP_LAMBDA_CLOSURE(v)         ((v)->value.lambda->closure)
+#define LISP_LAMBDA_NAME(v)            ((v)->value.lambda->name)
+#define LISP_LAMBDA_DOCSTRING(v)       ((v)->value.lambda->docstring)
 
-/* ---- Macro fields (boxed-out in Stage 2) ---- */
-#define LISP_MACRO_PARAMS(v)    ((v)->value.macro.params)
-#define LISP_MACRO_BODY(v)      ((v)->value.macro.body)
-#define LISP_MACRO_CLOSURE(v)   ((v)->value.macro.closure)
-#define LISP_MACRO_NAME(v)      ((v)->value.macro.name)
-#define LISP_MACRO_DOCSTRING(v) ((v)->value.macro.docstring)
+/* ---- Macro fields (boxed out — pointer indirection) ---- */
+#define LISP_MACRO_PARAMS(v)    ((v)->value.macro->params)
+#define LISP_MACRO_BODY(v)      ((v)->value.macro->body)
+#define LISP_MACRO_CLOSURE(v)   ((v)->value.macro->closure)
+#define LISP_MACRO_NAME(v)      ((v)->value.macro->name)
+#define LISP_MACRO_DOCSTRING(v) ((v)->value.macro->docstring)
 
-/* ---- Error fields (boxed-out in Stage 2) ---- */
-#define LISP_ERROR_TYPE(v)        ((v)->value.error_with_stack.error_type)
-#define LISP_ERROR_MESSAGE(v)     ((v)->value.error_with_stack.message)
-#define LISP_ERROR_DATA(v)        ((v)->value.error_with_stack.data)
-#define LISP_ERROR_STACK_TRACE(v) ((v)->value.error_with_stack.stack_trace)
-#define LISP_ERROR_CAUGHT(v)      ((v)->value.error_with_stack.caught)
+/* ---- Error fields (boxed out — pointer indirection) ---- */
+#define LISP_ERROR_TYPE(v)        ((v)->value.error_with_stack->error_type)
+#define LISP_ERROR_MESSAGE(v)     ((v)->value.error_with_stack->message)
+#define LISP_ERROR_DATA(v)        ((v)->value.error_with_stack->data)
+#define LISP_ERROR_STACK_TRACE(v) ((v)->value.error_with_stack->stack_trace)
+#define LISP_ERROR_CAUGHT(v)      ((v)->value.error_with_stack->caught)
 
-/* ---- String port fields (boxed-out in Stage 2) ---- */
-#define LISP_STRING_PORT_BUFFER(v)   ((v)->value.string_port.buffer)
-#define LISP_STRING_PORT_BYTE_LEN(v) ((v)->value.string_port.byte_len)
-#define LISP_STRING_PORT_CHAR_LEN(v) ((v)->value.string_port.char_len)
-#define LISP_STRING_PORT_BYTE_POS(v) ((v)->value.string_port.byte_pos)
-#define LISP_STRING_PORT_CHAR_POS(v) ((v)->value.string_port.char_pos)
+/* ---- String port fields (boxed out — pointer indirection) ---- */
+#define LISP_STRING_PORT_BUFFER(v)   ((v)->value.string_port->buffer)
+#define LISP_STRING_PORT_BYTE_LEN(v) ((v)->value.string_port->byte_len)
+#define LISP_STRING_PORT_CHAR_LEN(v) ((v)->value.string_port->char_len)
+#define LISP_STRING_PORT_BYTE_POS(v) ((v)->value.string_port->byte_pos)
+#define LISP_STRING_PORT_CHAR_POS(v) ((v)->value.string_port->char_pos)
 
 /* ---- File ---- */
 #define LISP_FILE_FP(v)  ((v)->value.file.fp)
 #define LISP_FILE_EOL(v) ((v)->value.file.eol)
 
-/* ---- Vector ---- */
-#define LISP_VECTOR_ITEMS(v)    ((v)->value.vector.items)
-#define LISP_VECTOR_SIZE(v)     ((v)->value.vector.size)
-#define LISP_VECTOR_CAPACITY(v) ((v)->value.vector.capacity)
+/* ---- Vector (boxed out — pointer indirection) ---- */
+#define LISP_VECTOR_ITEMS(v)    ((v)->value.vector->items)
+#define LISP_VECTOR_SIZE(v)     ((v)->value.vector->size)
+#define LISP_VECTOR_CAPACITY(v) ((v)->value.vector->capacity)
 
-/* ---- Hash table ---- */
-#define LISP_HT_BUCKETS(v)      ((v)->value.hash_table.buckets)
-#define LISP_HT_BUCKET_COUNT(v) ((v)->value.hash_table.bucket_count)
-#define LISP_HT_ENTRY_COUNT(v)  ((v)->value.hash_table.entry_count)
-#define LISP_HT_CAPACITY(v)     ((v)->value.hash_table.capacity)
+/* ---- Hash table (boxed out — pointer indirection) ---- */
+#define LISP_HT_BUCKETS(v)      ((v)->value.hash_table->buckets)
+#define LISP_HT_BUCKET_COUNT(v) ((v)->value.hash_table->bucket_count)
+#define LISP_HT_ENTRY_COUNT(v)  ((v)->value.hash_table->entry_count)
+#define LISP_HT_CAPACITY(v)     ((v)->value.hash_table->capacity)
 
 /* ---- Tail call ---- */
 #define LISP_TAIL_CALL_FUNC(v) ((v)->value.tail_call.func)

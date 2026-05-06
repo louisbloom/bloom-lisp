@@ -278,21 +278,22 @@ static LispObject *read_vector(const char **input)
         }
 
         /* Add element to vector */
-        if (vec->value.vector.size >= vec->value.vector.capacity) {
+        if (LISP_VECTOR_SIZE(vec) >= LISP_VECTOR_CAPACITY(vec)) {
             /* Expand capacity */
-            size_t new_capacity = vec->value.vector.capacity * 2;
+            size_t new_capacity = LISP_VECTOR_CAPACITY(vec) * 2;
             LispObject **new_items = GC_malloc(sizeof(LispObject *) * new_capacity);
-            for (size_t i = 0; i < vec->value.vector.size; i++) {
-                new_items[i] = vec->value.vector.items[i];
+            for (size_t i = 0; i < LISP_VECTOR_SIZE(vec); i++) {
+                new_items[i] = LISP_VECTOR_ITEMS(vec)[i];
             }
-            for (size_t i = vec->value.vector.size; i < new_capacity; i++) {
+            for (size_t i = LISP_VECTOR_SIZE(vec); i < new_capacity; i++) {
                 new_items[i] = NIL;
             }
-            vec->value.vector.items = new_items;
-            vec->value.vector.capacity = new_capacity;
+            LISP_VECTOR_ITEMS(vec) = new_items;
+            LISP_VECTOR_CAPACITY(vec) = new_capacity;
         }
 
-        vec->value.vector.items[vec->value.vector.size++] = elem;
+        LISP_VECTOR_ITEMS(vec)
+        [LISP_VECTOR_SIZE(vec)++] = elem;
 
         skip_whitespace(input);
     }

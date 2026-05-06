@@ -374,7 +374,7 @@ static void handle_line_submit(char *line)
     close(pipefd[0]);
 
     /* Display result */
-    if (eval_result->type == LISP_ERROR && !eval_result->value.error_with_stack.caught) {
+    if (eval_result->type == LISP_ERROR && !LISP_ERROR_CAUGHT(eval_result)) {
         char *err_str = lisp_print(eval_result);
         char err_buf[4096];
         snprintf(err_buf, sizeof(err_buf), "%sERROR: %s%s\n",
@@ -598,7 +598,7 @@ int main(int argc, char **argv)
 
             LispObject *result = lisp_eval(expr, env);
 
-            if (result->type == LISP_ERROR && !result->value.error_with_stack.caught) {
+            if (result->type == LISP_ERROR && !LISP_ERROR_CAUGHT(result)) {
                 char *err_str = lisp_print(result);
                 fprintf(stderr, "ERROR: %s\n", err_str);
                 lisp_cleanup();
@@ -665,7 +665,7 @@ int main(int argc, char **argv)
 
                 LispObject *result = lisp_eval(expr, env);
 
-                if (result->type == LISP_ERROR && !result->value.error_with_stack.caught) {
+                if (result->type == LISP_ERROR && !LISP_ERROR_CAUGHT(result)) {
                     char *err_str = lisp_print(result);
                     fprintf(stderr, "ERROR in %s: %s\n", argv[i], err_str);
                     return 1;

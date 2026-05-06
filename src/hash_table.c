@@ -138,8 +138,8 @@ struct HashEntry *hash_table_get_entry(LispObject *table, LispObject *key)
         return NULL;
     }
 
-    size_t hash = hash_lisp_key(key, table->value.hash_table.bucket_count);
-    struct HashEntry **buckets = (struct HashEntry **)table->value.hash_table.buckets;
+    size_t hash = hash_lisp_key(key, LISP_HT_BUCKET_COUNT(table));
+    struct HashEntry **buckets = (struct HashEntry **)LISP_HT_BUCKETS(table);
 
     struct HashEntry *entry = buckets[hash];
     while (entry) {
@@ -159,8 +159,8 @@ struct HashEntry *hash_table_set_entry(LispObject *table, LispObject *key, LispO
         return NULL;
     }
 
-    size_t hash = hash_lisp_key(key, table->value.hash_table.bucket_count);
-    struct HashEntry **buckets = (struct HashEntry **)table->value.hash_table.buckets;
+    size_t hash = hash_lisp_key(key, LISP_HT_BUCKET_COUNT(table));
+    struct HashEntry **buckets = (struct HashEntry **)LISP_HT_BUCKETS(table);
 
     /* Check if key exists */
     struct HashEntry *entry = buckets[hash];
@@ -179,7 +179,8 @@ struct HashEntry *hash_table_set_entry(LispObject *table, LispObject *key, LispO
     entry->next = buckets[hash];
     buckets[hash] = entry;
 
-    table->value.hash_table.entry_count++;
+    LISP_HT_ENTRY_COUNT(table)
+    ++;
 
     return entry;
 }
@@ -191,8 +192,8 @@ int hash_table_remove_entry(LispObject *table, LispObject *key)
         return 0;
     }
 
-    size_t hash = hash_lisp_key(key, table->value.hash_table.bucket_count);
-    struct HashEntry **buckets = (struct HashEntry **)table->value.hash_table.buckets;
+    size_t hash = hash_lisp_key(key, LISP_HT_BUCKET_COUNT(table));
+    struct HashEntry **buckets = (struct HashEntry **)LISP_HT_BUCKETS(table);
 
     struct HashEntry *entry = buckets[hash];
     struct HashEntry *prev = NULL;
@@ -204,7 +205,8 @@ int hash_table_remove_entry(LispObject *table, LispObject *key)
             } else {
                 buckets[hash] = entry->next;
             }
-            table->value.hash_table.entry_count--;
+            LISP_HT_ENTRY_COUNT(table)
+            --;
             return 1;
         }
         prev = entry;
@@ -221,9 +223,9 @@ void hash_table_clear(LispObject *table)
         return;
     }
 
-    struct HashEntry **buckets = (struct HashEntry **)table->value.hash_table.buckets;
+    struct HashEntry **buckets = (struct HashEntry **)LISP_HT_BUCKETS(table);
 
-    for (size_t i = 0; i < table->value.hash_table.bucket_count; i++) {
+    for (size_t i = 0; i < LISP_HT_BUCKET_COUNT(table); i++) {
         struct HashEntry *entry = buckets[i];
         while (entry) {
             struct HashEntry *next = entry->next;
@@ -233,5 +235,5 @@ void hash_table_clear(LispObject *table)
         buckets[i] = NULL;
     }
 
-    table->value.hash_table.entry_count = 0;
+    LISP_HT_ENTRY_COUNT(table) = 0;
 }

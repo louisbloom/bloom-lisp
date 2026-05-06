@@ -107,19 +107,19 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
 
     case LISP_LAMBDA:
         append_str(buffer, size, pos, "#<lambda ");
-        if (obj->value.lambda.name != NULL) {
-            append_str(buffer, size, pos, obj->value.lambda.name);
+        if (LISP_LAMBDA_NAME(obj) != NULL) {
+            append_str(buffer, size, pos, LISP_LAMBDA_NAME(obj));
             append_str(buffer, size, pos, " ");
         }
         /* Print full parameter list (shows &optional and &rest markers) */
-        print_object(obj->value.lambda.params, buffer, size, pos);
+        print_object(LISP_LAMBDA_PARAMS(obj), buffer, size, pos);
         append_str(buffer, size, pos, ">");
         break;
 
     case LISP_MACRO:
-        if (obj->value.macro.name != NULL) {
+        if (LISP_MACRO_NAME(obj) != NULL) {
             append_str(buffer, size, pos, "#<macro:");
-            append_str(buffer, size, pos, obj->value.macro.name);
+            append_str(buffer, size, pos, LISP_MACRO_NAME(obj));
             append_str(buffer, size, pos, ">");
         } else {
             append_str(buffer, size, pos, "#<macro>");
@@ -131,26 +131,26 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         append_str(buffer, size, pos, "ERROR: [");
 
         /* Print error type symbol */
-        if (obj->value.error_with_stack.error_type != NULL &&
-            obj->value.error_with_stack.error_type->type == LISP_SYMBOL) {
-            append_str(buffer, size, pos, obj->value.error_with_stack.error_type->value.symbol->name);
+        if (LISP_ERROR_TYPE(obj) != NULL &&
+            LISP_ERROR_TYPE(obj)->type == LISP_SYMBOL) {
+            append_str(buffer, size, pos, LISP_ERROR_TYPE(obj)->value.symbol->name);
         } else {
             append_str(buffer, size, pos, "error");
         }
 
         append_str(buffer, size, pos, "] ");
-        append_str(buffer, size, pos, obj->value.error_with_stack.message);
+        append_str(buffer, size, pos, LISP_ERROR_MESSAGE(obj));
 
         /* Print data if present */
-        if (obj->value.error_with_stack.data != NIL && obj->value.error_with_stack.data != NULL) {
+        if (LISP_ERROR_DATA(obj) != NIL && LISP_ERROR_DATA(obj) != NULL) {
             append_str(buffer, size, pos, " (data: ");
-            print_object(obj->value.error_with_stack.data, buffer, size, pos);
+            print_object(LISP_ERROR_DATA(obj), buffer, size, pos);
             append_str(buffer, size, pos, ")");
         }
 
         /* Print stack trace if available */
-        if (obj->value.error_with_stack.stack_trace != NIL && obj->value.error_with_stack.stack_trace != NULL) {
-            LispObject *stack = obj->value.error_with_stack.stack_trace;
+        if (LISP_ERROR_STACK_TRACE(obj) != NIL && LISP_ERROR_STACK_TRACE(obj) != NULL) {
+            LispObject *stack = LISP_ERROR_STACK_TRACE(obj);
             append_str(buffer, size, pos, "\nCall stack:");
             int frame_num = 0;
             while (stack != NIL && stack->type == LISP_CONS && frame_num < 20) {
@@ -217,11 +217,11 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
 
     case LISP_VECTOR:
         append_str(buffer, size, pos, "#(");
-        for (size_t i = 0; i < obj->value.vector.size; i++) {
+        for (size_t i = 0; i < LISP_VECTOR_SIZE(obj); i++) {
             if (i > 0) {
                 append_str(buffer, size, pos, " ");
             }
-            print_object(obj->value.vector.items[i], buffer, size, pos);
+            print_object(LISP_VECTOR_ITEMS(obj)[i], buffer, size, pos);
         }
         append_str(buffer, size, pos, ")");
         break;
@@ -239,8 +239,8 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         break;
 
     case LISP_STRING_PORT:
-        snprintf(temp, sizeof(temp), "#<string-port %zu/%zu>", obj->value.string_port.char_pos,
-                 obj->value.string_port.char_len);
+        snprintf(temp, sizeof(temp), "#<string-port %zu/%zu>", LISP_STRING_PORT_CHAR_POS(obj),
+                 LISP_STRING_PORT_CHAR_LEN(obj));
         append_str(buffer, size, pos, temp);
         break;
 
@@ -327,17 +327,17 @@ static void princ_object(LispObject *obj)
 
     case LISP_LAMBDA:
         printf("#<lambda ");
-        if (obj->value.lambda.name != NULL) {
-            printf("%s ", obj->value.lambda.name);
+        if (LISP_LAMBDA_NAME(obj) != NULL) {
+            printf("%s ", LISP_LAMBDA_NAME(obj));
         }
         /* Print full parameter list (shows &optional and &rest markers) */
-        princ_object(obj->value.lambda.params);
+        princ_object(LISP_LAMBDA_PARAMS(obj));
         printf(">");
         break;
 
     case LISP_MACRO:
-        if (obj->value.macro.name != NULL) {
-            printf("#<macro:%s>", obj->value.macro.name);
+        if (LISP_MACRO_NAME(obj) != NULL) {
+            printf("#<macro:%s>", LISP_MACRO_NAME(obj));
         } else {
             printf("#<macro>");
         }
@@ -348,25 +348,25 @@ static void princ_object(LispObject *obj)
         printf("ERROR: [");
 
         /* Print error type symbol */
-        if (obj->value.error_with_stack.error_type != NULL &&
-            obj->value.error_with_stack.error_type->type == LISP_SYMBOL) {
-            printf("%s", obj->value.error_with_stack.error_type->value.symbol->name);
+        if (LISP_ERROR_TYPE(obj) != NULL &&
+            LISP_ERROR_TYPE(obj)->type == LISP_SYMBOL) {
+            printf("%s", LISP_ERROR_TYPE(obj)->value.symbol->name);
         } else {
             printf("error");
         }
 
-        printf("] %s", obj->value.error_with_stack.message);
+        printf("] %s", LISP_ERROR_MESSAGE(obj));
 
         /* Print data if present */
-        if (obj->value.error_with_stack.data != NIL && obj->value.error_with_stack.data != NULL) {
+        if (LISP_ERROR_DATA(obj) != NIL && LISP_ERROR_DATA(obj) != NULL) {
             printf(" (data: ");
-            princ_object(obj->value.error_with_stack.data);
+            princ_object(LISP_ERROR_DATA(obj));
             printf(")");
         }
 
         /* Print stack trace if available */
-        if (obj->value.error_with_stack.stack_trace != NIL && obj->value.error_with_stack.stack_trace != NULL) {
-            LispObject *stack = obj->value.error_with_stack.stack_trace;
+        if (LISP_ERROR_STACK_TRACE(obj) != NIL && LISP_ERROR_STACK_TRACE(obj) != NULL) {
+            LispObject *stack = LISP_ERROR_STACK_TRACE(obj);
             printf("\nCall stack:");
             int frame_num = 0;
             while (stack != NIL && stack->type == LISP_CONS && frame_num < 20) {
@@ -399,11 +399,11 @@ static void princ_object(LispObject *obj)
 
     case LISP_VECTOR:
         printf("#(");
-        for (size_t i = 0; i < obj->value.vector.size; i++) {
+        for (size_t i = 0; i < LISP_VECTOR_SIZE(obj); i++) {
             if (i > 0) {
                 printf(" ");
             }
-            princ_object(obj->value.vector.items[i]);
+            princ_object(LISP_VECTOR_ITEMS(obj)[i]);
         }
         printf(")");
         break;
@@ -421,7 +421,7 @@ static void princ_object(LispObject *obj)
         break;
 
     case LISP_STRING_PORT:
-        printf("#<string-port %zu/%zu>", obj->value.string_port.char_pos, obj->value.string_port.char_len);
+        printf("#<string-port %zu/%zu>", LISP_STRING_PORT_CHAR_POS(obj), LISP_STRING_PORT_CHAR_LEN(obj));
         break;
 
     case LISP_REGEX:

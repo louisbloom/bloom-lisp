@@ -84,7 +84,7 @@ static LispObject *builtin_hash_count(LispObject *args, Environment *env)
         return lisp_make_error("hash-count requires a hash table");
     }
 
-    return lisp_make_integer((long long)table->value.hash_table.entry_count);
+    return lisp_make_integer((long long)LISP_HT_ENTRY_COUNT(table));
 }
 
 enum hash_iter_mode
@@ -96,8 +96,8 @@ enum hash_iter_mode
 
 static LispObject *hash_table_collect(LispObject *table, enum hash_iter_mode mode)
 {
-    struct HashEntry **buckets = (struct HashEntry **)table->value.hash_table.buckets;
-    size_t bucket_count = table->value.hash_table.bucket_count;
+    struct HashEntry **buckets = (struct HashEntry **)LISP_HT_BUCKETS(table);
+    size_t bucket_count = LISP_HT_BUCKET_COUNT(table);
     LispObject *result = NIL;
     LispObject *tail = NULL;
 

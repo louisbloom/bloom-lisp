@@ -5,7 +5,7 @@
 /* Helper function to check if an error should propagate */
 static int should_propagate_error(LispObject *obj)
 {
-    return (obj->type == LISP_ERROR && !obj->value.error_with_stack.caught);
+    return (obj->type == LISP_ERROR && !LISP_ERROR_CAUGHT(obj));
 }
 
 /* Forward declarations */
@@ -327,18 +327,18 @@ static LispObject *eval_define(LispObject *args, Environment *env)
     }
 
     /* If defining a lambda, attach the name for better debugging */
-    if (value->type == LISP_LAMBDA && value->value.lambda.name == NULL) {
-        value->value.lambda.name = GC_strdup(name->value.symbol->name);
+    if (value->type == LISP_LAMBDA && LISP_LAMBDA_NAME(value) == NULL) {
+        LISP_LAMBDA_NAME(value) = GC_strdup(name->value.symbol->name);
     }
 
     Symbol *pkg = env_current_package(env);
     env_define(env, name->value.symbol, value, pkg);
 
     /* Copy lambda/macro docstrings to symbol for uniform access via documentation */
-    if (value->type == LISP_LAMBDA && value->value.lambda.docstring != NULL) {
-        name->value.symbol->docstring = GC_strdup(value->value.lambda.docstring);
-    } else if (value->type == LISP_MACRO && value->value.macro.docstring != NULL) {
-        name->value.symbol->docstring = GC_strdup(value->value.macro.docstring);
+    if (value->type == LISP_LAMBDA && LISP_LAMBDA_DOCSTRING(value) != NULL) {
+        name->value.symbol->docstring = GC_strdup(LISP_LAMBDA_DOCSTRING(value));
+    } else if (value->type == LISP_MACRO && LISP_MACRO_DOCSTRING(value) != NULL) {
+        name->value.symbol->docstring = GC_strdup(LISP_MACRO_DOCSTRING(value));
     }
 
     return value;
@@ -568,7 +568,7 @@ static LispObject *eval_lambda(LispObject *args, Environment *env)
 
     /* Set docstring if extracted */
     if (docstring != NULL) {
-        lambda->value.lambda.docstring = docstring;
+        LISP_LAMBDA_DOCSTRING(lambda) = docstring;
     }
 
     return lambda;
@@ -613,7 +613,7 @@ static LispObject *eval_defmacro(LispObject *args, Environment *env)
 
     /* Set docstring if extracted */
     if (docstring != NULL) {
-        macro->value.macro.docstring = docstring;
+        LISP_MACRO_DOCSTRING(macro) = docstring;
     }
 
     /* Define it in the environment */
@@ -621,8 +621,8 @@ static LispObject *eval_defmacro(LispObject *args, Environment *env)
     env_define(env, name->value.symbol, macro, pkg);
 
     /* Copy macro docstring to symbol for uniform access via documentation */
-    if (macro->value.macro.docstring != NULL) {
-        name->value.symbol->docstring = GC_strdup(macro->value.macro.docstring);
+    if (LISP_MACRO_DOCSTRING(macro) != NULL) {
+        name->value.symbol->docstring = GC_strdup(LISP_MACRO_DOCSTRING(macro));
     }
 
     return macro;
@@ -715,10 +715,10 @@ static LispObject *expand_macro(LispObject *macro, LispObject *args, Environment
 {
     (void)env; /* Unused - macros use their own closure environment */
     /* Create new environment with macro's closure as parent */
-    Environment *new_env = env_create(macro->value.macro.closure);
+    Environment *new_env = env_create(LISP_MACRO_CLOSURE(macro));
 
     /* Bind parameters to UNEVALUATED arguments */
-    LispObject *params = macro->value.macro.params;
+    LispObject *params = LISP_MACRO_PARAMS(macro);
     LispObject *arg_list = args;
 
     while (params != NIL && params != NULL) {
@@ -757,7 +757,7 @@ static LispObject *expand_macro(LispObject *macro, LispObject *args, Environment
 
     /* Evaluate body (implicit progn) and return the result */
     /* This is the expansion, not the final result */
-    return eval_progn(macro->value.macro.body, new_env, 0);
+    return eval_progn(LISP_MACRO_BODY(macro), new_env, 0);
 }
 
 static LispObject *eval_let(LispObject *args, Environment *env, int in_tail_position)
@@ -1234,7 +1234,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
 
         /* Not in tail position - execute normally */
         /* Create new environment with closure as parent */
-        Environment *new_env = env_create(func->value.lambda.closure);
+        Environment *new_env = env_create(LISP_LAMBDA_CLOSURE(func));
         if (env && env->call_stack != NULL) {
             new_env->call_stack = env->call_stack; /* Inherit call stack */
         }
@@ -1242,20 +1242,20 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
         /* Generate lambda name for stack trace */
         char lambda_name[128];
         const char *frame_name;
-        LispObject *lambda_params = func->value.lambda.params;
+        LispObject *lambda_params = LISP_LAMBDA_PARAMS(func);
 
         /* Priority: 1) stored name, 2) lambda/param, 3) lambda */
-        if (func->value.lambda.name != NULL) {
-            frame_name = func->value.lambda.name;
+        if (LISP_LAMBDA_NAME(func) != NULL) {
+            frame_name = LISP_LAMBDA_NAME(func);
         } else {
             if (lambda_params != NIL && lambda_params->type == LISP_CONS && lisp_car(lambda_params) != NULL &&
                 lisp_car(lambda_params)->type == LISP_SYMBOL) {
                 snprintf(lambda_name, sizeof(lambda_name), "lambda/%s", lisp_car(lambda_params)->value.symbol->name);
-                func->value.lambda.name = GC_strdup(lambda_name);
-                frame_name = func->value.lambda.name;
+                LISP_LAMBDA_NAME(func) = GC_strdup(lambda_name);
+                frame_name = LISP_LAMBDA_NAME(func);
             } else {
-                func->value.lambda.name = "lambda";
-                frame_name = func->value.lambda.name;
+                LISP_LAMBDA_NAME(func) = "lambda";
+                frame_name = LISP_LAMBDA_NAME(func);
             }
         }
 
@@ -1263,9 +1263,9 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
         push_call_frame(new_env, frame_name);
 
         /* Bind parameters (with optional and rest support) */
-        int required_count = func->value.lambda.required_count;
-        int optional_count = func->value.lambda.optional_count;
-        LispObject *rest_param = func->value.lambda.rest_param;
+        int required_count = LISP_LAMBDA_REQUIRED_COUNT(func);
+        int optional_count = LISP_LAMBDA_OPTIONAL_COUNT(func);
+        LispObject *rest_param = LISP_LAMBDA_REST_PARAM(func);
 
         /* Count arguments */
         int arg_count = 0;
@@ -1288,7 +1288,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
         }
 
         /* Bind required parameters */
-        LispObject *params = func->value.lambda.required_params;
+        LispObject *params = LISP_LAMBDA_REQUIRED_PARAMS(func);
         LispObject *arg_list = args;
         while (params != NIL && params != NULL) {
             LispObject *param = lisp_car(params);
@@ -1299,7 +1299,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
         }
 
         /* Bind optional parameters (default to nil) */
-        LispObject *opt_params = func->value.lambda.optional_params;
+        LispObject *opt_params = LISP_LAMBDA_OPTIONAL_PARAMS(func);
         while (opt_params != NIL && opt_params != NULL) {
             LispObject *param_sym = lisp_car(opt_params);
             LispObject *value = (arg_list != NIL) ? lisp_car(arg_list) : NIL;
@@ -1317,7 +1317,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
 
         /* Evaluate body with tail position awareness (implicit progn) */
         /* Last expression in body is always in tail position (for non-tail calls) */
-        LispObject *result = eval_progn(func->value.lambda.body, new_env, 1);
+        LispObject *result = eval_progn(LISP_LAMBDA_BODY(func), new_env, 1);
 
         /* Trampoline loop: unwrap tail calls WITHOUT recursive apply() calls */
         /* This is the TCO fix: inline lambda execution to avoid C stack growth */
@@ -1342,34 +1342,34 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
             pop_call_frame(new_env);
 
             /* Create NEW environment for tail-called lambda */
-            Environment *tail_env = env_create(tail_func->value.lambda.closure);
+            Environment *tail_env = env_create(LISP_LAMBDA_CLOSURE(tail_func));
             tail_env->call_stack = new_env->call_stack; /* Inherit call stack */
 
             /* Generate lambda name for stack trace */
             char tail_lambda_name[128];
             const char *tail_frame_name;
-            LispObject *tail_lambda_params = tail_func->value.lambda.params;
+            LispObject *tail_lambda_params = LISP_LAMBDA_PARAMS(tail_func);
 
-            if (tail_func->value.lambda.name != NULL) {
-                tail_frame_name = tail_func->value.lambda.name;
+            if (LISP_LAMBDA_NAME(tail_func) != NULL) {
+                tail_frame_name = LISP_LAMBDA_NAME(tail_func);
             } else if (tail_lambda_params != NIL && tail_lambda_params->type == LISP_CONS &&
                        lisp_car(tail_lambda_params) != NULL && lisp_car(tail_lambda_params)->type == LISP_SYMBOL) {
                 snprintf(tail_lambda_name, sizeof(tail_lambda_name), "lambda/%s",
                          lisp_car(tail_lambda_params)->value.symbol->name);
-                tail_func->value.lambda.name = GC_strdup(tail_lambda_name);
-                tail_frame_name = tail_func->value.lambda.name;
+                LISP_LAMBDA_NAME(tail_func) = GC_strdup(tail_lambda_name);
+                tail_frame_name = LISP_LAMBDA_NAME(tail_func);
             } else {
-                tail_func->value.lambda.name = "lambda";
-                tail_frame_name = tail_func->value.lambda.name;
+                LISP_LAMBDA_NAME(tail_func) = "lambda";
+                tail_frame_name = LISP_LAMBDA_NAME(tail_func);
             }
 
             /* Push call frame for tail-called lambda */
             push_call_frame(tail_env, tail_frame_name);
 
             /* Bind parameters (with optional and rest support) */
-            int tail_required_count = tail_func->value.lambda.required_count;
-            int tail_optional_count = tail_func->value.lambda.optional_count;
-            LispObject *tail_rest_param = tail_func->value.lambda.rest_param;
+            int tail_required_count = LISP_LAMBDA_REQUIRED_COUNT(tail_func);
+            int tail_optional_count = LISP_LAMBDA_OPTIONAL_COUNT(tail_func);
+            LispObject *tail_rest_param = LISP_LAMBDA_REST_PARAM(tail_func);
 
             /* Count arguments */
             int tail_arg_count = 0;
@@ -1392,7 +1392,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
             }
 
             /* Bind required parameters */
-            LispObject *tail_params = tail_func->value.lambda.required_params;
+            LispObject *tail_params = LISP_LAMBDA_REQUIRED_PARAMS(tail_func);
             LispObject *tail_arg_list = tail_args;
             while (tail_params != NIL && tail_params != NULL) {
                 LispObject *tail_param = lisp_car(tail_params);
@@ -1403,7 +1403,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
             }
 
             /* Bind optional parameters (default to nil) */
-            LispObject *tail_opt_params = tail_func->value.lambda.optional_params;
+            LispObject *tail_opt_params = LISP_LAMBDA_OPTIONAL_PARAMS(tail_func);
             while (tail_opt_params != NIL && tail_opt_params != NULL) {
                 LispObject *tail_param_sym = lisp_car(tail_opt_params);
                 LispObject *tail_value = (tail_arg_list != NIL) ? lisp_car(tail_arg_list) : NIL;
@@ -1420,7 +1420,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
             }
 
             /* Execute lambda body (in tail position) */
-            result = eval_progn(tail_func->value.lambda.body, tail_env, 1);
+            result = eval_progn(LISP_LAMBDA_BODY(tail_func), tail_env, 1);
 
             /* Update new_env to tail_env for next iteration */
             new_env = tail_env;
@@ -1544,7 +1544,7 @@ static LispObject *eval_condition_case(LispObject *args, Environment *env, int i
     /* Check if error occurred */
     if (result->type == LISP_ERROR) {
         /* Find matching handler */
-        LispObject *error_type = result->value.error_with_stack.error_type;
+        LispObject *error_type = LISP_ERROR_TYPE(result);
         LispObject *matching_handler = NIL;
         LispObject *error_catch_all = NIL; /* Track 'error handler separately */
 
@@ -1576,7 +1576,7 @@ static LispObject *eval_condition_case(LispObject *args, Environment *env, int i
             LispObject *handler_body = lisp_cdr(matching_handler);
 
             /* Mark error as caught to prevent further propagation */
-            result->value.error_with_stack.caught = 1;
+            LISP_ERROR_CAUGHT(result) = 1;
 
             /* Bind error to VAR in current environment if specified */
             LispObject *saved_binding = NULL;

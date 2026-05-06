@@ -191,11 +191,12 @@ LispObject *lisp_make_typed_error(LispObject *error_type, const char *message, L
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_ERROR;
-    obj->value.error_with_stack.error_type = error_type;
-    obj->value.error_with_stack.message = GC_strdup(message);
-    obj->value.error_with_stack.data = data;
-    obj->value.error_with_stack.stack_trace = (env != NULL) ? capture_call_stack(env) : NIL;
-    obj->value.error_with_stack.caught = 0; /* Not caught initially - will propagate */
+    obj->value.error_with_stack = GC_malloc(sizeof(ErrorInfo));
+    LISP_ERROR_TYPE(obj) = error_type;
+    LISP_ERROR_MESSAGE(obj) = GC_strdup(message);
+    LISP_ERROR_DATA(obj) = data;
+    LISP_ERROR_STACK_TRACE(obj) = (env != NULL) ? capture_call_stack(env) : NIL;
+    LISP_ERROR_CAUGHT(obj) = 0; /* Not caught initially - will propagate */
     return obj;
 }
 
@@ -220,8 +221,8 @@ LispObject *lisp_make_error_with_stack(const char *message, Environment *env)
 LispObject *lisp_attach_stack_trace(LispObject *error, Environment *env)
 {
     if (error->type == LISP_ERROR) {
-        if (error->value.error_with_stack.stack_trace == NIL || error->value.error_with_stack.stack_trace == NULL) {
-            error->value.error_with_stack.stack_trace = capture_call_stack(env);
+        if (LISP_ERROR_STACK_TRACE(error) == NIL || LISP_ERROR_STACK_TRACE(error) == NULL) {
+            LISP_ERROR_STACK_TRACE(error) = capture_call_stack(env);
         }
     }
     return error;
@@ -240,16 +241,17 @@ LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_LAMBDA;
-    obj->value.lambda.params = params;
-    obj->value.lambda.required_params = params; /* For backward compat: all params are required */
-    obj->value.lambda.optional_params = NIL;
-    obj->value.lambda.rest_param = NULL;
-    obj->value.lambda.required_count = 0; /* Will be computed during apply */
-    obj->value.lambda.optional_count = 0;
-    obj->value.lambda.body = body;
-    obj->value.lambda.closure = closure;
-    obj->value.lambda.name = name ? GC_strdup(name) : NULL;
-    obj->value.lambda.docstring = NULL;
+    obj->value.lambda = GC_malloc(sizeof(LambdaInfo));
+    LISP_LAMBDA_PARAMS(obj) = params;
+    LISP_LAMBDA_REQUIRED_PARAMS(obj) = params; /* For backward compat: all params are required */
+    LISP_LAMBDA_OPTIONAL_PARAMS(obj) = NIL;
+    LISP_LAMBDA_REST_PARAM(obj) = NULL;
+    LISP_LAMBDA_REQUIRED_COUNT(obj) = 0; /* Will be computed during apply */
+    LISP_LAMBDA_OPTIONAL_COUNT(obj) = 0;
+    LISP_LAMBDA_BODY(obj) = body;
+    LISP_LAMBDA_CLOSURE(obj) = closure;
+    LISP_LAMBDA_NAME(obj) = name ? GC_strdup(name) : NULL;
+    LISP_LAMBDA_DOCSTRING(obj) = NULL;
     return obj;
 }
 
@@ -259,16 +261,17 @@ LispObject *lisp_make_lambda_ext(LispObject *params, LispObject *required_params
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_LAMBDA;
-    obj->value.lambda.params = params;
-    obj->value.lambda.required_params = required_params;
-    obj->value.lambda.optional_params = optional_params;
-    obj->value.lambda.rest_param = rest_param;
-    obj->value.lambda.required_count = required_count;
-    obj->value.lambda.optional_count = optional_count;
-    obj->value.lambda.body = body;
-    obj->value.lambda.closure = closure;
-    obj->value.lambda.name = name ? GC_strdup(name) : NULL;
-    obj->value.lambda.docstring = NULL;
+    obj->value.lambda = GC_malloc(sizeof(LambdaInfo));
+    LISP_LAMBDA_PARAMS(obj) = params;
+    LISP_LAMBDA_REQUIRED_PARAMS(obj) = required_params;
+    LISP_LAMBDA_OPTIONAL_PARAMS(obj) = optional_params;
+    LISP_LAMBDA_REST_PARAM(obj) = rest_param;
+    LISP_LAMBDA_REQUIRED_COUNT(obj) = required_count;
+    LISP_LAMBDA_OPTIONAL_COUNT(obj) = optional_count;
+    LISP_LAMBDA_BODY(obj) = body;
+    LISP_LAMBDA_CLOSURE(obj) = closure;
+    LISP_LAMBDA_NAME(obj) = name ? GC_strdup(name) : NULL;
+    LISP_LAMBDA_DOCSTRING(obj) = NULL;
     return obj;
 }
 
@@ -276,11 +279,12 @@ LispObject *lisp_make_macro(LispObject *params, LispObject *body, Environment *c
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_MACRO;
-    obj->value.macro.params = params;
-    obj->value.macro.body = body;
-    obj->value.macro.closure = closure;
-    obj->value.macro.name = name ? GC_strdup(name) : NULL;
-    obj->value.macro.docstring = NULL;
+    obj->value.macro = GC_malloc(sizeof(MacroInfo));
+    LISP_MACRO_PARAMS(obj) = params;
+    LISP_MACRO_BODY(obj) = body;
+    LISP_MACRO_CLOSURE(obj) = closure;
+    LISP_MACRO_NAME(obj) = name ? GC_strdup(name) : NULL;
+    LISP_MACRO_DOCSTRING(obj) = NULL;
     return obj;
 }
 
@@ -297,11 +301,12 @@ LispObject *lisp_make_string_port(const char *str)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_STRING_PORT;
-    obj->value.string_port.buffer = GC_strdup(str);
-    obj->value.string_port.byte_len = strlen(str);
-    obj->value.string_port.char_len = utf8_strlen(str);
-    obj->value.string_port.byte_pos = 0;
-    obj->value.string_port.char_pos = 0;
+    obj->value.string_port = GC_malloc(sizeof(StringPortInfo));
+    LISP_STRING_PORT_BUFFER(obj) = GC_strdup(str);
+    LISP_STRING_PORT_BYTE_LEN(obj) = strlen(str);
+    LISP_STRING_PORT_CHAR_LEN(obj) = utf8_strlen(str);
+    LISP_STRING_PORT_BYTE_POS(obj) = 0;
+    LISP_STRING_PORT_CHAR_POS(obj) = 0;
     return obj;
 }
 
@@ -388,12 +393,14 @@ LispObject *lisp_make_vector(size_t capacity)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_VECTOR;
-    obj->value.vector.capacity = capacity > 0 ? capacity : 8;
-    obj->value.vector.size = 0;
-    obj->value.vector.items = GC_malloc(sizeof(LispObject *) * obj->value.vector.capacity);
+    obj->value.vector = GC_malloc(sizeof(VectorInfo));
+    LISP_VECTOR_CAPACITY(obj) = capacity > 0 ? capacity : 8;
+    LISP_VECTOR_SIZE(obj) = 0;
+    LISP_VECTOR_ITEMS(obj) = GC_malloc(sizeof(LispObject *) * LISP_VECTOR_CAPACITY(obj));
     /* Initialize to NULL */
-    for (size_t i = 0; i < obj->value.vector.capacity; i++) {
-        obj->value.vector.items[i] = NIL;
+    for (size_t i = 0; i < LISP_VECTOR_CAPACITY(obj); i++) {
+        LISP_VECTOR_ITEMS(obj)
+        [i] = NIL;
     }
     return obj;
 }
@@ -402,13 +409,14 @@ LispObject *lisp_make_hash_table(void)
 {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_HASH_TABLE;
-    obj->value.hash_table.capacity = 16;
-    obj->value.hash_table.bucket_count = 16;
-    obj->value.hash_table.entry_count = 0;
-    obj->value.hash_table.buckets = GC_malloc(sizeof(void *) * 16);
+    obj->value.hash_table = GC_malloc(sizeof(HashTableInfo));
+    LISP_HT_CAPACITY(obj) = 16;
+    LISP_HT_BUCKET_COUNT(obj) = 16;
+    LISP_HT_ENTRY_COUNT(obj) = 0;
+    LISP_HT_BUCKETS(obj) = GC_malloc(sizeof(void *) * 16);
     /* Initialize buckets to NULL */
     for (size_t i = 0; i < 16; i++) {
-        ((void **)obj->value.hash_table.buckets)[i] = NULL;
+        ((void **)LISP_HT_BUCKETS(obj))[i] = NULL;
     }
     return obj;
 }

@@ -91,6 +91,64 @@ typedef enum
 /* Built-in function pointer type */
 typedef LispObject *(*BuiltinFunc)(LispObject *args, Environment *env);
 
+/* Boxed-out info structs — separately allocated to keep sizeof(LispObject)
+ * small (~24 bytes instead of ~80). Heap-only; immediates never reach them. */
+typedef struct LambdaInfo
+{
+    LispObject *params;          /* Full parameter list (for display) */
+    LispObject *required_params; /* List of required parameter symbols */
+    LispObject *optional_params; /* List of optional parameter symbols */
+    LispObject *rest_param;      /* Rest parameter symbol (or NULL) */
+    int required_count;          /* Number of required params */
+    int optional_count;          /* Number of optional params */
+    LispObject *body;            /* Body expressions */
+    Environment *closure;        /* Lexical environment */
+    char *name;                  /* Optional function name for debugging */
+    char *docstring;             /* Documentation string (CommonMark format) */
+} LambdaInfo;
+
+typedef struct MacroInfo
+{
+    LispObject *params;
+    LispObject *body;
+    Environment *closure;
+    char *name;      /* Optional macro name for debugging */
+    char *docstring; /* Documentation string (CommonMark format) */
+} MacroInfo;
+
+typedef struct ErrorInfo
+{
+    LispObject *error_type;  /* Symbol: 'error, 'division-by-zero, etc. */
+    char *message;           /* Human-readable error message */
+    LispObject *data;        /* Optional arbitrary data (can be NIL) */
+    LispObject *stack_trace; /* List of function names */
+    int caught;              /* Flag: if true, error won't propagate (caught by condition-case) */
+} ErrorInfo;
+
+typedef struct StringPortInfo
+{
+    char *buffer;    /* The string data */
+    size_t byte_len; /* Total byte length (cached) */
+    size_t char_len; /* Total character count (cached) */
+    size_t byte_pos; /* Current byte position */
+    size_t char_pos; /* Current character position */
+} StringPortInfo;
+
+typedef struct VectorInfo
+{
+    LispObject **items;
+    size_t size;
+    size_t capacity;
+} VectorInfo;
+
+typedef struct HashTableInfo
+{
+    void *buckets; /* Array of hash entry lists */
+    size_t bucket_count;
+    size_t entry_count;
+    size_t capacity;
+} HashTableInfo;
+
 /* Lisp object structure */
 struct LispObject
 {
@@ -113,28 +171,9 @@ struct LispObject
             BuiltinFunc func;
             const char *name;
         } builtin;
-        struct
-        {
-            LispObject *params;          /* Full parameter list (for display) */
-            LispObject *required_params; /* List of required parameter symbols */
-            LispObject *optional_params; /* List of optional parameter symbols */
-            LispObject *rest_param;      /* Rest parameter symbol (or NULL) */
-            int required_count;          /* Number of required params */
-            int optional_count;          /* Number of optional params */
-            LispObject *body;            /* Body expressions */
-            Environment *closure;        /* Lexical environment */
-            char *name;                  /* Optional function name for debugging */
-            char *docstring;             /* Documentation string (CommonMark format) */
-        } lambda;
-        struct
-        {
-            LispObject *params;
-            LispObject *body;
-            Environment *closure;
-            char *name;      /* Optional macro name for debugging */
-            char *docstring; /* Documentation string (CommonMark format) */
-        } macro;
-        char *error;
+        LambdaInfo *lambda; /* Boxed out — stable pointer */
+        MacroInfo *macro;   /* Boxed out — stable pointer */
+        char *error;        /* Legacy; LISP_ERROR uses error_with_stack */
         struct
         {
             FILE *fp;
@@ -147,40 +186,15 @@ struct LispObject
              * Lisp-style transparent EOL handling). */
             char eol[4];
         } file;
-        struct
-        {
-            LispObject **items;
-            size_t size;
-            size_t capacity;
-        } vector;
-        struct
-        {
-            void *buckets; // Array of hash entry lists
-            size_t bucket_count;
-            size_t entry_count;
-            size_t capacity;
-        } hash_table;
-        struct
-        {
-            LispObject *error_type;  /* Symbol: 'error, 'division-by-zero, etc. */
-            char *message;           /* Human-readable error message */
-            LispObject *data;        /* Optional arbitrary data (can be NIL) */
-            LispObject *stack_trace; /* List of function names */
-            int caught;              /* Flag: if true, error won't propagate (caught by condition-case) */
-        } error_with_stack;
+        VectorInfo *vector;          /* Boxed out — stable pointer */
+        HashTableInfo *hash_table;   /* Boxed out — stable pointer */
+        ErrorInfo *error_with_stack; /* Boxed out — stable pointer */
         struct
         {
             LispObject *func; /* Function to call in tail position */
             LispObject *args; /* Already-evaluated arguments */
         } tail_call;
-        struct
-        {
-            char *buffer;    /* The string data */
-            size_t byte_len; /* Total byte length (cached) */
-            size_t char_len; /* Total character count (cached) */
-            size_t byte_pos; /* Current byte position */
-            size_t char_pos; /* Current character position */
-        } string_port;
+        StringPortInfo *string_port; /* Boxed out — stable pointer */
         struct
         {
             pcre2_code *code; /* Compiled PCRE2 pattern; freed by GC finalizer */

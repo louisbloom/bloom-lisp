@@ -23,11 +23,11 @@ static LispObject *builtin_port_peek_char(LispObject *args, Environment *env)
         return lisp_make_error("port-peek-char requires a string port");
     }
 
-    if (port->value.string_port.byte_pos >= port->value.string_port.byte_len) {
+    if (LISP_STRING_PORT_BYTE_POS(port) >= LISP_STRING_PORT_BYTE_LEN(port)) {
         return NIL; /* EOF */
     }
 
-    const char *ptr = port->value.string_port.buffer + port->value.string_port.byte_pos;
+    const char *ptr = LISP_STRING_PORT_BUFFER(port) + LISP_STRING_PORT_BYTE_POS(port);
     return lisp_make_char(utf8_get_codepoint(ptr));
 }
 
@@ -41,15 +41,16 @@ static LispObject *builtin_port_read_char(LispObject *args, Environment *env)
         return lisp_make_error("port-read-char requires a string port");
     }
 
-    if (port->value.string_port.byte_pos >= port->value.string_port.byte_len) {
+    if (LISP_STRING_PORT_BYTE_POS(port) >= LISP_STRING_PORT_BYTE_LEN(port)) {
         return NIL; /* EOF */
     }
 
-    const char *ptr = port->value.string_port.buffer + port->value.string_port.byte_pos;
+    const char *ptr = LISP_STRING_PORT_BUFFER(port) + LISP_STRING_PORT_BYTE_POS(port);
     unsigned int cp = utf8_get_codepoint(ptr);
     int bytes = utf8_char_bytes(ptr);
-    port->value.string_port.byte_pos += bytes;
-    port->value.string_port.char_pos++;
+    LISP_STRING_PORT_BYTE_POS(port) += bytes;
+    LISP_STRING_PORT_CHAR_POS(port)
+    ++;
     return lisp_make_char(cp);
 }
 
@@ -63,7 +64,7 @@ static LispObject *builtin_port_position(LispObject *args, Environment *env)
         return lisp_make_error("port-position requires a string port");
     }
 
-    return lisp_make_integer((long long)port->value.string_port.char_pos);
+    return lisp_make_integer((long long)LISP_STRING_PORT_CHAR_POS(port));
 }
 
 static LispObject *builtin_port_source(LispObject *args, Environment *env)
@@ -76,7 +77,7 @@ static LispObject *builtin_port_source(LispObject *args, Environment *env)
         return lisp_make_error("port-source requires a string port");
     }
 
-    return lisp_make_string(port->value.string_port.buffer);
+    return lisp_make_string(LISP_STRING_PORT_BUFFER(port));
 }
 
 static LispObject *builtin_port_eof_question(LispObject *args, Environment *env)
@@ -89,7 +90,7 @@ static LispObject *builtin_port_eof_question(LispObject *args, Environment *env)
         return lisp_make_error("port-eof? requires a string port");
     }
 
-    if (port->value.string_port.byte_pos >= port->value.string_port.byte_len) {
+    if (LISP_STRING_PORT_BYTE_POS(port) >= LISP_STRING_PORT_BYTE_LEN(port)) {
         return LISP_TRUE;
     }
     return NIL;

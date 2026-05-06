@@ -24,8 +24,8 @@ static int needs_constructor(LispObject *obj)
         return 0;
     }
     case LISP_VECTOR:
-        for (size_t i = 0; i < obj->value.vector.size; i++) {
-            if (needs_constructor(obj->value.vector.items[i]))
+        for (size_t i = 0; i < LISP_VECTOR_SIZE(obj); i++) {
+            if (needs_constructor(LISP_VECTOR_ITEMS(obj)[i]))
                 return 1;
         }
         return 0;
@@ -86,8 +86,8 @@ static void collect_lambdas(LispObject *val, ExtractedLambda **list, int *counte
         }
         ExtractedLambda *entry = GC_MALLOC(sizeof(ExtractedLambda));
         entry->obj = val;
-        if (val->value.lambda.name && strncmp(val->value.lambda.name, "lambda", 6) != 0) {
-            snprintf(entry->name, sizeof(entry->name), "%s", val->value.lambda.name);
+        if (LISP_LAMBDA_NAME(val) && strncmp(LISP_LAMBDA_NAME(val), "lambda", 6) != 0) {
+            snprintf(entry->name, sizeof(entry->name), "%s", LISP_LAMBDA_NAME(val));
         } else {
             snprintf(entry->name, sizeof(entry->name), "%s--fn-%d", binding_name, (*counter)++);
         }
@@ -102,7 +102,7 @@ static void collect_lambdas(LispObject *val, ExtractedLambda **list, int *counte
             tail->next = entry;
         }
         /* Recurse into lambda body to find nested lambdas */
-        LispObject *body = val->value.lambda.body;
+        LispObject *body = LISP_LAMBDA_BODY(val);
         while (body != NIL && body->type == LISP_CONS) {
             collect_lambdas(lisp_car(body), list, counter, binding_name);
             body = lisp_cdr(body);
@@ -121,14 +121,14 @@ static void collect_lambdas(LispObject *val, ExtractedLambda **list, int *counte
         break;
     }
     case LISP_VECTOR:
-        for (size_t i = 0; i < val->value.vector.size; i++) {
-            collect_lambdas(val->value.vector.items[i], list, counter, binding_name);
+        for (size_t i = 0; i < LISP_VECTOR_SIZE(val); i++) {
+            collect_lambdas(LISP_VECTOR_ITEMS(val)[i], list, counter, binding_name);
         }
         break;
     case LISP_HASH_TABLE:
     {
-        struct HashEntry **buckets = (struct HashEntry **)val->value.hash_table.buckets;
-        size_t bucket_count = val->value.hash_table.bucket_count;
+        struct HashEntry **buckets = (struct HashEntry **)LISP_HT_BUCKETS(val);
+        size_t bucket_count = LISP_HT_BUCKET_COUNT(val);
         for (size_t i = 0; i < bucket_count; i++) {
             struct HashEntry *entry = buckets[i];
             while (entry != NULL) {
@@ -154,12 +154,12 @@ static const char *find_lambda_name(ExtractedLambda *list, LispObject *obj)
 
 static void write_defun(FILE *f, const char *name, LispObject *lambda)
 {
-    fprintf(f, "(defun %s %s", name, lisp_print(lambda->value.lambda.params));
-    if (lambda->value.lambda.docstring) {
+    fprintf(f, "(defun %s %s", name, lisp_print(LISP_LAMBDA_PARAMS(lambda)));
+    if (LISP_LAMBDA_DOCSTRING(lambda)) {
         fprintf(f, "\n  ");
-        write_escaped_string(f, lambda->value.lambda.docstring);
+        write_escaped_string(f, LISP_LAMBDA_DOCSTRING(lambda));
     }
-    LispObject *body = lambda->value.lambda.body;
+    LispObject *body = LISP_LAMBDA_BODY(lambda);
     while (body != NIL && body->type == LISP_CONS) {
         fprintf(f, "\n  %s", lisp_print(lisp_car(body)));
         body = lisp_cdr(body);
@@ -181,13 +181,13 @@ static void write_value_expr(FILE *f, LispObject *val, ExtractedLambda *extracte
         if (extracted_name) {
             fprintf(f, "%s", extracted_name);
         } else {
-            fprintf(f, "(lambda %s", lisp_print(val->value.lambda.params));
+            fprintf(f, "(lambda %s", lisp_print(LISP_LAMBDA_PARAMS(val)));
             /* Emit docstring if present */
-            if (val->value.lambda.docstring) {
+            if (LISP_LAMBDA_DOCSTRING(val)) {
                 fprintf(f, " ");
-                write_escaped_string(f, val->value.lambda.docstring);
+                write_escaped_string(f, LISP_LAMBDA_DOCSTRING(val));
             }
-            LispObject *body = val->value.lambda.body;
+            LispObject *body = LISP_LAMBDA_BODY(val);
             while (body != NIL && body->type == LISP_CONS) {
                 fprintf(f, " %s", lisp_print(lisp_car(body)));
                 body = lisp_cdr(body);
@@ -200,12 +200,12 @@ static void write_value_expr(FILE *f, LispObject *val, ExtractedLambda *extracte
     {
         /* Macros are handled at the define level, but if we get here
            (e.g. nested in a list), emit as a lambda-like form */
-        fprintf(f, "(lambda %s", lisp_print(val->value.macro.params));
-        if (val->value.macro.docstring) {
+        fprintf(f, "(lambda %s", lisp_print(LISP_MACRO_PARAMS(val)));
+        if (LISP_MACRO_DOCSTRING(val)) {
             fprintf(f, " ");
-            write_escaped_string(f, val->value.macro.docstring);
+            write_escaped_string(f, LISP_MACRO_DOCSTRING(val));
         }
-        LispObject *body = val->value.macro.body;
+        LispObject *body = LISP_MACRO_BODY(val);
         while (body != NIL && body->type == LISP_CONS) {
             fprintf(f, " %s", lisp_print(lisp_car(body)));
             body = lisp_cdr(body);
@@ -220,8 +220,8 @@ static void write_value_expr(FILE *f, LispObject *val, ExtractedLambda *extracte
     case LISP_HASH_TABLE:
     {
         fprintf(f, "(let ((ht (make-hash-table)))");
-        struct HashEntry **buckets = (struct HashEntry **)val->value.hash_table.buckets;
-        size_t bucket_count = val->value.hash_table.bucket_count;
+        struct HashEntry **buckets = (struct HashEntry **)LISP_HT_BUCKETS(val);
+        size_t bucket_count = LISP_HT_BUCKET_COUNT(val);
         for (size_t i = 0; i < bucket_count; i++) {
             struct HashEntry *entry = buckets[i];
             while (entry != NULL) {
@@ -263,9 +263,9 @@ static void write_value_expr(FILE *f, LispObject *val, ExtractedLambda *extracte
     {
         if (needs_constructor(val)) {
             fprintf(f, "(vector");
-            for (size_t i = 0; i < val->value.vector.size; i++) {
+            for (size_t i = 0; i < LISP_VECTOR_SIZE(val); i++) {
                 fprintf(f, " ");
-                write_value_expr(f, val->value.vector.items[i], extracted);
+                write_value_expr(f, LISP_VECTOR_ITEMS(val)[i], extracted);
             }
             fprintf(f, ")");
         } else {
@@ -369,12 +369,12 @@ static LispObject *builtin_package_save(LispObject *args, Environment *env)
 
         if (val != NULL && val->type == LISP_MACRO) {
             /* Emit defmacro form */
-            fprintf(f, "(defmacro %s %s", name, lisp_print(val->value.macro.params));
-            if (val->value.macro.docstring) {
+            fprintf(f, "(defmacro %s %s", name, lisp_print(LISP_MACRO_PARAMS(val)));
+            if (LISP_MACRO_DOCSTRING(val)) {
                 fprintf(f, "\n  ");
-                write_escaped_string(f, val->value.macro.docstring);
+                write_escaped_string(f, LISP_MACRO_DOCSTRING(val));
             }
-            LispObject *body = val->value.macro.body;
+            LispObject *body = LISP_MACRO_BODY(val);
             while (body != NIL && body->type == LISP_CONS) {
                 fprintf(f, "\n  %s", lisp_print(lisp_car(body)));
                 body = lisp_cdr(body);

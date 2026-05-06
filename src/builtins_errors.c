@@ -22,8 +22,8 @@ static LispObject *builtin_error_type(LispObject *args, Environment *env)
         return lisp_make_typed_error_simple("wrong-type-argument", "error-type: argument must be an error", env);
     }
     /* Return error type (guaranteed to be a symbol) */
-    if (obj->value.error_with_stack.error_type != NULL) {
-        return obj->value.error_with_stack.error_type;
+    if (LISP_ERROR_TYPE(obj) != NULL) {
+        return LISP_ERROR_TYPE(obj);
     }
     /* Fallback to 'error symbol if somehow NULL */
     return sym_error;
@@ -39,7 +39,7 @@ static LispObject *builtin_error_message(LispObject *args, Environment *env)
     if (obj->type != LISP_ERROR) {
         return lisp_make_typed_error_simple("wrong-type-argument", "error-message: argument must be an error", env);
     }
-    return lisp_make_string(obj->value.error_with_stack.message);
+    return lisp_make_string(LISP_ERROR_MESSAGE(obj));
 }
 
 /* error-stack - Get error stack trace */
@@ -52,7 +52,7 @@ static LispObject *builtin_error_stack(LispObject *args, Environment *env)
     if (obj->type != LISP_ERROR) {
         return lisp_make_typed_error_simple("wrong-type-argument", "error-stack: argument must be an error", env);
     }
-    LispObject *stack = obj->value.error_with_stack.stack_trace;
+    LispObject *stack = LISP_ERROR_STACK_TRACE(obj);
     return (stack != NULL) ? stack : NIL;
 }
 
@@ -66,7 +66,7 @@ static LispObject *builtin_error_data(LispObject *args, Environment *env)
     if (obj->type != LISP_ERROR) {
         return lisp_make_typed_error_simple("wrong-type-argument", "error-data: argument must be an error", env);
     }
-    LispObject *data = obj->value.error_with_stack.data;
+    LispObject *data = LISP_ERROR_DATA(obj);
     return (data != NULL) ? data : NIL;
 }
 
