@@ -308,8 +308,11 @@ static void handle_line_submit(char *line)
     const char *input_ptr = expr_buffer;
     LispObject *expr = lisp_read(&input_ptr);
 
-    /* Unclosed expression → continue reading */
-    if (expr != NULL && LISP_TYPE(expr) == LISP_ERROR && strstr(LISP_ERROR_MESSAGE(expr), "Unclosed") != NULL) {
+    /* Unclosed expression → continue reading. The reader signals this with
+     * a typed error of type 'unclosed-input — symbols are interned so we
+     * compare by pointer identity. */
+    if (expr != NULL && LISP_TYPE(expr) == LISP_ERROR &&
+        LISP_ERROR_TYPE(expr) == lisp_intern("unclosed-input")) {
         repl_app_set_prompt(g_app, "... ");
         tui_runtime_flush(g_runtime);
         return;
