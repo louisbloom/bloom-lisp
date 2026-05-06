@@ -1874,6 +1874,14 @@ Standard error types (user-extensible):
 - `'void-variable` - Undefined symbol
 - `'file-error` - File I/O errors
 - `'range-error` - Out of bounds access
+- `'unclosed-input` - Reader hit end-of-input inside an unclosed list or vector (signaled by `read-sexp` and the REPL parser). The REPL uses this to decide whether to keep reading another line; user code can catch it the same way:
+
+```lisp
+(condition-case e
+  (load "snippet-with-unclosed-paren.lisp")
+  (unclosed-input "snippet was incomplete")
+  (error (concat "other error: " (error-message e))))
+```
 
 You can define custom error types using any symbol:
 
