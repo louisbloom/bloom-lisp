@@ -11,11 +11,11 @@ static LispObject *builtin_car(LispObject *args, Environment *env)
         return NIL;
     }
 
-    if (arg->type != LISP_CONS) {
+    if (LISP_TYPE(arg) != LISP_CONS) {
         return lisp_make_error("car requires a list");
     }
 
-    return arg->value.cons.car;
+    return LISP_CAR(arg);
 }
 
 static LispObject *builtin_cdr(LispObject *args, Environment *env)
@@ -28,11 +28,11 @@ static LispObject *builtin_cdr(LispObject *args, Environment *env)
         return NIL;
     }
 
-    if (arg->type != LISP_CONS) {
+    if (LISP_TYPE(arg) != LISP_CONS) {
         return lisp_make_error("cdr requires a list");
     }
 
-    return arg->value.cons.cdr;
+    return LISP_CDR(arg);
 }
 
 /* c*r combination builtins */
@@ -72,11 +72,11 @@ static LispObject *builtin_set_car_bang(LispObject *args, Environment *env)
     LispObject *pair = lisp_car(args);
     LispObject *value = lisp_car(lisp_cdr(args));
 
-    if (pair == NIL || pair->type != LISP_CONS) {
+    if (pair == NIL || LISP_TYPE(pair) != LISP_CONS) {
         return lisp_make_error("set-car! requires a cons cell as first argument");
     }
 
-    pair->value.cons.car = value;
+    LISP_CAR(pair) = value;
     return value;
 }
 
@@ -88,11 +88,11 @@ static LispObject *builtin_set_cdr_bang(LispObject *args, Environment *env)
     LispObject *pair = lisp_car(args);
     LispObject *value = lisp_car(lisp_cdr(args));
 
-    if (pair == NIL || pair->type != LISP_CONS) {
+    if (pair == NIL || LISP_TYPE(pair) != LISP_CONS) {
         return lisp_make_error("set-cdr! requires a cons cell as first argument");
     }
 
-    pair->value.cons.cdr = value;
+    LISP_CDR(pair) = value;
     return value;
 }
 
@@ -120,7 +120,7 @@ static LispObject *builtin_length(LispObject *args, Environment *env)
 
     LispObject *obj = lisp_car(args);
 
-    switch (obj->type) {
+    switch (LISP_TYPE(obj)) {
     case LISP_CONS:
     case LISP_NIL:
     {
@@ -129,14 +129,14 @@ static LispObject *builtin_length(LispObject *args, Environment *env)
         LispObject *lst = obj;
         while (lst != NIL && lst != NULL) {
             count++;
-            lst = lst->value.cons.cdr;
+            lst = LISP_CDR(lst);
         }
         return lisp_make_integer(count);
     }
     case LISP_STRING:
     {
         /* String length (UTF-8 aware) */
-        size_t char_count = utf8_strlen(obj->value.string);
+        size_t char_count = utf8_strlen(LISP_STR_VAL(obj));
         return lisp_make_integer((long long)char_count);
     }
     case LISP_VECTOR:
@@ -160,7 +160,7 @@ static LispObject *builtin_list_ref(LispObject *args, Environment *env)
     int index_is_integer;
     double index_val = get_numeric_value(index_obj, &index_is_integer);
 
-    if (index_obj->type != LISP_INTEGER && index_obj->type != LISP_NUMBER) {
+    if (LISP_TYPE(index_obj) != LISP_INTEGER && LISP_TYPE(index_obj) != LISP_NUMBER) {
         return lisp_make_error("list-ref index must be a number");
     }
 
@@ -172,10 +172,10 @@ static LispObject *builtin_list_ref(LispObject *args, Environment *env)
     /* Traverse the list, checking type at each step */
     for (long long i = 0; i < index && lst != NIL && lst != NULL; i++) {
         /* Type check before accessing cons fields */
-        if (lst->type != LISP_CONS) {
+        if (LISP_TYPE(lst) != LISP_CONS) {
             return lisp_make_error("list-ref: not a proper list");
         }
-        lst = lst->value.cons.cdr;
+        lst = LISP_CDR(lst);
     }
 
     if (lst == NIL || lst == NULL) {
@@ -183,11 +183,11 @@ static LispObject *builtin_list_ref(LispObject *args, Environment *env)
     }
 
     /* Final type check before accessing car */
-    if (lst->type != LISP_CONS) {
+    if (LISP_TYPE(lst) != LISP_CONS) {
         return lisp_make_error("list-ref: not a proper list");
     }
 
-    return lst->value.cons.car;
+    return LISP_CAR(lst);
 }
 
 static LispObject *builtin_reverse(LispObject *args, Environment *env)
@@ -206,13 +206,13 @@ static LispObject *builtin_reverse(LispObject *args, Environment *env)
     }
 
     /* Validate it's a list */
-    if (lst->type != LISP_CONS) {
+    if (LISP_TYPE(lst) != LISP_CONS) {
         return lisp_make_error("reverse: argument must be a list");
     }
 
     /* Build reversed list iteratively */
     LispObject *result = NIL;
-    while (lst != NIL && lst != NULL && lst->type == LISP_CONS) {
+    while (lst != NIL && lst != NULL && LISP_TYPE(lst) == LISP_CONS) {
         result = lisp_make_cons(lisp_car(lst), result);
         lst = lisp_cdr(lst);
     }
@@ -239,13 +239,13 @@ static LispObject *builtin_append(LispObject *args, Environment *env)
         LispObject *list = lisp_car(current_arg);
 
         /* Each argument must be a list (or NIL) */
-        if (list != NIL && list->type != LISP_CONS) {
+        if (list != NIL && LISP_TYPE(list) != LISP_CONS) {
             return lisp_make_error("append requires list arguments");
         }
 
         /* Copy elements from this list */
         LispObject *elem = list;
-        while (elem != NIL && elem->type == LISP_CONS) {
+        while (elem != NIL && LISP_TYPE(elem) == LISP_CONS) {
             LIST_APPEND(result, result_tail, lisp_car(elem));
             elem = lisp_cdr(elem);
         }
@@ -268,33 +268,33 @@ int objects_equal_recursive(LispObject *a, LispObject *b)
         return 0;
 
     /* Type mismatch */
-    if (a->type != b->type)
+    if (LISP_TYPE(a) != LISP_TYPE(b))
         return 0;
 
-    switch (a->type) {
+    switch (LISP_TYPE(a)) {
     case LISP_NUMBER:
-        return a->value.number == b->value.number;
+        return LISP_NUM_VAL(a) == LISP_NUM_VAL(b);
 
     case LISP_INTEGER:
-        return a->value.integer == b->value.integer;
+        return LISP_INT_VAL(a) == LISP_INT_VAL(b);
 
     case LISP_CHAR:
-        return a->value.character == b->value.character;
+        return LISP_CHAR_VAL(a) == LISP_CHAR_VAL(b);
 
     case LISP_STRING:
-        return strcmp(a->value.string, b->value.string) == 0;
+        return strcmp(LISP_STR_VAL(a), LISP_STR_VAL(b)) == 0;
 
     case LISP_SYMBOL:
         /* Symbols are interned, so pointer equality should work, but compare names for safety */
-        return strcmp(a->value.symbol->name, b->value.symbol->name) == 0;
+        return strcmp(LISP_SYM_VAL(a)->name, LISP_SYM_VAL(b)->name) == 0;
 
     case LISP_BOOLEAN:
-        return a->value.boolean == b->value.boolean;
+        return LISP_BOOL_VAL(a) == LISP_BOOL_VAL(b);
 
     case LISP_CONS:
         /* Recursive list comparison */
-        return objects_equal_recursive(a->value.cons.car, b->value.cons.car) &&
-               objects_equal_recursive(a->value.cons.cdr, b->value.cons.cdr);
+        return objects_equal_recursive(LISP_CAR(a), LISP_CAR(b)) &&
+               objects_equal_recursive(LISP_CDR(a), LISP_CDR(b));
 
     case LISP_VECTOR:
         /* Compare vector lengths */
@@ -349,13 +349,13 @@ static LispObject *alist_find(LispObject *key, LispObject *alist,
                               const char *name)
 {
     while (alist != NIL && alist != NULL) {
-        if (alist->type != LISP_CONS) {
+        if (LISP_TYPE(alist) != LISP_CONS) {
             char buf[128];
             snprintf(buf, sizeof(buf), "%s requires an association list", name);
             return lisp_make_error(buf);
         }
         LispObject *pair = lisp_car(alist);
-        if (pair != NIL && pair->type == LISP_CONS) {
+        if (pair != NIL && LISP_TYPE(pair) == LISP_CONS) {
             if (eq(key, lisp_car(pair)))
                 return pair;
         }
@@ -406,12 +406,12 @@ static LispObject *builtin_alist_get(LispObject *args, Environment *env)
 
     /* Iterate through association list */
     while (alist != NIL && alist != NULL) {
-        if (alist->type != LISP_CONS) {
+        if (LISP_TYPE(alist) != LISP_CONS) {
             return lisp_make_error("alist-get requires an association list");
         }
 
         LispObject *pair = lisp_car(alist);
-        if (pair != NIL && pair->type == LISP_CONS) {
+        if (pair != NIL && LISP_TYPE(pair) == LISP_CONS) {
             LispObject *pair_key = lisp_car(pair);
             if (objects_equal_recursive(key, pair_key)) {
                 return lisp_cdr(pair);
@@ -436,7 +436,7 @@ static LispObject *builtin_member(LispObject *args, Environment *env)
 
     /* Iterate through list using structural equality */
     while (list != NIL && list != NULL) {
-        if (list->type != LISP_CONS) {
+        if (LISP_TYPE(list) != LISP_CONS) {
             return lisp_make_error("member requires a proper list");
         }
 
@@ -461,7 +461,7 @@ static LispObject *builtin_memq(LispObject *args, Environment *env)
 
     /* Iterate through list using pointer equality */
     while (list != NIL && list != NULL) {
-        if (list->type != LISP_CONS) {
+        if (LISP_TYPE(list) != LISP_CONS) {
             return lisp_make_error("memq requires a proper list");
         }
 
@@ -492,18 +492,18 @@ static LispObject *builtin_map(LispObject *args, Environment *env)
     LispObject *func = lisp_car(args);
     LispObject *list = lisp_car(lisp_cdr(args));
 
-    if (func->type != LISP_BUILTIN && func->type != LISP_LAMBDA)
+    if (LISP_TYPE(func) != LISP_BUILTIN && LISP_TYPE(func) != LISP_LAMBDA)
         return lisp_make_error("map requires a function as first argument");
 
     LispObject *result = NIL;
     LispObject *tail = NULL;
 
     while (list != NIL && list != NULL) {
-        if (list->type != LISP_CONS)
+        if (LISP_TYPE(list) != LISP_CONS)
             return lisp_make_error("map requires a list");
 
         LispObject *mapped = apply_unary(func, lisp_car(list), env, "map");
-        if (mapped->type == LISP_ERROR)
+        if (LISP_TYPE(mapped) == LISP_ERROR)
             return mapped;
         LIST_APPEND(result, tail, mapped);
         list = lisp_cdr(list);
@@ -522,23 +522,23 @@ static LispObject *builtin_filter(LispObject *args, Environment *env)
     LispObject *func = lisp_car(args);
     LispObject *list = lisp_car(lisp_cdr(args));
 
-    if (func->type != LISP_BUILTIN && func->type != LISP_LAMBDA)
+    if (LISP_TYPE(func) != LISP_BUILTIN && LISP_TYPE(func) != LISP_LAMBDA)
         return lisp_make_error("filter requires a function as first argument");
 
     LispObject *result = NIL;
     LispObject *tail = NULL;
 
     while (list != NIL && list != NULL) {
-        if (list->type != LISP_CONS)
+        if (LISP_TYPE(list) != LISP_CONS)
             return lisp_make_error("filter requires a list");
 
         LispObject *item = lisp_car(list);
         LispObject *pred = apply_unary(func, item, env, "filter");
-        if (pred->type == LISP_ERROR)
+        if (LISP_TYPE(pred) == LISP_ERROR)
             return pred;
 
         if (pred != NIL &&
-            !(pred->type == LISP_BOOLEAN && pred->value.boolean == 0))
+            !(LISP_TYPE(pred) == LISP_BOOLEAN && LISP_BOOL_VAL(pred) == 0))
             LIST_APPEND(result, tail, item);
 
         list = lisp_cdr(list);
@@ -553,11 +553,11 @@ static LispObject *builtin_apply(LispObject *args, Environment *env)
     LispObject *func = lisp_car(args);
     LispObject *func_args = lisp_car(lisp_cdr(args));
 
-    if (func->type != LISP_BUILTIN && func->type != LISP_LAMBDA) {
+    if (LISP_TYPE(func) != LISP_BUILTIN && LISP_TYPE(func) != LISP_LAMBDA) {
         return lisp_make_error("apply requires a function as first argument");
     }
 
-    if (func_args != NIL && func_args->type != LISP_CONS) {
+    if (func_args != NIL && LISP_TYPE(func_args) != LISP_CONS) {
         return lisp_make_error("apply requires a list as second argument");
     }
 

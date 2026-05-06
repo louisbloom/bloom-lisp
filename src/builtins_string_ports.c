@@ -6,11 +6,11 @@ static LispObject *builtin_open_input_string(LispObject *args, Environment *env)
     CHECK_ARGS_1("open-input-string");
 
     LispObject *str = lisp_car(args);
-    if (str->type != LISP_STRING) {
+    if (LISP_TYPE(str) != LISP_STRING) {
         return lisp_make_error("open-input-string requires a string");
     }
 
-    return lisp_make_string_port(str->value.string);
+    return lisp_make_string_port(LISP_STR_VAL(str));
 }
 
 static LispObject *builtin_port_peek_char(LispObject *args, Environment *env)
@@ -19,7 +19,7 @@ static LispObject *builtin_port_peek_char(LispObject *args, Environment *env)
     CHECK_ARGS_1("port-peek-char");
 
     LispObject *port = lisp_car(args);
-    if (port->type != LISP_STRING_PORT) {
+    if (LISP_TYPE(port) != LISP_STRING_PORT) {
         return lisp_make_error("port-peek-char requires a string port");
     }
 
@@ -37,7 +37,7 @@ static LispObject *builtin_port_read_char(LispObject *args, Environment *env)
     CHECK_ARGS_1("port-read-char");
 
     LispObject *port = lisp_car(args);
-    if (port->type != LISP_STRING_PORT) {
+    if (LISP_TYPE(port) != LISP_STRING_PORT) {
         return lisp_make_error("port-read-char requires a string port");
     }
 
@@ -60,7 +60,7 @@ static LispObject *builtin_port_position(LispObject *args, Environment *env)
     CHECK_ARGS_1("port-position");
 
     LispObject *port = lisp_car(args);
-    if (port->type != LISP_STRING_PORT) {
+    if (LISP_TYPE(port) != LISP_STRING_PORT) {
         return lisp_make_error("port-position requires a string port");
     }
 
@@ -73,7 +73,7 @@ static LispObject *builtin_port_source(LispObject *args, Environment *env)
     CHECK_ARGS_1("port-source");
 
     LispObject *port = lisp_car(args);
-    if (port->type != LISP_STRING_PORT) {
+    if (LISP_TYPE(port) != LISP_STRING_PORT) {
         return lisp_make_error("port-source requires a string port");
     }
 
@@ -86,7 +86,7 @@ static LispObject *builtin_port_eof_question(LispObject *args, Environment *env)
     CHECK_ARGS_1("port-eof?");
 
     LispObject *port = lisp_car(args);
-    if (port->type != LISP_STRING_PORT) {
+    if (LISP_TYPE(port) != LISP_STRING_PORT) {
         return lisp_make_error("port-eof? requires a string port");
     }
 
@@ -102,7 +102,7 @@ static LispObject *builtin_string_port_question(LispObject *args, Environment *e
     CHECK_ARGS_1("string-port?");
 
     LispObject *obj = lisp_car(args);
-    return (obj->type == LISP_STRING_PORT) ? LISP_TRUE : NIL;
+    return (LISP_TYPE(obj) == LISP_STRING_PORT) ? LISP_TRUE : NIL;
 }
 
 void register_string_ports_builtins(Environment *env)

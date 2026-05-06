@@ -8,7 +8,7 @@ static LispObject *builtin_error_question(LispObject *args, Environment *env)
         return lisp_make_boolean(0);
     }
     LispObject *obj = lisp_car(args);
-    return lisp_make_boolean(obj->type == LISP_ERROR);
+    return lisp_make_boolean(LISP_TYPE(obj) == LISP_ERROR);
 }
 
 /* error-type - Get error type symbol */
@@ -18,7 +18,7 @@ static LispObject *builtin_error_type(LispObject *args, Environment *env)
         return lisp_make_typed_error_simple("wrong-number-of-arguments", "error-type requires 1 argument", env);
     }
     LispObject *obj = lisp_car(args);
-    if (obj->type != LISP_ERROR) {
+    if (LISP_TYPE(obj) != LISP_ERROR) {
         return lisp_make_typed_error_simple("wrong-type-argument", "error-type: argument must be an error", env);
     }
     /* Return error type (guaranteed to be a symbol) */
@@ -36,7 +36,7 @@ static LispObject *builtin_error_message(LispObject *args, Environment *env)
         return lisp_make_typed_error_simple("wrong-number-of-arguments", "error-message requires 1 argument", env);
     }
     LispObject *obj = lisp_car(args);
-    if (obj->type != LISP_ERROR) {
+    if (LISP_TYPE(obj) != LISP_ERROR) {
         return lisp_make_typed_error_simple("wrong-type-argument", "error-message: argument must be an error", env);
     }
     return lisp_make_string(LISP_ERROR_MESSAGE(obj));
@@ -49,7 +49,7 @@ static LispObject *builtin_error_stack(LispObject *args, Environment *env)
         return lisp_make_typed_error_simple("wrong-number-of-arguments", "error-stack requires 1 argument", env);
     }
     LispObject *obj = lisp_car(args);
-    if (obj->type != LISP_ERROR) {
+    if (LISP_TYPE(obj) != LISP_ERROR) {
         return lisp_make_typed_error_simple("wrong-type-argument", "error-stack: argument must be an error", env);
     }
     LispObject *stack = LISP_ERROR_STACK_TRACE(obj);
@@ -63,7 +63,7 @@ static LispObject *builtin_error_data(LispObject *args, Environment *env)
         return lisp_make_typed_error_simple("wrong-number-of-arguments", "error-data requires 1 argument", env);
     }
     LispObject *obj = lisp_car(args);
-    if (obj->type != LISP_ERROR) {
+    if (LISP_TYPE(obj) != LISP_ERROR) {
         return lisp_make_typed_error_simple("wrong-type-argument", "error-data: argument must be an error", env);
     }
     LispObject *data = LISP_ERROR_DATA(obj);
@@ -80,7 +80,7 @@ static LispObject *builtin_signal(LispObject *args, Environment *env)
     }
 
     LispObject *error_type = lisp_car(args);
-    if (error_type->type != LISP_SYMBOL) {
+    if (LISP_TYPE(error_type) != LISP_SYMBOL) {
         return lisp_make_typed_error_simple("wrong-type-argument", "signal: first argument must be a symbol", env);
     }
 
@@ -90,13 +90,13 @@ static LispObject *builtin_signal(LispObject *args, Environment *env)
 
     /* Build error message from data */
     char message[512];
-    if (data != NIL && data->type == LISP_STRING) {
-        snprintf(message, sizeof(message), "%s", data->value.string);
+    if (data != NIL && LISP_TYPE(data) == LISP_STRING) {
+        snprintf(message, sizeof(message), "%s", LISP_STR_VAL(data));
     } else if (data != NIL) {
         char *data_str = lisp_print(data);
-        snprintf(message, sizeof(message), "%s: %s", error_type->value.symbol->name, data_str);
+        snprintf(message, sizeof(message), "%s: %s", LISP_SYM_VAL(error_type)->name, data_str);
     } else {
-        snprintf(message, sizeof(message), "%s", error_type->value.symbol->name);
+        snprintf(message, sizeof(message), "%s", LISP_SYM_VAL(error_type)->name);
     }
 
     return lisp_make_typed_error(error_type, message, data, env);
@@ -114,8 +114,8 @@ static LispObject *builtin_error(LispObject *args, Environment *env)
     LispObject *message_obj = lisp_car(args);
     const char *message;
 
-    if (message_obj->type == LISP_STRING) {
-        message = message_obj->value.string;
+    if (LISP_TYPE(message_obj) == LISP_STRING) {
+        message = LISP_STR_VAL(message_obj);
     } else {
         message = lisp_print(message_obj);
     }

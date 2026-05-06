@@ -50,11 +50,11 @@ static LispObject *builtin_expand_path(LispObject *args, Environment *env)
     CHECK_ARGS_1("expand-path");
 
     LispObject *path_obj = lisp_car(args);
-    if (path_obj->type != LISP_STRING) {
+    if (LISP_TYPE(path_obj) != LISP_STRING) {
         return lisp_make_error("expand-path requires a string argument");
     }
 
-    const char *path = path_obj->value.string;
+    const char *path = LISP_STR_VAL(path_obj);
 
     /* Check if path starts with ~/ */
     if (path[0] != '~' || (path[1] != '/' && path[1] != '\\' && path[1] != '\0')) {
@@ -64,12 +64,12 @@ static LispObject *builtin_expand_path(LispObject *args, Environment *env)
 
     /* Get home directory */
     LispObject *home_obj = builtin_home_directory(NIL, env);
-    if (home_obj == NIL || home_obj->type != LISP_STRING) {
+    if (home_obj == NIL || LISP_TYPE(home_obj) != LISP_STRING) {
         /* No home directory - return error */
         return lisp_make_error("expand-path: cannot determine home directory");
     }
 
-    const char *home = home_obj->value.string;
+    const char *home = LISP_STR_VAL(home_obj);
 
     /* Calculate expanded path length */
     /* If path is just "~", use home directory directly */
@@ -109,10 +109,10 @@ static LispObject *builtin_getenv(LispObject *args, Environment *env)
         return lisp_make_error("getenv requires 1 argument");
 
     LispObject *name = lisp_car(args);
-    if (name->type != LISP_STRING)
+    if (LISP_TYPE(name) != LISP_STRING)
         return lisp_make_error("getenv requires a string argument");
 
-    const char *value = getenv(name->value.string);
+    const char *value = getenv(LISP_STR_VAL(name));
     if (!value)
         return NIL;
 
@@ -132,10 +132,10 @@ static LispObject *builtin_data_directory(LispObject *args, Environment *env)
         return lisp_make_error("data-directory requires 1 argument");
 
     LispObject *app = lisp_car(args);
-    if (app->type != LISP_STRING)
+    if (LISP_TYPE(app) != LISP_STRING)
         return lisp_make_error("data-directory requires a string argument");
 
-    const char *app_name = app->value.string;
+    const char *app_name = LISP_STR_VAL(app);
     char path[PATH_MAX];
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -173,10 +173,10 @@ static LispObject *builtin_config_directory(LispObject *args, Environment *env)
         return lisp_make_error("config-directory requires 1 argument");
 
     LispObject *app = lisp_car(args);
-    if (app->type != LISP_STRING)
+    if (LISP_TYPE(app) != LISP_STRING)
         return lisp_make_error("config-directory requires a string argument");
 
-    const char *app_name = app->value.string;
+    const char *app_name = LISP_STR_VAL(app);
     char path[PATH_MAX];
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -210,10 +210,10 @@ static LispObject *builtin_file_exists_question(LispObject *args, Environment *e
         return lisp_make_error("file-exists? requires 1 argument");
 
     LispObject *path = lisp_car(args);
-    if (path->type != LISP_STRING)
+    if (LISP_TYPE(path) != LISP_STRING)
         return lisp_make_error("file-exists? requires a string argument");
 
-    return file_exists(path->value.string) ? LISP_TRUE : NIL;
+    return file_exists(LISP_STR_VAL(path)) ? LISP_TRUE : NIL;
 }
 
 /* Create directory and all parents (mkdir -p).
@@ -227,15 +227,15 @@ static LispObject *builtin_mkdir(LispObject *args, Environment *env)
         return lisp_make_error("mkdir requires 1 argument");
 
     LispObject *path = lisp_car(args);
-    if (path->type != LISP_STRING)
+    if (LISP_TYPE(path) != LISP_STRING)
         return lisp_make_error("mkdir requires a string argument");
 
-    if (file_exists(path->value.string))
+    if (file_exists(LISP_STR_VAL(path)))
         return LISP_TRUE;
 
-    if (file_mkdir_p(path->value.string) != 0) {
+    if (file_mkdir_p(LISP_STR_VAL(path)) != 0) {
         char errbuf[256];
-        snprintf(errbuf, sizeof(errbuf), "mkdir: %s: %s", path->value.string,
+        snprintf(errbuf, sizeof(errbuf), "mkdir: %s: %s", LISP_STR_VAL(path),
                  strerror(errno));
         return lisp_make_error(errbuf);
     }

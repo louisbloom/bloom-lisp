@@ -211,7 +211,7 @@ static LispObject *read_list(const char **input)
 
             /* Set the cdr of the last cons cell */
             if (tail != NULL) {
-                tail->value.cons.cdr = cdr_elem;
+                LISP_CDR(tail) = cdr_elem;
             } else {
                 return lisp_make_error("Dot cannot appear at start of list");
             }
@@ -229,7 +229,7 @@ static LispObject *read_list(const char **input)
         if (elem == NULL) {
             return lisp_make_error("Syntax error in list");
         }
-        if (elem->type == LISP_ERROR) {
+        if (LISP_TYPE(elem) == LISP_ERROR) {
             return elem;
         }
 
@@ -239,7 +239,7 @@ static LispObject *read_list(const char **input)
             head = new_cons;
             tail = new_cons;
         } else {
-            tail->value.cons.cdr = new_cons;
+            LISP_CDR(tail) = new_cons;
             tail = new_cons;
         }
 
@@ -273,7 +273,7 @@ static LispObject *read_vector(const char **input)
         if (elem == NULL) {
             return lisp_make_error("Syntax error in vector");
         }
-        if (elem->type == LISP_ERROR) {
+        if (LISP_TYPE(elem) == LISP_ERROR) {
             return elem;
         }
 

@@ -43,32 +43,32 @@ static size_t hash_lisp_key(LispObject *key, size_t bucket_count)
         return hash % bucket_count;
     }
 
-    switch (key->type) {
+    switch (LISP_TYPE(key)) {
     case LISP_STRING:
-        hash = fnv_string(hash, key->value.string);
+        hash = fnv_string(hash, LISP_STR_VAL(key));
         break;
     case LISP_SYMBOL:
         /* Same hash as string for backward compatibility */
-        hash = fnv_string(hash, key->value.symbol->name);
+        hash = fnv_string(hash, LISP_SYM_VAL(key)->name);
         break;
     case LISP_KEYWORD:
-        hash = fnv_string(hash, key->value.symbol->name);
+        hash = fnv_string(hash, LISP_SYM_VAL(key)->name);
         break;
     case LISP_INTEGER:
         hash = fnv_byte(hash, 'I');
-        hash = fnv_bytes(hash, &key->value.integer, sizeof(int64_t));
+        hash = fnv_bytes(hash, &LISP_INT_VAL(key), sizeof(int64_t));
         break;
     case LISP_NUMBER:
         hash = fnv_byte(hash, 'N');
-        hash = fnv_bytes(hash, &key->value.number, sizeof(double));
+        hash = fnv_bytes(hash, &LISP_NUM_VAL(key), sizeof(double));
         break;
     case LISP_CHAR:
         hash = fnv_byte(hash, 'C');
-        hash = fnv_bytes(hash, &key->value.character, sizeof(unsigned int));
+        hash = fnv_bytes(hash, &LISP_CHAR_VAL(key), sizeof(unsigned int));
         break;
     case LISP_BOOLEAN:
         hash = fnv_byte(hash, 'B');
-        hash = fnv_byte(hash, key->value.boolean ? 1 : 0);
+        hash = fnv_byte(hash, LISP_BOOL_VAL(key) ? 1 : 0);
         break;
     default:
     {
@@ -97,14 +97,14 @@ int hash_keys_equal(LispObject *a, LispObject *b)
 
     /* String/symbol/keyword interop: extract text for comparison */
     const char *a_str = NULL, *b_str = NULL;
-    if (a->type == LISP_STRING)
-        a_str = a->value.string;
-    else if (a->type == LISP_SYMBOL)
-        a_str = a->value.symbol->name;
-    if (b->type == LISP_STRING)
-        b_str = b->value.string;
-    else if (b->type == LISP_SYMBOL)
-        b_str = b->value.symbol->name;
+    if (LISP_TYPE(a) == LISP_STRING)
+        a_str = LISP_STR_VAL(a);
+    else if (LISP_TYPE(a) == LISP_SYMBOL)
+        a_str = LISP_SYM_VAL(a)->name;
+    if (LISP_TYPE(b) == LISP_STRING)
+        b_str = LISP_STR_VAL(b);
+    else if (LISP_TYPE(b) == LISP_SYMBOL)
+        b_str = LISP_SYM_VAL(b)->name;
 
     if (a_str && b_str)
         return strcmp(a_str, b_str) == 0;
@@ -112,20 +112,20 @@ int hash_keys_equal(LispObject *a, LispObject *b)
         return 0; /* One is string/symbol, other is not */
 
     /* Different types can't be equal (string/symbol already handled above) */
-    if (a->type != b->type)
+    if (LISP_TYPE(a) != LISP_TYPE(b))
         return 0;
 
-    switch (a->type) {
+    switch (LISP_TYPE(a)) {
     case LISP_KEYWORD:
-        return strcmp(a->value.symbol->name, b->value.symbol->name) == 0;
+        return strcmp(LISP_SYM_VAL(a)->name, LISP_SYM_VAL(b)->name) == 0;
     case LISP_INTEGER:
-        return a->value.integer == b->value.integer;
+        return LISP_INT_VAL(a) == LISP_INT_VAL(b);
     case LISP_NUMBER:
-        return a->value.number == b->value.number;
+        return LISP_NUM_VAL(a) == LISP_NUM_VAL(b);
     case LISP_CHAR:
-        return a->value.character == b->value.character;
+        return LISP_CHAR_VAL(a) == LISP_CHAR_VAL(b);
     case LISP_BOOLEAN:
-        return a->value.boolean == b->value.boolean;
+        return LISP_BOOL_VAL(a) == LISP_BOOL_VAL(b);
     default:
         return 0; /* Compound types: pointer equality already checked above */
     }
@@ -134,7 +134,7 @@ int hash_keys_equal(LispObject *a, LispObject *b)
 /* Get entry from hash table */
 struct HashEntry *hash_table_get_entry(LispObject *table, LispObject *key)
 {
-    if (table->type != LISP_HASH_TABLE) {
+    if (LISP_TYPE(table) != LISP_HASH_TABLE) {
         return NULL;
     }
 
@@ -155,7 +155,7 @@ struct HashEntry *hash_table_get_entry(LispObject *table, LispObject *key)
 /* Set value in hash table */
 struct HashEntry *hash_table_set_entry(LispObject *table, LispObject *key, LispObject *value)
 {
-    if (table->type != LISP_HASH_TABLE) {
+    if (LISP_TYPE(table) != LISP_HASH_TABLE) {
         return NULL;
     }
 
@@ -188,7 +188,7 @@ struct HashEntry *hash_table_set_entry(LispObject *table, LispObject *key, LispO
 /* Remove entry from hash table */
 int hash_table_remove_entry(LispObject *table, LispObject *key)
 {
-    if (table->type != LISP_HASH_TABLE) {
+    if (LISP_TYPE(table) != LISP_HASH_TABLE) {
         return 0;
     }
 
@@ -219,7 +219,7 @@ int hash_table_remove_entry(LispObject *table, LispObject *key)
 /* Clear all entries from hash table */
 void hash_table_clear(LispObject *table)
 {
-    if (table->type != LISP_HASH_TABLE) {
+    if (LISP_TYPE(table) != LISP_HASH_TABLE) {
         return;
     }
 

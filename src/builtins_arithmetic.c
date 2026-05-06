@@ -1,17 +1,17 @@
 #include "builtins_internal.h"
 
 /* Arithmetic loop: validate + accumulate numeric args */
-#define ARITH_LOOP(accum, op, name)                                      \
-    while (args != NIL && args != NULL) {                                \
-        LispObject *_a = lisp_car(args);                                 \
-        int _ai = 0;                                                     \
-        double _v = get_numeric_value(_a, &_ai);                         \
-        if (!_ai && _a->type != LISP_NUMBER && _a->type != LISP_INTEGER) \
-            return lisp_make_error(name " requires numbers");            \
-        if (!_ai)                                                        \
-            all_integers = 0;                                            \
-        accum op _v;                                                     \
-        args = lisp_cdr(args);                                           \
+#define ARITH_LOOP(accum, op, name)                                                \
+    while (args != NIL && args != NULL) {                                          \
+        LispObject *_a = lisp_car(args);                                           \
+        int _ai = 0;                                                               \
+        double _v = get_numeric_value(_a, &_ai);                                   \
+        if (!_ai && LISP_TYPE(_a) != LISP_NUMBER && LISP_TYPE(_a) != LISP_INTEGER) \
+            return lisp_make_error(name " requires numbers");                      \
+        if (!_ai)                                                                  \
+            all_integers = 0;                                                      \
+        accum op _v;                                                               \
+        args = lisp_cdr(args);                                                     \
     }
 
 /* Return integer if all args were ints, else float */
@@ -89,7 +89,7 @@ static LispObject *builtin_divide(LispObject *args, Environment *env)
         LispObject *arg = lisp_car(args);
         int arg_is_integer = 0;
         double val = get_numeric_value(arg, &arg_is_integer);
-        if (arg_is_integer == 0 && arg->type != LISP_NUMBER && arg->type != LISP_INTEGER) {
+        if (arg_is_integer == 0 && LISP_TYPE(arg) != LISP_NUMBER && LISP_TYPE(arg) != LISP_INTEGER) {
             return lisp_make_error("/ requires numbers");
         }
         if (val == 0) {
@@ -110,10 +110,10 @@ static LispObject *builtin_quotient(LispObject *args, Environment *env)
     LispObject *first = lisp_car(args);
     LispObject *second = lisp_car(lisp_cdr(args));
 
-    if (first->type != LISP_INTEGER && first->type != LISP_NUMBER) {
+    if (LISP_TYPE(first) != LISP_INTEGER && LISP_TYPE(first) != LISP_NUMBER) {
         return lisp_make_error("quotient requires numbers");
     }
-    if (second->type != LISP_INTEGER && second->type != LISP_NUMBER) {
+    if (LISP_TYPE(second) != LISP_INTEGER && LISP_TYPE(second) != LISP_NUMBER) {
         return lisp_make_error("quotient requires numbers");
     }
 
@@ -139,10 +139,10 @@ static LispObject *builtin_remainder(LispObject *args, Environment *env)
     LispObject *first = lisp_car(args);
     LispObject *second = lisp_car(lisp_cdr(args));
 
-    if (first->type != LISP_INTEGER && first->type != LISP_NUMBER) {
+    if (LISP_TYPE(first) != LISP_INTEGER && LISP_TYPE(first) != LISP_NUMBER) {
         return lisp_make_error("remainder requires numbers");
     }
-    if (second->type != LISP_INTEGER && second->type != LISP_NUMBER) {
+    if (LISP_TYPE(second) != LISP_INTEGER && LISP_TYPE(second) != LISP_NUMBER) {
         return lisp_make_error("remainder requires numbers");
     }
 
@@ -168,7 +168,7 @@ static LispObject *builtin_even_question(LispObject *args, Environment *env)
     int arg_is_integer;
     double arg_val = get_numeric_value(arg, &arg_is_integer);
 
-    if (arg->type != LISP_INTEGER && arg->type != LISP_NUMBER) {
+    if (LISP_TYPE(arg) != LISP_INTEGER && LISP_TYPE(arg) != LISP_NUMBER) {
         return lisp_make_error("even? requires a number");
     }
 
@@ -188,7 +188,7 @@ static LispObject *builtin_odd_question(LispObject *args, Environment *env)
     int arg_is_integer;
     double arg_val = get_numeric_value(arg, &arg_is_integer);
 
-    if (arg->type != LISP_INTEGER && arg->type != LISP_NUMBER) {
+    if (LISP_TYPE(arg) != LISP_INTEGER && LISP_TYPE(arg) != LISP_NUMBER) {
         return lisp_make_error("odd? requires a number");
     }
 

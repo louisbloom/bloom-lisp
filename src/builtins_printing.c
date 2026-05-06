@@ -46,11 +46,11 @@ static LispObject *builtin_format(LispObject *args, Environment *env)
     LispObject *dest = lisp_car(args);
     LispObject *format_str_obj = lisp_car(lisp_cdr(args));
 
-    if (format_str_obj->type != LISP_STRING) {
+    if (LISP_TYPE(format_str_obj) != LISP_STRING) {
         return lisp_make_error("format requires a string as format argument");
     }
 
-    const char *format_str = format_str_obj->value.string;
+    const char *format_str = LISP_STR_VAL(format_str_obj);
     LispObject *format_args = lisp_cdr(lisp_cdr(args));
 
     /* Build output string */
@@ -91,8 +91,8 @@ static LispObject *builtin_format(LispObject *args, Environment *env)
                 LispObject *arg = lisp_car(current_arg);
                 char *arg_str = lisp_print(arg);
                 /* Remove quotes from strings for aesthetic output */
-                if (arg->type == LISP_STRING) {
-                    arg_str = arg->value.string;
+                if (LISP_TYPE(arg) == LISP_STRING) {
+                    arg_str = LISP_STR_VAL(arg);
                 }
                 size_t arg_len = strlen(arg_str);
                 if (output_len + arg_len >= output_capacity) {
@@ -154,7 +154,7 @@ static LispObject *builtin_format(LispObject *args, Environment *env)
     if (dest == NIL) {
         /* Return as string */
         return lisp_make_string(output);
-    } else if (dest->type == LISP_BOOLEAN && dest->value.boolean) {
+    } else if (LISP_TYPE(dest) == LISP_BOOLEAN && LISP_BOOL_VAL(dest)) {
         /* Output to stdout */
         printf("%s", output);
         fflush(stdout);

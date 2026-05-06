@@ -212,7 +212,7 @@ static int handle_command(const char *input, Environment *env)
         char *fname = GC_strdup(filename);
         LispObject *result = lisp_load_file(fname, env);
 
-        if (result->type == LISP_ERROR) {
+        if (LISP_TYPE(result) == LISP_ERROR) {
             char *err_str = lisp_print(result);
             char buf[4096];
             snprintf(buf, sizeof(buf), "%sERROR: %s%s\n",
@@ -220,7 +220,7 @@ static int handle_command(const char *input, Environment *env)
             echo_to_viewport(buf);
         } else {
             char *output = lisp_print(result);
-            const char *clr = color_for_type(result->type);
+            const char *clr = color_for_type(LISP_TYPE(result));
             char buf[4096];
             snprintf(buf, sizeof(buf), "%s%s%s\n", clr, output, SGR_RESET);
             echo_to_viewport(buf);
@@ -309,7 +309,7 @@ static void handle_line_submit(char *line)
     LispObject *expr = lisp_read(&input_ptr);
 
     /* Unclosed expression → continue reading */
-    if (expr != NULL && expr->type == LISP_ERROR && strstr(expr->value.error, "Unclosed") != NULL) {
+    if (expr != NULL && LISP_TYPE(expr) == LISP_ERROR && strstr(LISP_ERROR_MESSAGE(expr), "Unclosed") != NULL) {
         repl_app_set_prompt(g_app, "... ");
         tui_runtime_flush(g_runtime);
         return;
@@ -337,10 +337,10 @@ static void handle_line_submit(char *line)
         return;
     }
 
-    if (expr->type == LISP_ERROR) {
+    if (LISP_TYPE(expr) == LISP_ERROR) {
         char err_buf[4096];
         snprintf(err_buf, sizeof(err_buf), "%sERROR: %s%s\n",
-                 color_error, expr->value.error, SGR_RESET);
+                 color_error, LISP_ERROR_MESSAGE(expr), SGR_RESET);
         echo_to_viewport(err_buf);
         expr_pos = 0;
         expr_buffer[0] = '\0';
@@ -374,7 +374,7 @@ static void handle_line_submit(char *line)
     close(pipefd[0]);
 
     /* Display result */
-    if (eval_result->type == LISP_ERROR && !LISP_ERROR_CAUGHT(eval_result)) {
+    if (LISP_TYPE(eval_result) == LISP_ERROR && !LISP_ERROR_CAUGHT(eval_result)) {
         char *err_str = lisp_print(eval_result);
         char err_buf[4096];
         snprintf(err_buf, sizeof(err_buf), "%sERROR: %s%s\n",
@@ -382,7 +382,7 @@ static void handle_line_submit(char *line)
         echo_to_viewport(err_buf);
     } else {
         char *output = lisp_print(eval_result);
-        const char *clr = color_for_type(eval_result->type);
+        const char *clr = color_for_type(LISP_TYPE(eval_result));
         char out_buf[4096];
         snprintf(out_buf, sizeof(out_buf), "%s%s%s\n", clr, output, SGR_RESET);
         echo_to_viewport(out_buf);
@@ -482,9 +482,9 @@ static void handle_app_cmd(TuiCmd *cmd, void *user_data)
 {
     (void)user_data;
 
-    if (cmd->type == TUI_CMD_LINE_SUBMIT) {
+    if (LISP_TYPE(cmd) == TUI_CMD_LINE_SUBMIT) {
         handle_line_submit(cmd->payload.line);
-    } else if (cmd->type == TUI_CMD_TAB_COMPLETE) {
+    } else if (LISP_TYPE(cmd) == TUI_CMD_TAB_COMPLETE) {
         handle_tab_complete(cmd);
     }
 
@@ -575,7 +575,7 @@ int main(int argc, char **argv)
     g_env = env;
 #endif
 
-    env_define(env, lisp_intern("*command-line-args*")->value.symbol, NIL, pkg_user);
+    env_define(env, LISP_SYM_VAL(lisp_intern("*command-line-args*")), NIL, pkg_user);
 
     /* Handle -e/--eval/-c flag */
     if (argc > 2 && (strcmp(argv[1], "-e") == 0 || strcmp(argv[1], "--eval") == 0 || strcmp(argv[1], "-c") == 0)) {
@@ -589,7 +589,7 @@ int main(int argc, char **argv)
             if (expr == NULL || input == parse_start)
                 break;
 
-            if (expr->type == LISP_ERROR) {
+            if (LISP_TYPE(expr) == LISP_ERROR) {
                 char *err_str = lisp_print(expr);
                 fprintf(stderr, "ERROR: %s\n", err_str);
                 lisp_cleanup();
@@ -598,7 +598,7 @@ int main(int argc, char **argv)
 
             LispObject *result = lisp_eval(expr, env);
 
-            if (result->type == LISP_ERROR && !LISP_ERROR_CAUGHT(result)) {
+            if (LISP_TYPE(result) == LISP_ERROR && !LISP_ERROR_CAUGHT(result)) {
                 char *err_str = lisp_print(result);
                 fprintf(stderr, "ERROR: %s\n", err_str);
                 lisp_cleanup();
@@ -627,7 +627,7 @@ int main(int argc, char **argv)
 
         if (separator_pos > 0) {
             LispObject *args_list = argv_to_list(separator_pos + 1, argc, argv);
-            env_set(env, lisp_intern("*command-line-args*")->value.symbol, args_list);
+            env_set(env, LISP_SYM_VAL(lisp_intern("*command-line-args*")), args_list);
         }
 
         for (int i = 1; i < file_end; i++) {
@@ -657,7 +657,7 @@ int main(int argc, char **argv)
                 if (expr == NULL || input == parse_start)
                     break;
 
-                if (expr->type == LISP_ERROR) {
+                if (LISP_TYPE(expr) == LISP_ERROR) {
                     char *err_str = lisp_print(expr);
                     fprintf(stderr, "ERROR in %s: %s\n", argv[i], err_str);
                     return 1;
@@ -665,7 +665,7 @@ int main(int argc, char **argv)
 
                 LispObject *result = lisp_eval(expr, env);
 
-                if (result->type == LISP_ERROR && !LISP_ERROR_CAUGHT(result)) {
+                if (LISP_TYPE(result) == LISP_ERROR && !LISP_ERROR_CAUGHT(result)) {
                     char *err_str = lisp_print(result);
                     fprintf(stderr, "ERROR in %s: %s\n", argv[i], err_str);
                     return 1;

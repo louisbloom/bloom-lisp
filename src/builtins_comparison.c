@@ -10,8 +10,8 @@
         int ai, bi;                                                    \
         double av = get_numeric_value(a, &ai),                         \
                bv = get_numeric_value(b, &bi);                         \
-        if ((!ai && a->type != LISP_NUMBER) ||                         \
-            (!bi && b->type != LISP_NUMBER))                           \
+        if ((!ai && LISP_TYPE(a) != LISP_NUMBER) ||                    \
+            (!bi && LISP_TYPE(b) != LISP_NUMBER))                      \
             return lisp_make_error(opname " requires numbers");        \
         return (av op bv) ? LISP_TRUE : NIL;                           \
     }
@@ -38,12 +38,12 @@ static LispObject *builtin_eq_question(LispObject *args, Environment *env)
 {
     (void)env;
     /* Validate exactly 2 arguments */
-    if (args == NIL || args->value.cons.cdr == NIL || args->value.cons.cdr->value.cons.cdr != NIL) {
+    if (args == NIL || LISP_CDR(args) == NIL || LISP_CDR(LISP_CDR(args)) != NIL) {
         return lisp_make_error("eq? expects exactly 2 arguments");
     }
 
-    LispObject *a = args->value.cons.car;
-    LispObject *b = args->value.cons.cdr->value.cons.car;
+    LispObject *a = LISP_CAR(args);
+    LispObject *b = LISP_CAR(LISP_CDR(args));
 
     /* Pointer equality - same object in memory */
     return (a == b) ? LISP_TRUE : NIL;
@@ -53,12 +53,12 @@ static LispObject *builtin_equal_question(LispObject *args, Environment *env)
 {
     (void)env;
     /* Validate exactly 2 arguments */
-    if (args == NIL || args->value.cons.cdr == NIL || args->value.cons.cdr->value.cons.cdr != NIL) {
+    if (args == NIL || LISP_CDR(args) == NIL || LISP_CDR(LISP_CDR(args)) != NIL) {
         return lisp_make_error("equal? expects exactly 2 arguments");
     }
 
-    LispObject *a = args->value.cons.car;
-    LispObject *b = args->value.cons.cdr->value.cons.car;
+    LispObject *a = LISP_CAR(args);
+    LispObject *b = LISP_CAR(LISP_CDR(args));
 
     /* Use recursive structural equality */
     return objects_equal_recursive(a, b) ? LISP_TRUE : NIL;
@@ -68,23 +68,23 @@ static LispObject *builtin_string_eq_question(LispObject *args, Environment *env
 {
     (void)env;
     /* Validate exactly 2 arguments */
-    if (args == NIL || args->value.cons.cdr == NIL || args->value.cons.cdr->value.cons.cdr != NIL) {
+    if (args == NIL || LISP_CDR(args) == NIL || LISP_CDR(LISP_CDR(args)) != NIL) {
         return lisp_make_error("string=? expects exactly 2 arguments");
     }
 
-    LispObject *a = args->value.cons.car;
-    LispObject *b = args->value.cons.cdr->value.cons.car;
+    LispObject *a = LISP_CAR(args);
+    LispObject *b = LISP_CAR(LISP_CDR(args));
 
     /* Type validation */
-    if (a->type != LISP_STRING) {
+    if (LISP_TYPE(a) != LISP_STRING) {
         return lisp_make_error("string=?: first argument must be a string");
     }
-    if (b->type != LISP_STRING) {
+    if (LISP_TYPE(b) != LISP_STRING) {
         return lisp_make_error("string=?: second argument must be a string");
     }
 
     /* String comparison */
-    return (strcmp(a->value.string, b->value.string) == 0) ? LISP_TRUE : NIL;
+    return (strcmp(LISP_STR_VAL(a), LISP_STR_VAL(b)) == 0) ? LISP_TRUE : NIL;
 }
 
 void register_comparison_builtins(Environment *env)

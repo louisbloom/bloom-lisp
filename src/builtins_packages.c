@@ -5,7 +5,7 @@ static int needs_constructor(LispObject *obj)
 {
     if (obj == NULL || obj == NIL)
         return 0;
-    switch (obj->type) {
+    switch (LISP_TYPE(obj)) {
     case LISP_LAMBDA:
     case LISP_MACRO:
     case LISP_BUILTIN:
@@ -14,7 +14,7 @@ static int needs_constructor(LispObject *obj)
     case LISP_CONS:
     {
         LispObject *cur = obj;
-        while (cur != NIL && cur->type == LISP_CONS) {
+        while (cur != NIL && LISP_TYPE(cur) == LISP_CONS) {
             if (needs_constructor(lisp_car(cur)))
                 return 1;
             cur = lisp_cdr(cur);
@@ -76,7 +76,7 @@ static void collect_lambdas(LispObject *val, ExtractedLambda **list, int *counte
 {
     if (val == NULL || val == NIL)
         return;
-    switch (val->type) {
+    switch (LISP_TYPE(val)) {
     case LISP_LAMBDA:
     {
         /* Check if already collected (pointer equality) */
@@ -103,7 +103,7 @@ static void collect_lambdas(LispObject *val, ExtractedLambda **list, int *counte
         }
         /* Recurse into lambda body to find nested lambdas */
         LispObject *body = LISP_LAMBDA_BODY(val);
-        while (body != NIL && body->type == LISP_CONS) {
+        while (body != NIL && LISP_TYPE(body) == LISP_CONS) {
             collect_lambdas(lisp_car(body), list, counter, binding_name);
             body = lisp_cdr(body);
         }
@@ -112,7 +112,7 @@ static void collect_lambdas(LispObject *val, ExtractedLambda **list, int *counte
     case LISP_CONS:
     {
         LispObject *cur = val;
-        while (cur != NIL && cur->type == LISP_CONS) {
+        while (cur != NIL && LISP_TYPE(cur) == LISP_CONS) {
             collect_lambdas(lisp_car(cur), list, counter, binding_name);
             cur = lisp_cdr(cur);
         }
@@ -160,7 +160,7 @@ static void write_defun(FILE *f, const char *name, LispObject *lambda)
         write_escaped_string(f, LISP_LAMBDA_DOCSTRING(lambda));
     }
     LispObject *body = LISP_LAMBDA_BODY(lambda);
-    while (body != NIL && body->type == LISP_CONS) {
+    while (body != NIL && LISP_TYPE(body) == LISP_CONS) {
         fprintf(f, "\n  %s", lisp_print(lisp_car(body)));
         body = lisp_cdr(body);
     }
@@ -173,7 +173,7 @@ static void write_value_expr(FILE *f, LispObject *val, ExtractedLambda *extracte
         fprintf(f, "nil");
         return;
     }
-    switch (val->type) {
+    switch (LISP_TYPE(val)) {
     case LISP_LAMBDA:
     {
         /* In defun mode, emit extracted name instead of inline lambda */
@@ -188,7 +188,7 @@ static void write_value_expr(FILE *f, LispObject *val, ExtractedLambda *extracte
                 write_escaped_string(f, LISP_LAMBDA_DOCSTRING(val));
             }
             LispObject *body = LISP_LAMBDA_BODY(val);
-            while (body != NIL && body->type == LISP_CONS) {
+            while (body != NIL && LISP_TYPE(body) == LISP_CONS) {
                 fprintf(f, " %s", lisp_print(lisp_car(body)));
                 body = lisp_cdr(body);
             }
@@ -206,7 +206,7 @@ static void write_value_expr(FILE *f, LispObject *val, ExtractedLambda *extracte
             write_escaped_string(f, LISP_MACRO_DOCSTRING(val));
         }
         LispObject *body = LISP_MACRO_BODY(val);
-        while (body != NIL && body->type == LISP_CONS) {
+        while (body != NIL && LISP_TYPE(body) == LISP_CONS) {
             fprintf(f, " %s", lisp_print(lisp_car(body)));
             body = lisp_cdr(body);
         }
@@ -215,7 +215,7 @@ static void write_value_expr(FILE *f, LispObject *val, ExtractedLambda *extracte
     }
     case LISP_BUILTIN:
         /* Emit the builtin's name as a symbol reference */
-        fprintf(f, "%s", val->value.builtin.name);
+        fprintf(f, "%s", LISP_BUILTIN_NAME(val));
         break;
     case LISP_HASH_TABLE:
     {
@@ -242,7 +242,7 @@ static void write_value_expr(FILE *f, LispObject *val, ExtractedLambda *extracte
             /* Use (list ...) constructor form */
             fprintf(f, "(list");
             LispObject *cur = val;
-            while (cur != NIL && cur->type == LISP_CONS) {
+            while (cur != NIL && LISP_TYPE(cur) == LISP_CONS) {
                 fprintf(f, " ");
                 write_value_expr(f, lisp_car(cur), extracted);
                 cur = lisp_cdr(cur);
@@ -274,7 +274,7 @@ static void write_value_expr(FILE *f, LispObject *val, ExtractedLambda *extracte
         break;
     }
     case LISP_BOOLEAN:
-        fprintf(f, "%s", val->value.boolean ? "#t" : "#f");
+        fprintf(f, "%s", LISP_BOOL_VAL(val) ? "#t" : "#f");
         break;
     case LISP_SYMBOL:
         /* Quote the symbol to prevent evaluation */
@@ -302,16 +302,16 @@ static LispObject *builtin_package_save(LispObject *args, Environment *env)
 
     /* Scan remaining args for package name, :defun, and :format keywords */
     LispObject *rest = lisp_cdr(args);
-    while (rest != NIL && rest->type == LISP_CONS) {
+    while (rest != NIL && LISP_TYPE(rest) == LISP_CONS) {
         LispObject *arg = lisp_car(rest);
-        if (arg->type == LISP_KEYWORD && strcmp(arg->value.symbol->name, ":defun") == 0) {
+        if (LISP_TYPE(arg) == LISP_KEYWORD && strcmp(LISP_SYM_VAL(arg)->name, ":defun") == 0) {
             defun_mode = 1;
-        } else if (arg->type == LISP_KEYWORD && strcmp(arg->value.symbol->name, ":format") == 0) {
+        } else if (LISP_TYPE(arg) == LISP_KEYWORD && strcmp(LISP_SYM_VAL(arg)->name, ":format") == 0) {
             format_mode = 1;
-        } else if (arg->type == LISP_STRING) {
-            target_pkg = lisp_intern(arg->value.string)->value.symbol;
-        } else if (arg->type == LISP_SYMBOL) {
-            target_pkg = arg->value.symbol;
+        } else if (LISP_TYPE(arg) == LISP_STRING) {
+            target_pkg = LISP_SYM_VAL(lisp_intern(LISP_STR_VAL(arg)));
+        } else if (LISP_TYPE(arg) == LISP_SYMBOL) {
+            target_pkg = LISP_SYM_VAL(arg);
         }
         rest = lisp_cdr(rest);
     }
@@ -319,20 +319,20 @@ static LispObject *builtin_package_save(LispObject *args, Environment *env)
         target_pkg = env_current_package(env);
     }
 
-    if (filename_obj->type != LISP_STRING) {
+    if (LISP_TYPE(filename_obj) != LISP_STRING) {
         return lisp_make_error("package-save requires a string filename");
     }
 
-    FILE *f = file_open(filename_obj->value.string, "w");
+    FILE *f = file_open(LISP_STR_VAL(filename_obj), "w");
     if (f == NULL) {
         char error[512];
-        snprintf(error, sizeof(error), "package-save: cannot open '%s': %s", filename_obj->value.string,
+        snprintf(error, sizeof(error), "package-save: cannot open '%s': %s", LISP_STR_VAL(filename_obj),
                  strerror(errno));
         return lisp_make_error(error);
     }
 
     fprintf(f, ";; Bloom Lisp package saved by package-save\n");
-    fprintf(f, ";; Load with: (load \"%s\")\n", filename_obj->value.string);
+    fprintf(f, ";; Load with: (load \"%s\")\n", LISP_STR_VAL(filename_obj));
     fprintf(f, "(in-package \"%s\")\n\n", target_pkg->name);
 
     /* Collect bindings matching target package from all env frames */
@@ -343,7 +343,7 @@ static LispObject *builtin_package_save(LispObject *args, Environment *env)
         {
             if (binding->package == target_pkg) {
                 /* Skip *package* itself */
-                if (binding->symbol == sym_star_package_star->value.symbol)
+                if (binding->symbol == LISP_SYM_VAL(sym_star_package_star))
                     continue;
                 LispObject *pair = lisp_make_cons(lisp_make_string(binding->symbol->name), binding->value);
                 bindings = lisp_make_cons(pair, bindings);
@@ -354,20 +354,20 @@ static LispObject *builtin_package_save(LispObject *args, Environment *env)
 
     /* Iterate in definition order */
     LispObject *cur = bindings;
-    while (cur != NIL && cur->type == LISP_CONS) {
+    while (cur != NIL && LISP_TYPE(cur) == LISP_CONS) {
         LispObject *pair = lisp_car(cur);
-        const char *name = lisp_car(pair)->value.string;
+        const char *name = LISP_STR_VAL(lisp_car(pair));
         LispObject *val = lisp_cdr(pair);
 
         /* Skip non-serializable types */
-        if (val != NULL && (val->type == LISP_FILE_STREAM || val->type == LISP_STRING_PORT)) {
+        if (val != NULL && (LISP_TYPE(val) == LISP_FILE_STREAM || LISP_TYPE(val) == LISP_STRING_PORT)) {
             fprintf(f, ";; Skipped %s (non-serializable %s)\n", name,
-                    val->type == LISP_FILE_STREAM ? "file-stream" : "string-port");
+                    LISP_TYPE(val) == LISP_FILE_STREAM ? "file-stream" : "string-port");
             cur = lisp_cdr(cur);
             continue;
         }
 
-        if (val != NULL && val->type == LISP_MACRO) {
+        if (val != NULL && LISP_TYPE(val) == LISP_MACRO) {
             /* Emit defmacro form */
             fprintf(f, "(defmacro %s %s", name, lisp_print(LISP_MACRO_PARAMS(val)));
             if (LISP_MACRO_DOCSTRING(val)) {
@@ -375,12 +375,12 @@ static LispObject *builtin_package_save(LispObject *args, Environment *env)
                 write_escaped_string(f, LISP_MACRO_DOCSTRING(val));
             }
             LispObject *body = LISP_MACRO_BODY(val);
-            while (body != NIL && body->type == LISP_CONS) {
+            while (body != NIL && LISP_TYPE(body) == LISP_CONS) {
                 fprintf(f, "\n  %s", lisp_print(lisp_car(body)));
                 body = lisp_cdr(body);
             }
             fprintf(f, ")\n\n");
-        } else if (defun_mode && val != NULL && val->type == LISP_LAMBDA) {
+        } else if (defun_mode && val != NULL && LISP_TYPE(val) == LISP_LAMBDA) {
             /* Top-level lambda: emit as defun directly */
             write_defun(f, name, val);
         } else if (defun_mode && val != NULL) {
@@ -408,20 +408,20 @@ static LispObject *builtin_package_save(LispObject *args, Environment *env)
     /* Optionally format the output using lisp-fmt's format-file */
     if (format_mode) {
         LispObject *fmt_sym = lisp_intern("format-file");
-        LispObject *fmt_func = env_lookup(env, fmt_sym->value.symbol);
+        LispObject *fmt_func = env_lookup(env, LISP_SYM_VAL(fmt_sym));
         if (fmt_func == NULL) {
             return lisp_make_error(
                 "package-save: :format requires lisp-fmt.lisp to be loaded first");
         }
         LispObject *call = lisp_make_cons(fmt_sym, lisp_make_cons(filename_obj, NIL));
         LispObject *result = lisp_eval(call, env);
-        if (result != NULL && result->type == LISP_ERROR) {
+        if (result != NULL && LISP_TYPE(result) == LISP_ERROR) {
             return result;
         }
-        if (result != NULL && result->type == LISP_STRING) {
-            FILE *f2 = file_open(filename_obj->value.string, "w");
+        if (result != NULL && LISP_TYPE(result) == LISP_STRING) {
+            FILE *f2 = file_open(LISP_STR_VAL(filename_obj), "w");
             if (f2 != NULL) {
-                fputs(result->value.string, f2);
+                fputs(LISP_STR_VAL(result), f2);
                 fclose(f2);
             }
         }
@@ -437,15 +437,15 @@ static LispObject *builtin_in_package(LispObject *args, Environment *env)
     LispObject *arg = lisp_car(args);
     LispObject *pkg_sym_obj;
 
-    if (arg->type == LISP_STRING) {
-        pkg_sym_obj = lisp_intern(arg->value.string);
-    } else if (arg->type == LISP_SYMBOL) {
+    if (LISP_TYPE(arg) == LISP_STRING) {
+        pkg_sym_obj = lisp_intern(LISP_STR_VAL(arg));
+    } else if (LISP_TYPE(arg) == LISP_SYMBOL) {
         pkg_sym_obj = arg;
     } else {
         return lisp_make_error("in-package requires a string or symbol argument");
     }
 
-    env_set(env, sym_star_package_star->value.symbol, pkg_sym_obj);
+    env_set(env, LISP_SYM_VAL(sym_star_package_star), pkg_sym_obj);
     return pkg_sym_obj;
 }
 
@@ -463,10 +463,10 @@ static LispObject *builtin_package_symbols(LispObject *args, Environment *env)
     LispObject *arg = lisp_car(args);
     Symbol *target_pkg;
 
-    if (arg->type == LISP_STRING) {
-        target_pkg = lisp_intern(arg->value.string)->value.symbol;
-    } else if (arg->type == LISP_SYMBOL) {
-        target_pkg = arg->value.symbol;
+    if (LISP_TYPE(arg) == LISP_STRING) {
+        target_pkg = LISP_SYM_VAL(lisp_intern(LISP_STR_VAL(arg)));
+    } else if (LISP_TYPE(arg) == LISP_SYMBOL) {
+        target_pkg = LISP_SYM_VAL(arg);
     } else {
         return lisp_make_error("package-symbols requires a string or symbol argument");
     }
@@ -501,9 +501,9 @@ static LispObject *builtin_list_packages(LispObject *args, Environment *env)
                 /* Check if already in list (pointer comparison) */
                 int found = 0;
                 LispObject *cur = packages;
-                while (cur != NIL && cur->type == LISP_CONS) {
-                    if (lisp_car(cur)->type == LISP_SYMBOL &&
-                        lisp_car(cur)->value.symbol == binding->package) {
+                while (cur != NIL && LISP_TYPE(cur) == LISP_CONS) {
+                    if (LISP_TYPE(lisp_car(cur)) == LISP_SYMBOL &&
+                        LISP_SYM_VAL(lisp_car(cur)) == binding->package) {
                         found = 1;
                         break;
                     }

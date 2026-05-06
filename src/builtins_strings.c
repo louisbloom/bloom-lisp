@@ -79,10 +79,10 @@ static LispObject *builtin_concat(LispObject *args, Environment *env)
     LispObject *curr = args;
     while (curr != NIL && curr != NULL) {
         LispObject *arg = lisp_car(curr);
-        if (arg->type != LISP_STRING) {
+        if (LISP_TYPE(arg) != LISP_STRING) {
             return lisp_make_error("concat requires strings");
         }
-        total_len += strlen(arg->value.string);
+        total_len += strlen(LISP_STR_VAL(arg));
         curr = lisp_cdr(curr);
     }
 
@@ -93,7 +93,7 @@ static LispObject *builtin_concat(LispObject *args, Environment *env)
     curr = args;
     while (curr != NIL && curr != NULL) {
         LispObject *arg = lisp_car(curr);
-        strcat(result, arg->value.string);
+        strcat(result, LISP_STR_VAL(arg));
         curr = lisp_cdr(curr);
     }
 
@@ -117,7 +117,7 @@ static LispObject *builtin_number_to_string(LispObject *args, Environment *env)
     }
 
     /* Validate number argument */
-    if (num->type != LISP_INTEGER && num->type != LISP_NUMBER) {
+    if (LISP_TYPE(num) != LISP_INTEGER && LISP_TYPE(num) != LISP_NUMBER) {
         return lisp_make_error("number->string: first argument must be a number");
     }
 
@@ -125,22 +125,22 @@ static LispObject *builtin_number_to_string(LispObject *args, Environment *env)
 
     /* Parse optional radix */
     if (radix_obj != NIL) {
-        if (radix_obj->type != LISP_INTEGER) {
+        if (LISP_TYPE(radix_obj) != LISP_INTEGER) {
             return lisp_make_error("number->string: radix must be an integer");
         }
-        radix = (int)radix_obj->value.integer;
+        radix = (int)LISP_INT_VAL(radix_obj);
         if (radix < 2 || radix > 36) {
             return lisp_make_error("number->string: radix must be between 2 and 36");
         }
     }
 
     /* Float formatting (only base 10) */
-    if (num->type == LISP_NUMBER) {
+    if (LISP_TYPE(num) == LISP_NUMBER) {
         if (radix != 10) {
             return lisp_make_error("number->string: floats only supported in base 10");
         }
         char buffer[64];
-        double val = num->value.number;
+        double val = LISP_NUM_VAL(num);
         /* Format with enough precision, then trim trailing zeros but keep ".0" */
         snprintf(buffer, sizeof(buffer), "%.15f", val);
         /* Find decimal point and trim trailing zeros */
@@ -155,7 +155,7 @@ static LispObject *builtin_number_to_string(LispObject *args, Environment *env)
     }
 
     /* Integer formatting with arbitrary radix */
-    long long value = num->value.integer;
+    long long value = LISP_INT_VAL(num);
 
     /* Special case: zero */
     if (value == 0) {
@@ -216,19 +216,19 @@ static LispObject *builtin_string_to_number(LispObject *args, Environment *env)
     if (str_obj == NULL || str_obj == NIL) {
         return lisp_make_error("string->number: first argument cannot be nil");
     }
-    if (str_obj->type != LISP_STRING) {
+    if (LISP_TYPE(str_obj) != LISP_STRING) {
         return lisp_make_error("string->number: first argument must be a string");
     }
 
-    const char *str = str_obj->value.string;
+    const char *str = LISP_STR_VAL(str_obj);
     int radix = 10; /* default base */
 
     /* Parse optional radix */
     if (radix_obj != NIL) {
-        if (radix_obj->type != LISP_INTEGER) {
+        if (LISP_TYPE(radix_obj) != LISP_INTEGER) {
             return lisp_make_error("string->number: radix must be an integer");
         }
-        radix = (int)radix_obj->value.integer;
+        radix = (int)LISP_INT_VAL(radix_obj);
         if (radix < 2 || radix > 36) {
             return lisp_make_error("string->number: radix must be between 2 and 36");
         }
@@ -306,12 +306,12 @@ static LispObject *builtin_split(LispObject *args, Environment *env)
     LispObject *str_obj = lisp_car(args);
     LispObject *pattern_obj = lisp_car(lisp_cdr(args));
 
-    if (str_obj->type != LISP_STRING || pattern_obj->type != LISP_STRING) {
+    if (LISP_TYPE(str_obj) != LISP_STRING || LISP_TYPE(pattern_obj) != LISP_STRING) {
         return lisp_make_error("split requires strings");
     }
 
-    const char *str = str_obj->value.string;
-    const char *pattern = pattern_obj->value.string;
+    const char *str = LISP_STR_VAL(str_obj);
+    const char *pattern = LISP_STR_VAL(pattern_obj);
     size_t pattern_len = strlen(pattern);
 
     /* Handle empty pattern */
@@ -370,11 +370,11 @@ static LispObject *builtin_join(LispObject *args, Environment *env)
     LispObject *list_obj = lisp_car(args);
     LispObject *sep_obj = lisp_car(lisp_cdr(args));
 
-    if (sep_obj->type != LISP_STRING) {
+    if (LISP_TYPE(sep_obj) != LISP_STRING) {
         return lisp_make_error("join: separator must be a string");
     }
 
-    const char *sep = sep_obj->value.string;
+    const char *sep = LISP_STR_VAL(sep_obj);
     size_t sep_len = strlen(sep);
 
     /* Handle empty list */
@@ -386,12 +386,12 @@ static LispObject *builtin_join(LispObject *args, Environment *env)
     size_t total_len = 0;
     size_t count = 0;
     LispObject *curr = list_obj;
-    while (curr != NIL && curr != NULL && curr->type == LISP_CONS) {
+    while (curr != NIL && curr != NULL && LISP_TYPE(curr) == LISP_CONS) {
         LispObject *elem = lisp_car(curr);
-        if (elem->type != LISP_STRING) {
+        if (LISP_TYPE(elem) != LISP_STRING) {
             return lisp_make_error("join: all list elements must be strings");
         }
-        total_len += strlen(elem->value.string);
+        total_len += strlen(LISP_STR_VAL(elem));
         count++;
         curr = lisp_cdr(curr);
     }
@@ -407,30 +407,30 @@ static LispObject *builtin_join(LispObject *args, Environment *env)
 
     curr = list_obj;
     int first = 1;
-    while (curr != NIL && curr != NULL && curr->type == LISP_CONS) {
+    while (curr != NIL && curr != NULL && LISP_TYPE(curr) == LISP_CONS) {
         if (!first) {
             strcat(result, sep);
         }
         first = 0;
         LispObject *elem = lisp_car(curr);
-        strcat(result, elem->value.string);
+        strcat(result, LISP_STR_VAL(elem));
         curr = lisp_cdr(curr);
     }
 
     return lisp_make_string(result);
 }
 
-#define DEFINE_STR_CMP(cname, opname, op)                              \
-    static LispObject *cname(LispObject *args, Environment *env)       \
-    {                                                                  \
-        (void)env;                                                     \
-        CHECK_ARGS_2(opname);                                          \
-        LispObject *a = lisp_car(args), *b = lisp_car(lisp_cdr(args)); \
-        if (a->type != LISP_STRING || b->type != LISP_STRING)          \
-            return lisp_make_error(opname " requires strings");        \
-        return (strcmp(a->value.string, b->value.string) op 0)         \
-                   ? LISP_TRUE                                         \
-                   : NIL;                                              \
+#define DEFINE_STR_CMP(cname, opname, op)                               \
+    static LispObject *cname(LispObject *args, Environment *env)        \
+    {                                                                   \
+        (void)env;                                                      \
+        CHECK_ARGS_2(opname);                                           \
+        LispObject *a = lisp_car(args), *b = lisp_car(lisp_cdr(args));  \
+        if (LISP_TYPE(a) != LISP_STRING || LISP_TYPE(b) != LISP_STRING) \
+            return lisp_make_error(opname " requires strings");         \
+        return (strcmp(LISP_STR_VAL(a), LISP_STR_VAL(b)) op 0)          \
+                   ? LISP_TRUE                                          \
+                   : NIL;                                               \
     }
 DEFINE_STR_CMP(builtin_string_lt, "string<?", <)
 DEFINE_STR_CMP(builtin_string_gt, "string>?", >)
@@ -446,11 +446,11 @@ static LispObject *builtin_string_contains_question(LispObject *args, Environmen
     LispObject *haystack = lisp_car(args);
     LispObject *needle = lisp_car(lisp_cdr(args));
 
-    if (haystack->type != LISP_STRING || needle->type != LISP_STRING) {
+    if (LISP_TYPE(haystack) != LISP_STRING || LISP_TYPE(needle) != LISP_STRING) {
         return lisp_make_error("string-contains? requires strings");
     }
 
-    return (strstr(haystack->value.string, needle->value.string) != NULL) ? LISP_TRUE : NIL;
+    return (strstr(LISP_STR_VAL(haystack), LISP_STR_VAL(needle)) != NULL) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_string_index(LispObject *args, Environment *env)
@@ -461,19 +461,19 @@ static LispObject *builtin_string_index(LispObject *args, Environment *env)
     LispObject *haystack = lisp_car(args);
     LispObject *needle = lisp_car(lisp_cdr(args));
 
-    if (haystack->type != LISP_STRING || needle->type != LISP_STRING) {
+    if (LISP_TYPE(haystack) != LISP_STRING || LISP_TYPE(needle) != LISP_STRING) {
         return lisp_make_error("string-index requires strings");
     }
 
     /* Find byte offset where needle occurs in haystack */
-    char *found = strstr(haystack->value.string, needle->value.string);
+    char *found = strstr(LISP_STR_VAL(haystack), LISP_STR_VAL(needle));
     if (found == NULL) {
         return NIL;
     }
 
     /* Count UTF-8 characters from start to found position */
     int char_index = 0;
-    const char *ptr = haystack->value.string;
+    const char *ptr = LISP_STR_VAL(haystack);
     while (ptr < found) {
         ptr = utf8_next_char(ptr);
         if (ptr == NULL) {
@@ -493,11 +493,11 @@ static LispObject *builtin_string_match_question(LispObject *args, Environment *
     LispObject *str = lisp_car(args);
     LispObject *pattern = lisp_car(lisp_cdr(args));
 
-    if (str->type != LISP_STRING || pattern->type != LISP_STRING) {
+    if (LISP_TYPE(str) != LISP_STRING || LISP_TYPE(pattern) != LISP_STRING) {
         return lisp_make_error("string-match? requires strings");
     }
 
-    return wildcard_match(pattern->value.string, str->value.string) ? LISP_TRUE : NIL;
+    return wildcard_match(LISP_STR_VAL(pattern), LISP_STR_VAL(str)) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_string_prefix_question(LispObject *args, Environment *env)
@@ -508,12 +508,12 @@ static LispObject *builtin_string_prefix_question(LispObject *args, Environment 
     LispObject *prefix = lisp_car(args);
     LispObject *str = lisp_car(lisp_cdr(args));
 
-    if (prefix->type != LISP_STRING || str->type != LISP_STRING) {
+    if (LISP_TYPE(prefix) != LISP_STRING || LISP_TYPE(str) != LISP_STRING) {
         return lisp_make_error("string-prefix? requires strings");
     }
 
-    size_t prefix_len = strlen(prefix->value.string);
-    size_t str_len = strlen(str->value.string);
+    size_t prefix_len = strlen(LISP_STR_VAL(prefix));
+    size_t str_len = strlen(LISP_STR_VAL(str));
 
     /* If prefix is longer than string, it can't be a prefix */
     if (prefix_len > str_len) {
@@ -521,7 +521,7 @@ static LispObject *builtin_string_prefix_question(LispObject *args, Environment 
     }
 
     /* Use strncmp to check if prefix matches the beginning of str */
-    return (strncmp(prefix->value.string, str->value.string, prefix_len) == 0) ? LISP_TRUE : NIL;
+    return (strncmp(LISP_STR_VAL(prefix), LISP_STR_VAL(str), prefix_len) == 0) ? LISP_TRUE : NIL;
 }
 
 /* UTF-8 String operations */
@@ -536,24 +536,24 @@ static LispObject *builtin_substring(LispObject *args, Environment *env)
     LispObject *start_obj = lisp_car(lisp_cdr(args));
     LispObject *end_obj = lisp_cdr(lisp_cdr(args)) != NIL ? lisp_car(lisp_cdr(lisp_cdr(args))) : NIL;
 
-    if (str_obj->type != LISP_STRING) {
+    if (LISP_TYPE(str_obj) != LISP_STRING) {
         return lisp_make_error("substring requires a string");
     }
-    if (start_obj->type != LISP_INTEGER) {
+    if (LISP_TYPE(start_obj) != LISP_INTEGER) {
         return lisp_make_error("substring requires integer start index");
     }
 
-    long long start = start_obj->value.integer;
+    long long start = LISP_INT_VAL(start_obj);
     long long end;
 
     if (end_obj == NIL || end_obj == NULL) {
         /* No end specified, use string length (codepoint count) */
-        end = utf8_strlen(str_obj->value.string);
+        end = utf8_strlen(LISP_STR_VAL(str_obj));
     } else {
-        if (end_obj->type != LISP_INTEGER) {
+        if (LISP_TYPE(end_obj) != LISP_INTEGER) {
             return lisp_make_error("substring requires integer end index");
         }
-        end = end_obj->value.integer;
+        end = LISP_INT_VAL(end_obj);
     }
 
     if (start < 0 || end < 0 || start > end) {
@@ -561,12 +561,12 @@ static LispObject *builtin_substring(LispObject *args, Environment *env)
     }
 
     /* Use codepoint-based indexing for consistency with length and string-ref */
-    size_t start_offset = utf8_byte_offset(str_obj->value.string, start);
-    size_t end_offset = utf8_byte_offset(str_obj->value.string, end);
+    size_t start_offset = utf8_byte_offset(LISP_STR_VAL(str_obj), start);
+    size_t end_offset = utf8_byte_offset(LISP_STR_VAL(str_obj), end);
 
     size_t result_len = end_offset - start_offset;
     char *result = GC_malloc(result_len + 1);
-    memcpy(result, str_obj->value.string + start_offset, result_len);
+    memcpy(result, LISP_STR_VAL(str_obj) + start_offset, result_len);
     result[result_len] = '\0';
 
     return lisp_make_string(result);
@@ -580,24 +580,24 @@ static LispObject *builtin_string_ref(LispObject *args, Environment *env)
     LispObject *str_obj = lisp_car(args);
     LispObject *index_obj = lisp_car(lisp_cdr(args));
 
-    if (str_obj->type != LISP_STRING) {
+    if (LISP_TYPE(str_obj) != LISP_STRING) {
         return lisp_make_error("string-ref requires a string");
     }
-    if (index_obj->type != LISP_INTEGER) {
+    if (LISP_TYPE(index_obj) != LISP_INTEGER) {
         return lisp_make_error("string-ref requires an integer index");
     }
 
-    long long index = index_obj->value.integer;
+    long long index = LISP_INT_VAL(index_obj);
     if (index < 0) {
         return lisp_make_error("string-ref: negative index");
     }
 
-    size_t char_count = utf8_strlen(str_obj->value.string);
+    size_t char_count = utf8_strlen(LISP_STR_VAL(str_obj));
     if (index >= (long long)char_count) {
         return lisp_make_error("string-ref: index out of bounds");
     }
 
-    const char *char_ptr = utf8_char_at(str_obj->value.string, index);
+    const char *char_ptr = utf8_char_at(LISP_STR_VAL(str_obj), index);
     if (char_ptr == NULL) {
         return lisp_make_error("string-ref: invalid character at index");
     }
@@ -616,13 +616,13 @@ static LispObject *builtin_string_replace(LispObject *args, Environment *env)
     LispObject *old_obj = lisp_car(lisp_cdr(args));
     LispObject *new_obj = lisp_car(lisp_cdr(lisp_cdr(args)));
 
-    if (old_obj->type != LISP_STRING || new_obj->type != LISP_STRING || str_obj->type != LISP_STRING) {
+    if (LISP_TYPE(old_obj) != LISP_STRING || LISP_TYPE(new_obj) != LISP_STRING || LISP_TYPE(str_obj) != LISP_STRING) {
         return lisp_make_error("string-replace requires strings");
     }
 
-    const char *old_str = old_obj->value.string;
-    const char *new_str = new_obj->value.string;
-    const char *str = str_obj->value.string;
+    const char *old_str = LISP_STR_VAL(old_obj);
+    const char *new_str = LISP_STR_VAL(new_obj);
+    const char *str = LISP_STR_VAL(str_obj);
 
     /* If old string is empty, return original string */
     if (old_str[0] == '\0') {
@@ -700,9 +700,9 @@ static LispObject *builtin_string_upcase(LispObject *args, Environment *env)
     (void)env;
     CHECK_ARGS_1("string-upcase");
     LispObject *str_obj = lisp_car(args);
-    if (str_obj->type != LISP_STRING)
+    if (LISP_TYPE(str_obj) != LISP_STRING)
         return lisp_make_error("string-upcase requires a string");
-    return string_case_convert(str_obj->value.string, toupper);
+    return string_case_convert(LISP_STR_VAL(str_obj), toupper);
 }
 
 static LispObject *builtin_string_downcase(LispObject *args, Environment *env)
@@ -710,9 +710,9 @@ static LispObject *builtin_string_downcase(LispObject *args, Environment *env)
     (void)env;
     CHECK_ARGS_1("string-downcase");
     LispObject *str_obj = lisp_car(args);
-    if (str_obj->type != LISP_STRING)
+    if (LISP_TYPE(str_obj) != LISP_STRING)
         return lisp_make_error("string-downcase requires a string");
-    return string_case_convert(str_obj->value.string, tolower);
+    return string_case_convert(LISP_STR_VAL(str_obj), tolower);
 }
 
 /* String trim - remove leading and trailing whitespace */
@@ -722,11 +722,11 @@ static LispObject *builtin_string_trim(LispObject *args, Environment *env)
     CHECK_ARGS_1("string-trim");
 
     LispObject *str_obj = lisp_car(args);
-    if (str_obj->type != LISP_STRING) {
+    if (LISP_TYPE(str_obj) != LISP_STRING) {
         return lisp_make_error("string-trim requires a string");
     }
 
-    const char *str = str_obj->value.string;
+    const char *str = LISP_STR_VAL(str_obj);
     size_t len = strlen(str);
 
     /* Find start - skip leading whitespace */

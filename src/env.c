@@ -167,9 +167,9 @@ LispObject *env_lookup_in_package(Environment *env, Symbol *sym, Symbol *package
 
 Symbol *env_current_package(Environment *env)
 {
-    LispObject *val = env_lookup(env, sym_star_package_star->value.symbol);
-    if (val != NULL && val->type == LISP_SYMBOL) {
-        return val->value.symbol;
+    LispObject *val = env_lookup(env, LISP_SYM_VAL(sym_star_package_star));
+    if (val != NULL && LISP_TYPE(val) == LISP_SYMBOL) {
+        return LISP_SYM_VAL(val);
     }
     return pkg_core;
 }
@@ -254,7 +254,7 @@ LispObject *capture_call_stack(Environment *env)
     /* Reverse the list to get chronological order */
     LispObject *reversed = NIL;
     LispObject *current = stack;
-    while (current != NIL && current->type == LISP_CONS) {
+    while (current != NIL && LISP_TYPE(current) == LISP_CONS) {
         reversed = lisp_make_cons(lisp_car(current), reversed);
         current = lisp_cdr(current);
     }

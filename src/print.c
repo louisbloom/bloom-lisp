@@ -72,28 +72,28 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         return;
     }
 
-    switch (obj->type) {
+    switch (LISP_TYPE(obj)) {
     case LISP_NIL:
         append_str(buffer, size, pos, "nil");
         break;
 
     case LISP_NUMBER:
-        snprintf(temp, sizeof(temp), "%.15g", obj->value.number);
+        snprintf(temp, sizeof(temp), "%.15g", LISP_NUM_VAL(obj));
         append_str(buffer, size, pos, temp);
         break;
 
     case LISP_STRING:
         append_str(buffer, size, pos, "\"");
-        append_escaped_str(buffer, size, pos, obj->value.string);
+        append_escaped_str(buffer, size, pos, LISP_STR_VAL(obj));
         append_str(buffer, size, pos, "\"");
         break;
 
     case LISP_SYMBOL:
-        append_str(buffer, size, pos, obj->value.symbol->name);
+        append_str(buffer, size, pos, LISP_SYM_VAL(obj)->name);
         break;
 
     case LISP_KEYWORD:
-        append_str(buffer, size, pos, obj->value.symbol->name);
+        append_str(buffer, size, pos, LISP_SYM_VAL(obj)->name);
         break;
 
     case LISP_CONS:
@@ -101,7 +101,7 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         break;
 
     case LISP_BUILTIN:
-        snprintf(temp, sizeof(temp), "#<builtin:%s>", obj->value.builtin.name);
+        snprintf(temp, sizeof(temp), "#<builtin:%s>", LISP_BUILTIN_NAME(obj));
         append_str(buffer, size, pos, temp);
         break;
 
@@ -132,8 +132,8 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
 
         /* Print error type symbol */
         if (LISP_ERROR_TYPE(obj) != NULL &&
-            LISP_ERROR_TYPE(obj)->type == LISP_SYMBOL) {
-            append_str(buffer, size, pos, LISP_ERROR_TYPE(obj)->value.symbol->name);
+            LISP_TYPE(LISP_ERROR_TYPE(obj)) == LISP_SYMBOL) {
+            append_str(buffer, size, pos, LISP_SYM_VAL(LISP_ERROR_TYPE(obj))->name);
         } else {
             append_str(buffer, size, pos, "error");
         }
@@ -153,7 +153,7 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
             LispObject *stack = LISP_ERROR_STACK_TRACE(obj);
             append_str(buffer, size, pos, "\nCall stack:");
             int frame_num = 0;
-            while (stack != NIL && stack->type == LISP_CONS && frame_num < 20) {
+            while (stack != NIL && LISP_TYPE(stack) == LISP_CONS && frame_num < 20) {
                 append_str(buffer, size, pos, "\n  at ");
                 print_object(lisp_car(stack), buffer, size, pos);
                 stack = lisp_cdr(stack);
@@ -164,13 +164,13 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
     }
 
     case LISP_INTEGER:
-        snprintf(temp, sizeof(temp), "%lld", obj->value.integer);
+        snprintf(temp, sizeof(temp), "%lld", LISP_INT_VAL(obj));
         append_str(buffer, size, pos, temp);
         break;
 
     case LISP_CHAR:
     {
-        unsigned int cp = obj->value.character;
+        unsigned int cp = LISP_CHAR_VAL(obj);
         append_str(buffer, size, pos, "#\\");
         /* Named characters */
         if (cp == ' ')
@@ -212,7 +212,7 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
     }
 
     case LISP_BOOLEAN:
-        append_str(buffer, size, pos, obj->value.boolean ? "#t" : "#f");
+        append_str(buffer, size, pos, LISP_BOOL_VAL(obj) ? "#t" : "#f");
         break;
 
     case LISP_VECTOR:
@@ -254,12 +254,12 @@ static void print_list(LispObject *obj, char **buffer, size_t *size, size_t *pos
 {
     append_str(buffer, size, pos, "(");
 
-    while (obj != NULL && obj != NIL && obj->type == LISP_CONS) {
-        print_object(obj->value.cons.car, buffer, size, pos);
-        obj = obj->value.cons.cdr;
+    while (obj != NULL && obj != NIL && LISP_TYPE(obj) == LISP_CONS) {
+        print_object(LISP_CAR(obj), buffer, size, pos);
+        obj = LISP_CDR(obj);
 
         if (obj != NULL && obj != NIL) {
-            if (obj->type == LISP_CONS) {
+            if (LISP_TYPE(obj) == LISP_CONS) {
                 append_str(buffer, size, pos, " ");
             } else {
                 append_str(buffer, size, pos, " . ");
@@ -295,26 +295,26 @@ static void princ_object(LispObject *obj)
         return;
     }
 
-    switch (obj->type) {
+    switch (LISP_TYPE(obj)) {
     case LISP_NIL:
         printf("nil");
         break;
 
     case LISP_NUMBER:
-        printf("%.15g", obj->value.number);
+        printf("%.15g", LISP_NUM_VAL(obj));
         break;
 
     case LISP_STRING:
         /* Display strings without quotes (unlike lisp_print) */
-        printf("%s", obj->value.string);
+        printf("%s", LISP_STR_VAL(obj));
         break;
 
     case LISP_SYMBOL:
-        printf("%s", obj->value.symbol->name);
+        printf("%s", LISP_SYM_VAL(obj)->name);
         break;
 
     case LISP_KEYWORD:
-        printf("%s", obj->value.symbol->name);
+        printf("%s", LISP_SYM_VAL(obj)->name);
         break;
 
     case LISP_CONS:
@@ -322,7 +322,7 @@ static void princ_object(LispObject *obj)
         break;
 
     case LISP_BUILTIN:
-        printf("#<builtin:%s>", obj->value.builtin.name);
+        printf("#<builtin:%s>", LISP_BUILTIN_NAME(obj));
         break;
 
     case LISP_LAMBDA:
@@ -349,8 +349,8 @@ static void princ_object(LispObject *obj)
 
         /* Print error type symbol */
         if (LISP_ERROR_TYPE(obj) != NULL &&
-            LISP_ERROR_TYPE(obj)->type == LISP_SYMBOL) {
-            printf("%s", LISP_ERROR_TYPE(obj)->value.symbol->name);
+            LISP_TYPE(LISP_ERROR_TYPE(obj)) == LISP_SYMBOL) {
+            printf("%s", LISP_SYM_VAL(LISP_ERROR_TYPE(obj))->name);
         } else {
             printf("error");
         }
@@ -369,7 +369,7 @@ static void princ_object(LispObject *obj)
             LispObject *stack = LISP_ERROR_STACK_TRACE(obj);
             printf("\nCall stack:");
             int frame_num = 0;
-            while (stack != NIL && stack->type == LISP_CONS && frame_num < 20) {
+            while (stack != NIL && LISP_TYPE(stack) == LISP_CONS && frame_num < 20) {
                 printf("\n  at ");
                 princ_object(lisp_car(stack));
                 stack = lisp_cdr(stack);
@@ -380,13 +380,13 @@ static void princ_object(LispObject *obj)
     }
 
     case LISP_INTEGER:
-        printf("%lld", obj->value.integer);
+        printf("%lld", LISP_INT_VAL(obj));
         break;
 
     case LISP_CHAR:
     {
         /* princ prints the actual character, not the reader syntax */
-        unsigned int cp = obj->value.character;
+        unsigned int cp = LISP_CHAR_VAL(obj);
         char utf8_buf[5];
         utf8_put_codepoint(cp, utf8_buf);
         printf("%s", utf8_buf);
@@ -394,7 +394,7 @@ static void princ_object(LispObject *obj)
     }
 
     case LISP_BOOLEAN:
-        printf("%s", obj->value.boolean ? "#t" : "#f");
+        printf("%s", LISP_BOOL_VAL(obj) ? "#t" : "#f");
         break;
 
     case LISP_VECTOR:
@@ -434,12 +434,12 @@ static void princ_list(LispObject *obj)
 {
     printf("(");
 
-    while (obj != NULL && obj != NIL && obj->type == LISP_CONS) {
-        princ_object(obj->value.cons.car);
-        obj = obj->value.cons.cdr;
+    while (obj != NULL && obj != NIL && LISP_TYPE(obj) == LISP_CONS) {
+        princ_object(LISP_CAR(obj));
+        obj = LISP_CDR(obj);
 
         if (obj != NULL && obj != NIL) {
-            if (obj->type == LISP_CONS) {
+            if (LISP_TYPE(obj) == LISP_CONS) {
                 printf(" ");
             } else {
                 printf(" . ");

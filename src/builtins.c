@@ -37,7 +37,7 @@ static LispObject *create_bloom_lisp_version_alist(void)
             result = new_cons;                            \
             tail = new_cons;                              \
         } else {                                          \
-            tail->value.cons.cdr = new_cons;              \
+            LISP_CDR(tail) = new_cons;                    \
             tail = new_cons;                              \
         }                                                 \
     } while (0)
@@ -75,7 +75,7 @@ void register_builtins(Environment *env)
     register_time_profiling_builtins(env);
 
     /* Define version information variable */
-    env_define(env, lisp_intern("bloom-lisp-version")->value.symbol, create_bloom_lisp_version_alist(), pkg_core);
+    env_define(env, LISP_SYM_VAL(lisp_intern("bloom-lisp-version")), create_bloom_lisp_version_alist(), pkg_core);
 }
 
 /* ========================================================================== */
@@ -90,7 +90,7 @@ static int is_callable(LispObject *value)
     if (!value)
         return 0;
 
-    switch (value->type) {
+    switch (LISP_TYPE(value)) {
     case LISP_BUILTIN:
     case LISP_LAMBDA:
     case LISP_MACRO:
