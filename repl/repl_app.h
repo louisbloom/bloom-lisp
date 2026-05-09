@@ -34,11 +34,14 @@ typedef struct
     int terminal_height;
 } ReplAppModel;
 
-/* TuiComponent interface — init/update/view/cursor/free */
+/* TuiComponent interface — init/update/view/free.
+ *
+ * view() returns a TuiView that declares alt-screen + mouse mode +
+ * cursor (delegated to textinput). The cursor is populated inside
+ * view(); there is no separate cursor() slot in v2. */
 TuiInitResult repl_app_init(void *config);
 TuiUpdateResult repl_app_update(TuiModel *model, TuiMsg msg);
-void repl_app_view(const TuiModel *model, DynamicBuffer *out);
-TuiCursor repl_app_cursor(const TuiModel *model);
+TuiView repl_app_view(const TuiModel *model, DynamicBuffer *out);
 void repl_app_free(TuiModel *model);
 
 /* Echo text to the viewport */

@@ -518,10 +518,10 @@ static void run_interactive_repl(Environment *env)
         .terminal_width = 80,
         .terminal_height = 24,
     };
+    /* alt-screen and mouse mode are now declared on TuiView (see
+     * repl_app_view) — no longer runtime-config fields. */
     TuiRuntimeConfig runtime_config = {
-        .use_alternate_screen = 1,
         .raw_mode = 1,
-        .enable_mouse = 1,
         .output = stdout,
         .cmd_handler = handle_app_cmd,
         .cmd_handler_data = NULL,

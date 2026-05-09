@@ -109,24 +109,24 @@ TuiUpdateResult repl_app_update(TuiModel *model, TuiMsg msg)
     return tui_update_result_none();
 }
 
-void repl_app_view(const TuiModel *model, DynamicBuffer *out)
+TuiView repl_app_view(const TuiModel *model, DynamicBuffer *out)
 {
     const ReplAppModel *app = (const ReplAppModel *)model;
     if (!app || !out)
-        return;
+        return tui_view_default(out);
 
-    /* Viewport on top, textinput below. Cursor placement is handled by
-     * repl_app_cursor() — render order is no longer load-bearing. */
+    /* Viewport on top, textinput below. */
     tui_viewport_view(app->viewport, out);
     tui_textinput_view(app->textinput, out);
-}
 
-TuiCursor repl_app_cursor(const TuiModel *model)
-{
-    const ReplAppModel *app = (const ReplAppModel *)model;
-    if (!app || !app->textinput)
-        return tui_cursor_hidden();
-    return tui_textinput_cursor_pos(app->textinput);
+    /* Declare terminal modes for this frame. The REPL always wants
+     * alt-screen + cell-motion mouse; cursor follows the textinput. */
+    TuiView v = tui_view_default(out);
+    v.alt_screen = 1;
+    v.mouse_mode = TUI_MOUSE_MODE_CELL_MOTION;
+    if (app->textinput)
+        v.cursor = tui_textinput_cursor_pos(app->textinput);
+    return v;
 }
 
 void repl_app_echo(ReplAppModel *app, const char *text, size_t len)
@@ -203,7 +203,6 @@ static const TuiComponent repl_app_component_instance = {
     .init = repl_app_init,
     .update = repl_app_update,
     .view = repl_app_view,
-    .cursor = repl_app_cursor,
     .free = repl_app_free,
 };
 
