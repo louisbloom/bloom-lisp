@@ -281,7 +281,7 @@ static void handle_line_submit(char *line)
     if (expr_pos == 0 && line) {
         int cmd_result = handle_command(line, g_env);
         if (cmd_result == 1) {
-            tui_runtime_quit(g_runtime);
+            tui_runtime_schedule(g_runtime, tui_cmd_quit());
             return;
         } else if (cmd_result == 0) {
             tui_runtime_flush(g_runtime);
@@ -533,9 +533,19 @@ static void run_interactive_repl(Environment *env)
     }
     g_app = (ReplAppModel *)tui_runtime_model(g_runtime);
 
-    /* Set REPL colors */
-    tui_textinput_set_divider_color(g_app->textinput, color_divider);
-    tui_textinput_set_prompt_color(g_app->textinput, color_prompt);
+    /* Set REPL colors via TuiStyle. Same style for focused/blurred — the
+     * legacy setters didn't distinguish, and the REPL has only one input. */
+    TuiStyle prompt_style = tui_style_foreground(
+        tui_style_new(),
+        tui_color_rgb(COLOR_PROMPT_R, COLOR_PROMPT_G, COLOR_PROMPT_B));
+    tui_textinput_set_focused_prompt_style(g_app->textinput, prompt_style);
+    tui_textinput_set_blurred_prompt_style(g_app->textinput, prompt_style);
+
+    TuiStyle divider_style = tui_style_foreground(
+        tui_style_new(),
+        tui_color_rgb(COLOR_DIVIDER_R, COLOR_DIVIDER_G, COLOR_DIVIDER_B));
+    tui_textinput_set_focused_divider_style(g_app->textinput, divider_style);
+    tui_textinput_set_blurred_divider_style(g_app->textinput, divider_style);
 
     /* Register cleanup */
     atexit(cleanup);
