@@ -115,11 +115,18 @@ void repl_app_view(const TuiModel *model, DynamicBuffer *out)
     if (!app || !out)
         return;
 
-    /* Render viewport (fills top of screen) */
+    /* Viewport on top, textinput below. Cursor placement is handled by
+     * repl_app_cursor() — render order is no longer load-bearing. */
     tui_viewport_view(app->viewport, out);
-
-    /* Render textinput last so cursor is left at prompt */
     tui_textinput_view(app->textinput, out);
+}
+
+TuiCursor repl_app_cursor(const TuiModel *model)
+{
+    const ReplAppModel *app = (const ReplAppModel *)model;
+    if (!app || !app->textinput)
+        return tui_cursor_hidden();
+    return tui_textinput_cursor_pos(app->textinput);
 }
 
 void repl_app_echo(ReplAppModel *app, const char *text, size_t len)
@@ -196,6 +203,7 @@ static const TuiComponent repl_app_component_instance = {
     .init = repl_app_init,
     .update = repl_app_update,
     .view = repl_app_view,
+    .cursor = repl_app_cursor,
     .free = repl_app_free,
 };
 

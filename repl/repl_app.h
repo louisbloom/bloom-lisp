@@ -34,10 +34,11 @@ typedef struct
     int terminal_height;
 } ReplAppModel;
 
-/* TuiComponent interface — init/update/view/free */
+/* TuiComponent interface — init/update/view/cursor/free */
 TuiInitResult repl_app_init(void *config);
 TuiUpdateResult repl_app_update(TuiModel *model, TuiMsg msg);
 void repl_app_view(const TuiModel *model, DynamicBuffer *out);
+TuiCursor repl_app_cursor(const TuiModel *model);
 void repl_app_free(TuiModel *model);
 
 /* Echo text to the viewport */
