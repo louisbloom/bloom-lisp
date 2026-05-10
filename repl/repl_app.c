@@ -6,6 +6,7 @@
 
 #include "repl_app.h"
 #include <bloom-boba/ansi_sequences.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -40,9 +41,11 @@ TuiInitResult repl_app_init(void *config)
         free(app);
         return tui_init_result_none(NULL);
     }
-    tui_textinput_set_show_dividers(app->textinput, 1);
     tui_textinput_set_prompt(app->textinput, ">>> ");
     tui_textinput_set_continuation_prompt(app->textinput, "... ");
+
+    /* Border style: faint, mirroring the previous SGR_DIM divider color. */
+    app->border_style = tui_style_faint(tui_style_new(), 1);
 
     /* Configure layout */
     repl_app_set_terminal_size(app, app->terminal_width, app->terminal_height);
@@ -109,15 +112,38 @@ TuiUpdateResult repl_app_update(TuiModel *model, TuiMsg msg)
     return tui_update_result_none();
 }
 
+/* Position cursor at (row, 1), clear-to-EOL, and write a styled border edge. */
+static void render_border_at(DynamicBuffer *out, int row, int width,
+                             int top, const TuiStyle *style)
+{
+    if (row <= 0 || width <= 0)
+        return;
+    char *line = tui_border_render_horizontal(&TUI_BORDER_NORMAL, top, width,
+                                              style, NULL,
+                                              TUI_BORDER_TITLE_LEFT, 0, 0);
+    if (!line)
+        return;
+    char pos[32];
+    snprintf(pos, sizeof(pos), CSI "%d;1H", row);
+    dynamic_buffer_append_str(out, pos);
+    dynamic_buffer_append_str(out, EL_TO_END);
+    dynamic_buffer_append_str(out, line);
+    free(line);
+}
+
 TuiView repl_app_view(const TuiModel *model, DynamicBuffer *out)
 {
     const ReplAppModel *app = (const ReplAppModel *)model;
     if (!app || !out)
         return tui_view_default(out);
 
-    /* Viewport on top, textinput below. */
+    /* Viewport on top, top border, textinput, bottom border. */
     tui_viewport_view(app->viewport, out);
+    render_border_at(out, app->top_border_row, app->terminal_width, 1,
+                     &app->border_style);
     tui_textinput_view(app->textinput, out);
+    render_border_at(out, app->bottom_border_row, app->terminal_width, 0,
+                     &app->border_style);
 
     /* Declare terminal modes for this frame. The REPL always wants
      * alt-screen + cell-motion mouse; cursor follows the textinput. */
@@ -145,18 +171,18 @@ void repl_app_set_terminal_size(ReplAppModel *app, int width, int height)
     app->terminal_width = width;
     app->terminal_height = height;
 
-    int textinput_h = tui_textinput_get_height(app->textinput);
+    int content_lines = tui_textinput_get_height(app->textinput);
 
-    /* Viewport fills remaining space */
-    int viewport_h = height - textinput_h;
+    /* Layout, bottom-up: bottom border on the last row, then textinput
+     * content rows above it, then top border, then the viewport above. */
+    app->bottom_border_row = height;
+    int textinput_row = height - content_lines; /* first content row */
+    app->top_border_row = textinput_row - 1;
+
+    /* Viewport fills the rest. */
+    int viewport_h = app->top_border_row - 1;
     if (viewport_h < 1)
         viewport_h = 1;
-
-    /* Position textinput at bottom, viewport at top.
-     * textinput_row is the first content line of the input area. */
-    int content_lines = textinput_h - (app->textinput->show_dividers ? 2 : 0);
-    int textinput_row = height - (app->textinput->show_dividers ? 1 : 0) -
-                        content_lines + 1;
 
     if (app->viewport) {
         tui_viewport_set_size(app->viewport, width, viewport_h);

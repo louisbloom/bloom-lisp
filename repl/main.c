@@ -541,11 +541,11 @@ static void run_interactive_repl(Environment *env)
     tui_textinput_set_focused_prompt_style(g_app->textinput, prompt_style);
     tui_textinput_set_blurred_prompt_style(g_app->textinput, prompt_style);
 
-    TuiStyle divider_style = tui_style_foreground(
+    /* Borders flanking the textinput are owned by ReplAppModel.border_style.
+     * Override the faint default with the REPL's configured divider color. */
+    g_app->border_style = tui_style_foreground(
         tui_style_new(),
         tui_color_rgb(COLOR_DIVIDER_R, COLOR_DIVIDER_G, COLOR_DIVIDER_B));
-    tui_textinput_set_focused_divider_style(g_app->textinput, divider_style);
-    tui_textinput_set_blurred_divider_style(g_app->textinput, divider_style);
 
     /* Register cleanup */
     atexit(cleanup);

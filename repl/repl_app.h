@@ -14,6 +14,7 @@
 #include <bloom-boba/component.h>
 #include <bloom-boba/components/textinput.h>
 #include <bloom-boba/components/viewport.h>
+#include <bloom-boba/style.h>
 
 /* ReplApp configuration */
 typedef struct
@@ -30,8 +31,17 @@ typedef struct
     TuiViewport *viewport;
     TuiTextInput *textinput;
 
+    /* Style applied to the top + bottom border lines flanking the
+     * textinput. Set via tui_style_* builders; callers may swap it at
+     * any point to recolor the borders. */
+    TuiStyle border_style;
+
     int terminal_width;
     int terminal_height;
+
+    /* Computed in repl_app_set_terminal_size, consumed in repl_app_view. */
+    int top_border_row;
+    int bottom_border_row;
 } ReplAppModel;
 
 /* TuiComponent interface — init/update/view/free.
