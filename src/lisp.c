@@ -56,8 +56,11 @@ LispObject *lisp_make_number(double value)
 LispObject *lisp_make_integer(long long value)
 {
     if (value >= FIXNUM_MIN && value <= FIXNUM_MAX) {
-        /* Tagged fixnum — no allocation. */
-        return (LispObject *)((uintptr_t)((value << 3) | LISP_TAG_FIXNUM));
+        /* Tagged fixnum — no allocation. Shift on the unsigned type: left-shifting
+         * a negative signed value is undefined behavior (UBSan traps it). Casting to
+         * uintptr_t first is well-defined and yields the identical bit pattern; the
+         * decode side (lisp_value.h) uses an arithmetic right shift to recover the sign. */
+        return (LispObject *)(((uintptr_t)value << 3) | LISP_TAG_FIXNUM);
     }
     /* Big int falls back to the heap. */
     LispObject *obj = GC_malloc_atomic(sizeof(LispObject));
