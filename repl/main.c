@@ -24,6 +24,16 @@
 #define BLOOM_LISP_VERSION "unknown"
 #endif
 
+/* Boehm GC manages most allocations, and its finalizers (e.g. the one that frees
+ * a compiled regex's pcre2_code) are not guaranteed to run at process exit.
+ * LeakSanitizer also cannot see into the GC heap to know those blocks are still
+ * referenced, so it reports false positives. Disable leak detection; ASan and
+ * UBSan still catch real memory errors. */
+const char *__asan_default_options(void)
+{
+    return "detect_leaks=0";
+}
+
 #ifdef HAVE_BLOOM_BOBA
 
 /* Global state */

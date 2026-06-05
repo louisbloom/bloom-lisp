@@ -120,11 +120,12 @@ static LispObject *builtin_regex_find_all(LispObject *args, Environment *env)
             LIST_APPEND(result, tail, lisp_make_string(matched));
 
         PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
+        PCRE2_SIZE match_start = ovector[0];
         offset = ovector[1];
 
         pcre2_match_data_free(match_data);
 
-        if (offset == ovector[0]) {
+        if (offset == match_start) {
             offset++; /* Avoid infinite loop on zero-length match */
         }
     }
