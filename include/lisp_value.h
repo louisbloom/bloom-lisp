@@ -133,11 +133,13 @@ static inline long long lisp_int_val_inline(LispObject *v)
 #define LISP_ERROR_CAUGHT(v)      ((v)->value.error_with_stack->caught)
 
 /* ---- String port fields (boxed out — pointer indirection) ---- */
-#define LISP_STRING_PORT_BUFFER(v)   ((v)->value.string_port->buffer)
-#define LISP_STRING_PORT_BYTE_LEN(v) ((v)->value.string_port->byte_len)
-#define LISP_STRING_PORT_CHAR_LEN(v) ((v)->value.string_port->char_len)
-#define LISP_STRING_PORT_BYTE_POS(v) ((v)->value.string_port->byte_pos)
-#define LISP_STRING_PORT_CHAR_POS(v) ((v)->value.string_port->char_pos)
+#define LISP_STRING_PORT_BUFFER(v)    ((v)->value.string_port->buffer)
+#define LISP_STRING_PORT_BYTE_LEN(v)  ((v)->value.string_port->byte_len)
+#define LISP_STRING_PORT_CHAR_LEN(v)  ((v)->value.string_port->char_len)
+#define LISP_STRING_PORT_BYTE_POS(v)  ((v)->value.string_port->byte_pos)
+#define LISP_STRING_PORT_CHAR_POS(v)  ((v)->value.string_port->char_pos)
+#define LISP_STRING_PORT_CAPACITY(v)  ((v)->value.string_port->capacity)
+#define LISP_STRING_PORT_IS_OUTPUT(v) ((v)->value.string_port->is_output)
 
 /* ---- File ---- */
 #define LISP_FILE_FP(v)  ((v)->value.file.fp)

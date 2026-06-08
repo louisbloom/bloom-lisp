@@ -132,6 +132,8 @@ typedef struct StringPortInfo
     size_t char_len; /* Total character count (cached) */
     size_t byte_pos; /* Current byte position */
     size_t char_pos; /* Current character position */
+    size_t capacity; /* Allocated bytes of buffer (output ports grow this) */
+    int is_output;   /* Non-zero for output (writable) ports */
 } StringPortInfo;
 
 typedef struct VectorInfo
@@ -278,6 +280,12 @@ LispObject *lisp_make_vector(size_t capacity);
 LispObject *lisp_make_hash_table(void);
 LispObject *lisp_make_tail_call(LispObject *func, LispObject *args);
 LispObject *lisp_make_string_port(const char *str);
+LispObject *lisp_make_output_string_port(void);
+/* Append UTF-8 bytes to an output string port, growing its buffer. Returns 0
+ * on success, -1 on allocation failure. char_count is the number of codepoints
+ * in the appended bytes (kept in sync with char_len). */
+int lisp_string_port_write(LispObject *port, const char *data, size_t byte_len,
+                           size_t char_count);
 LispObject *lisp_make_regex(pcre2_code *code);
 
 /* Symbol interning */

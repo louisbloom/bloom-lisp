@@ -132,3 +132,58 @@
 (assert-equal (port-read-char p9) #\tab "special: tab")
 (assert-equal (port-read-char p9) #\c "special: after tab")
 (assert-equal (port-read-char p9) #\newline "special: newline")
+
+;; ===========================================
+;; Output String Ports
+;; ===========================================
+(define op1 (open-output-string))
+
+(assert-true (string-port? op1) "output port is a string-port")
+
+(assert-equal (get-output-string op1) "" "fresh output port is empty")
+
+(port-write-string op1 "hello")
+
+(assert-equal (get-output-string op1) "hello" "write-string appends")
+
+(port-write-string op1 ", world")
+
+(assert-equal (get-output-string op1) "hello, world" "write-string accumulates")
+
+(port-write-char op1 #\!)
+
+(assert-equal (get-output-string op1) "hello, world!" "write-char appends")
+
+;; Growth beyond the initial 64-byte capacity
+(define op2 (open-output-string))
+
+(do ((i 0 (+ i 1))) ((>= i 100))
+  (port-write-string op2 "0123456789"))
+
+(assert-equal (length (get-output-string op2)) 1000
+ "output port grows past initial capacity")
+
+;; Multi-byte UTF-8 output
+(define op3 (open-output-string))
+
+(port-write-string op3 "日本")
+(port-write-string op3 "go")
+
+(assert-equal (get-output-string op3) "日本go" "output port handles UTF-8")
+(assert-equal (length (get-output-string op3)) 4
+ "UTF-8 char count tracked, not bytes")
+
+;; with-output-to-string sugar
+(assert-equal
+ (with-output-to-string (p)
+  (port-write-string p "a")
+  (port-write-char p #\b)
+  (port-write-string p "c"))
+ "abc"
+ "with-output-to-string returns accumulated text")
+
+;; Type guards: writing to an input port errors
+(assert-error (port-write-string (open-input-string "x") "y")
+ "port-write-string rejects input ports")
+(assert-error (get-output-string (open-input-string "x"))
+ "get-output-string rejects input ports")

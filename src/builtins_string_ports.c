@@ -105,6 +105,74 @@ static LispObject *builtin_string_port_question(LispObject *args, Environment *e
     return (LISP_TYPE(obj) == LISP_STRING_PORT) ? LISP_TRUE : NIL;
 }
 
+static LispObject *builtin_open_output_string(LispObject *args, Environment *env)
+{
+    (void)env;
+    (void)args;
+    return lisp_make_output_string_port();
+}
+
+static LispObject *builtin_port_write_string(LispObject *args, Environment *env)
+{
+    (void)env;
+    CHECK_ARGS_2("port-write-string");
+
+    LispObject *port = lisp_car(args);
+    LispObject *str = lisp_car(lisp_cdr(args));
+    if (LISP_TYPE(port) != LISP_STRING_PORT ||
+        !LISP_STRING_PORT_IS_OUTPUT(port)) {
+        return lisp_make_error("port-write-string requires an output string port");
+    }
+    if (LISP_TYPE(str) != LISP_STRING) {
+        return lisp_make_error("port-write-string requires a string");
+    }
+
+    const char *s = LISP_STR_VAL(str);
+    if (lisp_string_port_write(port, s, strlen(s), utf8_strlen(s)) != 0) {
+        return lisp_make_error("port-write-string: out of memory");
+    }
+    return NIL;
+}
+
+static LispObject *builtin_port_write_char(LispObject *args, Environment *env)
+{
+    (void)env;
+    CHECK_ARGS_2("port-write-char");
+
+    LispObject *port = lisp_car(args);
+    LispObject *ch = lisp_car(lisp_cdr(args));
+    if (LISP_TYPE(port) != LISP_STRING_PORT ||
+        !LISP_STRING_PORT_IS_OUTPUT(port)) {
+        return lisp_make_error("port-write-char requires an output string port");
+    }
+    if (LISP_TYPE(ch) != LISP_CHAR) {
+        return lisp_make_error("port-write-char requires a character");
+    }
+
+    char buf[8];
+    int n = utf8_put_codepoint(LISP_CHAR_VAL(ch), buf);
+    if (n <= 0) {
+        return lisp_make_error("port-write-char: invalid codepoint");
+    }
+    if (lisp_string_port_write(port, buf, (size_t)n, 1) != 0) {
+        return lisp_make_error("port-write-char: out of memory");
+    }
+    return NIL;
+}
+
+static LispObject *builtin_get_output_string(LispObject *args, Environment *env)
+{
+    (void)env;
+    CHECK_ARGS_1("get-output-string");
+
+    LispObject *port = lisp_car(args);
+    if (LISP_TYPE(port) != LISP_STRING_PORT ||
+        !LISP_STRING_PORT_IS_OUTPUT(port)) {
+        return lisp_make_error("get-output-string requires an output string port");
+    }
+    return lisp_make_string(LISP_STRING_PORT_BUFFER(port));
+}
+
 void register_string_ports_builtins(Environment *env)
 {
     REGISTER("open-input-string", builtin_open_input_string);
@@ -114,4 +182,8 @@ void register_string_ports_builtins(Environment *env)
     REGISTER("port-source", builtin_port_source);
     REGISTER("port-eof?", builtin_port_eof_question);
     REGISTER("string-port?", builtin_string_port_question);
+    REGISTER("open-output-string", builtin_open_output_string);
+    REGISTER("port-write-string", builtin_port_write_string);
+    REGISTER("port-write-char", builtin_port_write_char);
+    REGISTER("get-output-string", builtin_get_output_string);
 }

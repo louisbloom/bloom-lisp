@@ -290,7 +290,53 @@ LispObject *lisp_make_string_port(const char *str)
     obj->value.string_port->char_len = utf8_strlen(str);
     obj->value.string_port->byte_pos = 0;
     obj->value.string_port->char_pos = 0;
+    obj->value.string_port->capacity = obj->value.string_port->byte_len + 1;
+    obj->value.string_port->is_output = 0;
     return obj;
+}
+
+/* Create a writable (output) string port backed by a growable GC buffer. */
+LispObject *lisp_make_output_string_port(void)
+{
+    LispObject *obj = GC_malloc(sizeof(LispObject));
+    obj->type = LISP_STRING_PORT;
+    obj->value.string_port = GC_malloc(sizeof(StringPortInfo));
+    size_t cap = 64;
+    obj->value.string_port->buffer = GC_malloc(cap);
+    obj->value.string_port->buffer[0] = '\0';
+    obj->value.string_port->byte_len = 0;
+    obj->value.string_port->char_len = 0;
+    obj->value.string_port->byte_pos = 0;
+    obj->value.string_port->char_pos = 0;
+    obj->value.string_port->capacity = cap;
+    obj->value.string_port->is_output = 1;
+    return obj;
+}
+
+/* Append UTF-8 bytes to an output string port, growing the buffer by doubling.
+ * Keeps a trailing NUL so the buffer stays a valid C string. */
+int lisp_string_port_write(LispObject *port, const char *data, size_t byte_len,
+                           size_t char_count)
+{
+    StringPortInfo *sp = port->value.string_port;
+    size_t needed = sp->byte_len + byte_len + 1;
+    if (needed > sp->capacity) {
+        size_t newcap = sp->capacity ? sp->capacity : 64;
+        while (newcap < needed) {
+            newcap *= 2;
+        }
+        char *nb = GC_realloc(sp->buffer, newcap);
+        if (!nb) {
+            return -1;
+        }
+        sp->buffer = nb;
+        sp->capacity = newcap;
+    }
+    memcpy(sp->buffer + sp->byte_len, data, byte_len);
+    sp->byte_len += byte_len;
+    sp->buffer[sp->byte_len] = '\0';
+    sp->char_len += char_count;
+    return 0;
 }
 
 /* PCRE2's compiled pattern is allocated outside Boehm GC, so the wrapping
@@ -528,6 +574,15 @@ static const char *stdlib_code =
     "            `(set-documentation! ',alias ,docstring)\n"
     "            nil)\n"
     "       ',alias)))\n"
+    "\n"
+    ";; with-output-to-string - bind a fresh output string port, run body,\n"
+    ";; return the accumulated string. Usage: (with-output-to-string (p) body...)\n"
+    "(defmacro with-output-to-string (binding . body)\n"
+    "  \"Bind (car BINDING) to a fresh output string port, run BODY, return the string.\"\n"
+    "  (let ((port (car binding)))\n"
+    "    `(let ((,port (open-output-string)))\n"
+    "       ,@body\n"
+    "       (get-output-string ,port))))\n"
     "\n"
     ";; Short aliases\n"
     "(defalias doc documentation \"Shorthand for `documentation`.\")\n"
