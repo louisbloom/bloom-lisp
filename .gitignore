@@ -51,9 +51,11 @@ Makefile.in
 /.cache/
 
 # Crush
-/.crush/*
-!/.crush/skills/
-!/.crush/skills/**/*.md
+/.crush/crush.db
+/.crush/crush.db-wal
+/.crush/crush.db-shm
+/.crush/init
+/.crush/logs/
 /crush.json
 /.crushignore
 
