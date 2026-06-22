@@ -298,33 +298,34 @@ LispObject *lisp_make_keyword(const char *name);
 /* Semantic classification of special forms.
  * These categories describe the language-level role of each form,
  * independent of any particular consumer (highlighter, debugger, doc generator). */
-typedef enum {
-    SF_KIND_QUOTE,       /* quote, quasiquote — data-shape, no eval */
-    SF_KIND_DEFINE,      /* define, set!, lambda — env mutation or closure construction */
-    SF_KIND_CONTROL,     /* if, cond, case, and, or, do — conditional or iterative */
-    SF_KIND_MACRO_DEF,   /* defmacro — macro definition */
-    SF_KIND_BINDING,     /* let, let* — local scope introduction */
-    SF_KIND_BODY,        /* progn — sequential evaluation */
-    SF_KIND_EXCEPTION    /* condition-case, unwind-protect — non-local exit */
+typedef enum
+{
+    SF_KIND_QUOTE,     /* quote, quasiquote — data-shape, no eval */
+    SF_KIND_DEFINE,    /* define, set!, lambda — env mutation or closure construction */
+    SF_KIND_CONTROL,   /* if, cond, case, and, or, do — conditional or iterative */
+    SF_KIND_MACRO_DEF, /* defmacro — macro definition */
+    SF_KIND_BINDING,   /* let, let* — local scope introduction */
+    SF_KIND_BODY,      /* progn — sequential evaluation */
+    SF_KIND_EXCEPTION  /* condition-case, unwind-protect — non-local exit */
 } SfKind;
 
 /* X(c_name, lisp_name, kind) — single source of truth for special forms */
-#define SPECIAL_FORMS(X)                            \
-    X(sym_quote, "quote", SF_KIND_QUOTE)             \
-    X(sym_quasiquote, "quasiquote", SF_KIND_QUOTE)   \
-    X(sym_if, "if", SF_KIND_CONTROL)                 \
-    X(sym_define, "define", SF_KIND_DEFINE)           \
-    X(sym_set, "set!", SF_KIND_DEFINE)               \
-    X(sym_lambda, "lambda", SF_KIND_DEFINE)          \
-    X(sym_defmacro, "defmacro", SF_KIND_MACRO_DEF)    \
-    X(sym_let, "let", SF_KIND_BINDING)               \
-    X(sym_let_star, "let*", SF_KIND_BINDING)         \
-    X(sym_progn, "progn", SF_KIND_BODY)              \
-    X(sym_do, "do", SF_KIND_CONTROL)                 \
-    X(sym_cond, "cond", SF_KIND_CONTROL)             \
-    X(sym_case, "case", SF_KIND_CONTROL)             \
-    X(sym_and, "and", SF_KIND_CONTROL)               \
-    X(sym_or, "or", SF_KIND_CONTROL)                 \
+#define SPECIAL_FORMS(X)                                       \
+    X(sym_quote, "quote", SF_KIND_QUOTE)                       \
+    X(sym_quasiquote, "quasiquote", SF_KIND_QUOTE)             \
+    X(sym_if, "if", SF_KIND_CONTROL)                           \
+    X(sym_define, "define", SF_KIND_DEFINE)                    \
+    X(sym_set, "set!", SF_KIND_DEFINE)                         \
+    X(sym_lambda, "lambda", SF_KIND_DEFINE)                    \
+    X(sym_defmacro, "defmacro", SF_KIND_MACRO_DEF)             \
+    X(sym_let, "let", SF_KIND_BINDING)                         \
+    X(sym_let_star, "let*", SF_KIND_BINDING)                   \
+    X(sym_progn, "progn", SF_KIND_BODY)                        \
+    X(sym_do, "do", SF_KIND_CONTROL)                           \
+    X(sym_cond, "cond", SF_KIND_CONTROL)                       \
+    X(sym_case, "case", SF_KIND_CONTROL)                       \
+    X(sym_and, "and", SF_KIND_CONTROL)                         \
+    X(sym_or, "or", SF_KIND_CONTROL)                           \
     X(sym_condition_case, "condition-case", SF_KIND_EXCEPTION) \
     X(sym_unwind_protect, "unwind-protect", SF_KIND_EXCEPTION)
 

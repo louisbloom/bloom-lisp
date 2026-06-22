@@ -40,7 +40,8 @@ Symbol *pkg_core = NULL;
 Symbol *pkg_user = NULL;
 
 /* Special form classification — built from the same X-macro, single source of truth */
-typedef struct {
+typedef struct
+{
     const char *name;
     LispObject **sym_ptr;
     SfKind kind;
@@ -59,7 +60,8 @@ static const SfInfo sf_table[] = {
 
 int lisp_sf_kind(LispObject *sym)
 {
-    if (!sym) return -1;
+    if (!sym)
+        return -1;
     for (size_t i = 0; i < SF_TABLE_COUNT; i++) {
         if (sym == *sf_table[i].sym_ptr)
             return (int)sf_table[i].kind;

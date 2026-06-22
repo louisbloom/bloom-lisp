@@ -5,4 +5,5 @@ bloomlispinclude_HEADERS = \
     lisp.h \
     lisp_value.h \
     utf8.h \
-    file_utils.h
+    file_utils.h \
+    bloom-lisp/highlight.h

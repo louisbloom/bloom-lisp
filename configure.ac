@@ -88,6 +88,7 @@ AC_CONFIG_FILES([
     Makefile
     include/Makefile
     src/Makefile
+    lat/Makefile
     repl/Makefile
     tests/Makefile
     bloom-lisp.pc

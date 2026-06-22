@@ -1,6 +1,6 @@
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = include src repl tests
+SUBDIRS = include src lat repl tests
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = bloom-lisp.pc
@@ -45,7 +45,7 @@ EXTRA_DIST = \
 format:
 	@if command -v clang-format >/dev/null 2>&1; then \
 	    echo "Formatting C with clang-format..."; \
-	    find $(top_srcdir)/src $(top_srcdir)/include $(top_srcdir)/repl $(top_srcdir)/tests \
+	    find $(top_srcdir)/src $(top_srcdir)/include $(top_srcdir)/repl $(top_srcdir)/lat $(top_srcdir)/tests \
 	        \( -name '*.c' -o -name '*.h' \) -print0 \
 	        | xargs -0 clang-format -i; \
 	else \

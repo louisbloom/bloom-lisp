@@ -36,7 +36,15 @@ Makefile.in
 
 # Executables
 /repl/bloom-repl
+/lat/lat
 /tests/test_sf_kind
+/tests/test_token_type
+/tests/test_color
+/tests/test_style
+/tests/test_lexer
+/tests/test_formatter
+/tests/test_api
+/tests/test_roundtrip
 
 # pkg-config generated
 /bloom-lisp.pc

@@ -4,7 +4,7 @@ libdir=@libdir@
 includedir=@includedir@
 
 Name: bloom-lisp
-Description: Embeddable Lisp interpreter library
+Description: Embeddable Lisp interpreter library with syntax highlighting
 Version: @PACKAGE_VERSION@
 Requires: bdw-gc libpcre2-8
 Cflags: -I${includedir}

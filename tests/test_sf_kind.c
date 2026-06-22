@@ -8,26 +8,26 @@
 static int tests_run = 0;
 static int tests_passed = 0;
 
-#define ASSERT_EQ(actual, expected, msg)                          \
-    do {                                                           \
-        tests_run++;                                               \
-        if ((actual) == (expected)) {                              \
-            tests_passed++;                                        \
-        } else {                                                   \
-            fprintf(stderr, "FAIL: %s: expected %d, got %d\n",     \
-                    msg, (int)(expected), (int)(actual));           \
-        }                                                          \
+#define ASSERT_EQ(actual, expected, msg)                       \
+    do {                                                       \
+        tests_run++;                                           \
+        if ((actual) == (expected)) {                          \
+            tests_passed++;                                    \
+        } else {                                               \
+            fprintf(stderr, "FAIL: %s: expected %d, got %d\n", \
+                    msg, (int)(expected), (int)(actual));      \
+        }                                                      \
     } while (0)
 
-#define ASSERT_NE(actual, not_expected, msg)                       \
-    do {                                                           \
-        tests_run++;                                               \
-        if ((actual) != (not_expected)) {                           \
-            tests_passed++;                                        \
-        } else {                                                   \
-            fprintf(stderr, "FAIL: %s: should not be %d\n",        \
-                    msg, (int)(not_expected));                      \
-        }                                                          \
+#define ASSERT_NE(actual, not_expected, msg)                \
+    do {                                                    \
+        tests_run++;                                        \
+        if ((actual) != (not_expected)) {                   \
+            tests_passed++;                                 \
+        } else {                                            \
+            fprintf(stderr, "FAIL: %s: should not be %d\n", \
+                    msg, (int)(not_expected));              \
+        }                                                   \
     } while (0)
 
 int main(void)

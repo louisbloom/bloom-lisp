@@ -1,6 +1,6 @@
 # Bloom Lisp
 
-An embeddable Lisp interpreter library written in C. This implementation follows traditional Lisp naming conventions and provides a REPL for testing and demonstration.
+An embeddable Lisp interpreter library and syntax highlighter written in C. This implementation follows traditional Lisp naming conventions and provides a REPL for testing and demonstration.
 
 **[Language Reference](LANGUAGE_REFERENCE.md)** - Full language documentation with data types, functions, and examples
 
@@ -8,11 +8,12 @@ An embeddable Lisp interpreter library written in C. This implementation follows
 
 ### Core Language
 
-- **Data Types**: Numbers, integers, booleans, strings (UTF-8), characters, symbols, keywords, lists, vectors, hash tables, lambdas, errors
+- **Data Types**: Numbers, integers, booleans, strings (UTF-8), characters, symbols, keywords, lists, vectors, hash tables, lambdas, errors, regex, string ports
 - **Special Forms**: `quote`, `quasiquote`, `if`, `define`, `set!`, `lambda`, `defmacro`, `let`/`let*`, `progn`, `do`, `cond`, `case`, `and`, `or`, `condition-case`, `unwind-protect`, `package-ref`
-- **Macros**: Code transformation with `defmacro`, quasiquote (`` ` ``), unquote (`,`), unquote-splicing (`,@`), and built-in `defun` macro
+- **Function Parameters**: Required, optional (`&optional`), and rest (`&rest`) parameters with `lambda`
+- **Macros**: Code transformation with `defmacro`, quasiquote (`` ` ``), unquote (`,`), unquote-splicing (`,@`), and built-in `defun`, `defvar`, `defconst`, `defalias` macros
 - **Functions**: Arithmetic, strings, lists, vectors, hash tables, regex (PCRE2), file I/O, string ports, filesystem, packages, profiling
-- **Type Predicates**: `null?`, `atom?`, `pair?`, `list?`, `integer?`, `boolean?`, `number?`, `string?`, `char?`, `symbol?`, `keyword?`, `vector?`, `hash-table?`, `function?`, `callable?`, `error?`
+- **Type Predicates**: `null?`, `atom?`, `pair?`, `list?`, `integer?`, `boolean?`, `number?`, `string?`, `char?`, `symbol?`, `keyword?`, `vector?`, `hash-table?`, `function?`, `callable?`, `error?`, `regex?`
 
 See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for complete function listings and examples.
 
@@ -28,6 +29,16 @@ See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for complete function lis
   - Handles multi-byte characters correctly (CJK, emoji, etc.)
 - **EOL-Aware File I/O**: File streams auto-detect their line-ending style (LF or CRLF) on open-for-read and transparently preserve it on write, Emacs Lisp style. `write-string` and `write-line` translate any embedded `\n` to the stream's stored EOL, so tools like source formatters can round-trip Windows files without any manual `\r` handling.
 - **Memory Management**: Automatic garbage collection with Boehm GC
+- **Semantic Classification**: The `lisp_sf_kind()` API classifies special forms by role (quote, define, control, macro-def, binding, body, exception) — used by Flare for accurate highlighting without hardcoded keyword lists
+
+### Flare — Syntax Highlighting
+
+Flare is a built-in syntax highlighting module (compiled into `libbloomlisp.a`) that produces ANSI terminal output at 8-color, 16-color, 256-color, and truecolor depths.
+
+- **Runtime-driven classification**: Uses the bloom-lisp `Environment` as the single source of truth for symbol classification — no parallel hardcoded keyword lists
+- **Four built-in styles**: Dracula, Monokai, GitHub Dark, GitHub Light
+- **Modular pipeline**: Lex → Style lookup → Format, each stage pluggable
+- **`lat` CLI**: A `cat`-like tool that highlights Lisp source files to the terminal
 
 ## Building
 
@@ -69,9 +80,9 @@ make install        # Install library, headers, REPL, pkg-config file
 
 Useful targets (from `build/`):
 
-- `make` — build `libbloomlisp.a` and `repl/bloom-repl`
+- `make` — build `libbloomlisp.a` (includes Flare) and `lat` and `repl/bloom-repl`
 - `make check` — run the test suite
-- `make install` — install library, headers, REPL, pkg-config file
+- `make install` — install library, headers, REPL, `lat`, pkg-config files
 - `make format` — clang-format on C, shfmt on shell, prettier on Markdown, lisp-fmt on Lisp
 - `make bear` — produce `compile_commands.json` for clangd
 
@@ -108,9 +119,11 @@ sudo make install
 This installs:
 
 - `bloom-repl` executable
-- `libbloomlisp.a` static library
-- Header files to `$(includedir)/bloom-lisp/`
+- `lat` executable (syntax highlighting CLI)
+- `libbloomlisp.a` static library (interpreter + syntax highlighting)
+- Header files to `$(includedir)/bloom-lisp/` (including `highlight.h` for Flare)
 - `bloom-lisp.pc` pkg-config file
+- `lisp-fmt.lisp` Lisp source formatter
 
 ## Usage
 
@@ -123,6 +136,17 @@ bloom-repl FILE [FILE...]       # Execute FILE(s) and exit
 bloom-repl FILE -- [ARG...]     # Run FILE with script arguments
 bloom-repl -h, --help           # Show help message
 ```
+
+### `lat` — Syntax Highlighting CLI
+
+```bash
+lat FILE                        # Highlight FILE to stdout (truecolor + dracula)
+lat -f 256 -s monokai FILE      # 256-color monokai
+lat -                           # Read stdin
+lat --help                      # Show options
+```
+
+Options: `-f`/`--format` (`truecolor`, `256`, `16`, `8`), `-s`/`--style` (`dracula`, `monokai`, `github-dark`, `github-light`).
 
 ### REPL Mode
 
@@ -187,6 +211,10 @@ Memory is managed by Boehm GC. Call `lisp_cleanup()` once at program exit.
 **pkg-config (after `make install`):**
 
 ```bash
+# bloom-lisp interpreter
+cc myapp.c $(pkg-config --cflags --libs bloom-lisp) -o myapp
+
+# bloom-lisp (includes syntax highlighting)
 cc myapp.c $(pkg-config --cflags --libs bloom-lisp) -o myapp
 ```
 
@@ -216,22 +244,45 @@ myapp_LDADD = libs/bloom-lisp/src/libbloomlisp.a
 ## Repository layout
 
 ```
-include/         public headers — lisp.h, lisp_value.h, utf8.h, file_utils.h
-src/             interpreter core
-  lisp.c           constructors, lisp_init, NIL/LISP_TRUE
-  eval.c           eval loop, all 18 special forms, macro expansion
-  reader.c         S-expression parser
-  print.c          object → string
-  env.c            environments, call stack, handler contexts
-  hash_table.c     FNV-1a hash table (used by interner and user hash tables)
-  builtins.c       registers all per-category builtin tables
-  builtins_*.c     one file per category (arithmetic, strings, lists, ...)
-  regex.c          PCRE2 helpers
-  utf8.c           UTF-8 codepoint helpers
-repl/            interactive TUI REPL (links bloom-boba)
-tests/           Lisp test suite (basic/, advanced/, regression/)
-doc/             builtin docstrings (Markdown → src/docstrings.gen.h at build)
-scripts/         build helpers (gen-docstrings.sh, build-mingw64.sh)
+include/            public headers — lisp.h, lisp_value.h, utf8.h, file_utils.h
+  bloom-lisp/         installed header subdirectory — highlight.h (Flare API)
+src/                interpreter core
+  lisp.c              constructors, lisp_init, NIL/LISP_TRUE, stdlib macros
+  eval.c              eval loop, 17 special forms + package-ref, macro expansion
+  reader.c            S-expression parser
+  print.c             object → string
+  env.c               environments, call stack, handler contexts
+  hash_table.c        FNV-1a hash table (used by interner and user hash tables)
+  builtins.c          registers all per-category builtin tables
+  builtins_*.c        one file per category (arithmetic, strings, lists, ...)
+  regex.c             PCRE2 helpers
+  utf8.c              UTF-8 codepoint helpers
+  file_utils.c        file path resolution and opening
+  flare_*.c         syntax highlighting (lexer, styles, formatter, color)
+    lexer.c             lexer factory, registry
+    lexer_bloom_lisp.c  Bloom Lisp scanner (runtime-driven classification)
+    token_type.c        token type hierarchy helpers
+    style.c             style storage and hierarchy resolution
+    style_*.c           built-in styles (dracula, monokai, github-dark, github-light)
+    formatter.c         formatter struct (wraps color depth)
+    formatter_terminal.c terminal SGR/ANSI emission
+    color.c             RGB ↔ 256 ↔ 16 ↔ 8 color conversion
+    highlight.c         one-shot bflare_highlight() convenience function
+lat/                lat — syntax highlighting CLI (links bloomflare + bloomlisp)
+lisp/               Lisp source formatter (lisp-fmt.lisp, loaded by bloom-repl)
+repl/               interactive TUI REPL (links bloom-boba)
+tests/              test suite
+  basic/               foundational feature tests
+  advanced/            macro, TCO, condition system, regex, etc.
+  regression/         bug-specific regression tests
+  snapshots/           reference ANSI output for flare rendering tests
+  test_sf_kind.c       C unit test for special form classification
+  test_*.c             C unit tests for flare components
+  test-helpers.lisp    assertion macros for Lisp tests
+  flare_testkit.h      assertion macros for C flare tests
+  run-test.sh          Lisp test wrapper script
+doc/                builtin docstrings (Markdown → src/docstrings.gen.h at build)
+scripts/            build helpers (gen-docstrings.sh, build-mingw64.sh)
 ```
 
 ### Adding a builtin
@@ -245,6 +296,8 @@ See `src/builtins_internal.h` for the `REGISTER` macro, `CHECK_ARGS_n` arity gua
 ### Tests
 
 Lisp files under `tests/` load `tests/test-helpers.lisp` and call `assert-equal` / `assert-true` / `assert-false` / `assert-error` / `assert-nil`. Tests abort on first failure via `(error ...)`; exit code 0 = pass. `make check` runs the full suite in parallel; `./tests/run-test.sh tests/basic/strings.lisp` runs a single file (the `BLOOM_REPL` env var overrides which binary to use).
+
+C unit tests (`test_sf_kind`, `test_token_type`, `test_color`, `test_style`, `test_lexer`, `test_formatter`, `test_api`, `test_roundtrip`) are compiled and run by `make check` alongside the Lisp tests. They link against `libbloomlisp.a` (which now includes all flare code).
 
 ## Object representation & GC
 
@@ -305,6 +358,15 @@ Symptoms of violation: intermittent "Undefined symbol" errors for builtins, or c
 (define square (lambda (n) (* n n)))
 (square 5)                           ; => 25
 
+; Named functions (defun macro)
+(defun cube (n) (* n n n))
+(cube 3)                             ; => 27
+
+; Optional and rest parameters
+(defun flex (a &optional b &rest rest)
+  (list a b rest))
+(flex 1 2 3 4 5)                     ; => (1 2 (3 4 5))
+
 ; Lists
 (map (lambda (x) (* x 2)) '(1 2 3))  ; => (2 4 6)
 (filter even? '(1 2 3 4 5 6))        ; => (2 4 6)
@@ -314,6 +376,11 @@ Symptoms of violation: intermittent "Undefined symbol" errors for builtins, or c
 
 ; Conditionals
 (if (> 10 5) "yes" "no")             ; => "yes"
+
+; Error handling
+(condition-case err
+  (/ 1 0)
+  (error (format nil "caught: ~A" (error-message err))))
 ```
 
 **For full documentation, see [LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)**
@@ -322,12 +389,12 @@ Symptoms of violation: intermittent "Undefined symbol" errors for builtins, or c
 
 ### Core Functions
 
-| Function                        | Description                                |
-| ------------------------------- | ------------------------------------------ |
-| `lisp_init()`                   | Initialize interpreter, return environment |
-| `lisp_eval_string(code, env)`   | Parse and evaluate a string                |
-| `lisp_load_file(filename, env)` | Load and evaluate a file                   |
-| `lisp_cleanup()`                | Free global resources                      |
+| Function                        | Description                                   |
+| ------------------------------- | --------------------------------------------- |
+| `lisp_init()`                   | Initialize interpreter, return environment    |
+| `lisp_eval_string(code, env)`   | Parse and evaluate first expression in string |
+| `lisp_load_file(filename, env)` | Load and evaluate a file (all expressions)    |
+| `lisp_cleanup()`                | Free global resources                         |
 
 ### Parsing and Evaluation
 
@@ -338,6 +405,7 @@ Symptoms of violation: intermittent "Undefined symbol" errors for builtins, or c
 | `lisp_print(obj)`      | Convert object to string (GC-managed) |
 | `lisp_princ(obj)`      | Print without quotes (human-readable) |
 | `lisp_prin1(obj)`      | Print with quotes (machine-readable)  |
+| `lisp_print_cl(obj)`   | Print Emacs Lisp–style                |
 
 ### Function Invocation
 
@@ -351,21 +419,48 @@ Symptoms of violation: intermittent "Undefined symbol" errors for builtins, or c
 
 ### Object Creation
 
-| Function                        | Description                                  |
-| ------------------------------- | -------------------------------------------- |
-| `lisp_make_number(value)`       | Create floating-point number                 |
-| `lisp_make_integer(value)`      | Create integer                               |
-| `lisp_make_char(codepoint)`     | Create character                             |
-| `lisp_make_string(value)`       | Create string                                |
-| `lisp_make_symbol(name)`        | Create symbol                                |
-| `lisp_make_boolean(value)`      | Create boolean                               |
-| `lisp_make_cons(car, cdr)`      | Create cons cell                             |
-| `lisp_make_vector(capacity)`    | Create vector                                |
-| `lisp_make_hash_table()`        | Create hash table                            |
-| `lisp_make_keyword(name)`       | Create keyword                               |
-| `lisp_make_error(message)`      | Create error object                          |
-| `lisp_make_builtin(func, name)` | Create builtin function                      |
-| `lisp_intern(name)`             | Intern a symbol (reuse existing if interned) |
+| Function                                       | Description                                  |
+| ---------------------------------------------- | -------------------------------------------- |
+| `lisp_make_number(value)`                      | Create floating-point number                 |
+| `lisp_make_integer(value)`                     | Create integer (tagged fixnum or heap)       |
+| `lisp_make_char(codepoint)`                    | Create character (tagged immediate)          |
+| `lisp_make_string(value)`                      | Create string                                |
+| `lisp_intern(name)`                            | Intern a symbol (reuse existing if interned) |
+| `lisp_make_symbol(name)`                       | Alias for `lisp_intern`                      |
+| `lisp_make_keyword(name)`                      | Create keyword (separate interning table)    |
+| `lisp_make_boolean(value)`                     | Create boolean                               |
+| `lisp_make_cons(car, cdr)`                     | Create cons cell                             |
+| `lisp_make_lambda(p, body, env, name)`         | Create lambda (simple)                       |
+| `lisp_make_lambda_ext(...)`                    | Create lambda with optional/rest params      |
+| `lisp_make_macro(p, body, env, name)`          | Create macro                                 |
+| `lisp_make_vector(capacity)`                   | Create vector                                |
+| `lisp_make_hash_table()`                       | Create hash table                            |
+| `lisp_make_error(message)`                     | Create error object (no stack trace)         |
+| `lisp_make_error_with_stack(msg, env)`         | Create error with stack trace                |
+| `lisp_make_typed_error(type, msg, data, env)`  | Typed error with stack trace                 |
+| `lisp_make_typed_error_simple(type, msg, env)` | Typed error from string                      |
+| `lisp_make_builtin(func, name)`                | Create builtin function                      |
+| `lisp_make_string_port(str)`                   | Create input string port                     |
+| `lisp_make_output_string_port()`               | Create output string port                    |
+| `lisp_make_regex(code)`                        | Wrap compiled PCRE2 pattern (GC finalizer)   |
+| `lisp_make_file_stream(fp)`                    | Wrap `FILE*` as file stream                  |
+
+### Error Handling
+
+| Function                                            | Description                          |
+| --------------------------------------------------- | ------------------------------------ |
+| `lisp_make_error(msg)`                              | Create `'error` without stack trace  |
+| `lisp_make_error_with_stack(msg, env)`              | Create `'error` with stack trace     |
+| `lisp_make_typed_error(type, msg, data, env)`       | Typed error with stack trace         |
+| `lisp_make_typed_error_simple(type_name, msg, env)` | Typed error from C string            |
+| `lisp_attach_stack_trace(err, env)`                 | Attach stack trace to existing error |
+
+### Semantic Classification
+
+| Function            | Description                                   |
+| ------------------- | --------------------------------------------- |
+| `lisp_sf_kind(sym)` | Return `SfKind` for special form, or `-1`     |
+| `lisp_sf_count()`   | Return number of special forms (currently 17) |
 
 ### Object Inspection
 
@@ -392,30 +487,34 @@ Symptoms of violation: intermittent "Undefined symbol" errors for builtins, or c
 
 Defined in `<bloom-lisp/lisp_value.h>`. Required for correctness — see [Object representation & GC](#object-representation--gc).
 
-| Macro                         | What it returns                                        |
-| ----------------------------- | ------------------------------------------------------ |
-| `LISP_TYPE(v)`                | The `LispType` of `v` (decodes tag bits transparently) |
-| `LISP_INT_VAL(v)`             | `long long` value of a fixnum (tagged or heap)         |
-| `LISP_NUM_VAL(v)`             | `double` value of a heap-allocated number              |
-| `LISP_CHAR_VAL(v)`            | `uint32_t` Unicode codepoint                           |
-| `LISP_BOOL_VAL(v)`            | `int` — `1` if `v == LISP_TRUE`, else `0`              |
-| `LISP_STR_VAL(v)`             | `char *` for `LISP_STRING`                             |
-| `LISP_SYM_VAL(v)`             | `Symbol *` for `LISP_SYMBOL`/`LISP_KEYWORD`            |
-| `LISP_CAR(v)`, `LISP_CDR(v)`  | Cons fields (lvalues — assignable)                     |
-| `LISP_LAMBDA_NAME(v)`, etc.   | Lambda fields (follows the boxed-out `LambdaInfo *`)   |
-| `LISP_ERROR_MESSAGE(v)`, etc. | Error fields (follows the boxed-out `ErrorInfo *`)     |
-| `LISP_VECTOR_ITEMS(v)`, etc.  | Vector fields                                          |
-| `LISP_HT_BUCKETS(v)`, etc.    | Hash-table fields                                      |
+| Macro                              | What it returns                                        |
+| ---------------------------------- | ------------------------------------------------------ |
+| `LISP_TYPE(v)`                     | The `LispType` of `v` (decodes tag bits transparently) |
+| `LISP_INT_VAL(v)`                  | `long long` value of a fixnum (tagged or heap)         |
+| `LISP_NUM_VAL(v)`                  | `double` value of a heap-allocated number              |
+| `LISP_CHAR_VAL(v)`                 | `uint32_t` Unicode codepoint                           |
+| `LISP_BOOL_VAL(v)`                 | `int` — `1` if `v == LISP_TRUE`, else `0`              |
+| `LISP_STR_VAL(v)`                  | `char *` for `LISP_STRING`                             |
+| `LISP_SYM_VAL(v)`                  | `Symbol *` for `LISP_SYMBOL`/`LISP_KEYWORD`            |
+| `LISP_CAR(v)`, `LISP_CDR(v)`       | Cons fields (lvalues — assignable)                     |
+| `LISP_LAMBDA_NAME(v)`, etc.        | Lambda fields (follows the boxed-out `LambdaInfo *`)   |
+| `LISP_ERROR_MESSAGE(v)`, etc.      | Error fields (follows the boxed-out `ErrorInfo *`)     |
+| `LISP_VECTOR_ITEMS(v)`, etc.       | Vector fields                                          |
+| `LISP_HT_BUCKETS(v)`, etc.         | Hash-table fields                                      |
+| `LISP_REGEX_CODE(v)`               | `pcre2_code *` for `LISP_REGEX`                        |
+| `LISP_STRING_PORT_BUFFER(v)`, etc. | String port fields                                     |
 
 There's one of these per (type, field) pair for boxed-out variants and one per scalar/struct member otherwise. Field names match the union member names.
 
 ### Hash Table Operations
 
-| Function                                | Description            |
-| --------------------------------------- | ---------------------- |
-| `hash_table_get_entry(table, key)`      | Look up entry by key   |
-| `hash_table_set_entry(table, key, val)` | Insert or update entry |
-| `hash_table_remove_entry(table, key)`   | Remove entry by key    |
+| Function                                | Description             |
+| --------------------------------------- | ----------------------- |
+| `hash_table_get_entry(table, key)`      | Look up entry by key    |
+| `hash_table_set_entry(table, key, val)` | Insert or update entry  |
+| `hash_table_remove_entry(table, key)`   | Remove entry by key     |
+| `hash_table_clear(table)`               | Remove all entries      |
+| `hash_keys_equal(a, b)`                 | Key equality comparison |
 
 ### Environment Management
 

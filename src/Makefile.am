@@ -76,7 +76,19 @@ libbloomlisp_a_SOURCES = \
     utf8.c \
     regex.c \
     hash_table.c \
-    file_utils.c
+    file_utils.c \
+    flare_lexer.c \
+    flare_lexer_bloom_lisp.c \
+    flare_token_type.c \
+    flare_style.c \
+    flare_style_monokai.c \
+    flare_style_dracula.c \
+    flare_style_github_dark.c \
+    flare_style_github_light.c \
+    flare_formatter.c \
+    flare_formatter_terminal.c \
+    flare_color.c \
+    flare_highlight.c
 
 libbloomlisp_a_CPPFLAGS = \
     -I$(top_srcdir)/include \
