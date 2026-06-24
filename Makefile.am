@@ -1,6 +1,6 @@
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = include src lat repl tests
+SUBDIRS = include src lat repl emacs tests
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = bloom-lisp.pc
@@ -37,7 +37,9 @@ EXTRA_DIST = \
     doc/symbols.md \
     doc/time-and-profiling.md \
     doc/type-predicates.md \
-    doc/vectors.md
+    doc/vectors.md \
+    emacs/bloom-lisp-mode.el \
+    emacs/bloom-lisp-mode-tests.el
 
 # Format target — clang-format on C, shfmt on shell, prettier on Markdown,
 # and the Lisp formatter (lisp/lisp-fmt.lisp) on .lisp files via bloom-repl.
@@ -64,6 +66,12 @@ format:
 	        | xargs -0 prettier --write; \
 	else \
 	    echo "prettier not found - skipping Markdown formatting." >&2; \
+	fi
+	@if command -v emacs >/dev/null 2>&1; then \
+	    echo "Formatting Emacs Lisp via emacs..."; \
+	    $(MAKE) -C emacs elisp-format srcdir=$(top_srcdir)/emacs; \
+	else \
+	    echo "emacs not found - skipping Elisp formatting." >&2; \
 	fi
 	@repl=""; \
 	if [ -x "$(top_builddir)/repl/bloom-repl" ]; then repl="$(top_builddir)/repl/bloom-repl"; \

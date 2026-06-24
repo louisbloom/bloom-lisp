@@ -88,6 +88,18 @@ Useful targets (from `build/`):
 
 Drop `--enable-debug` for an optimized release build.
 
+### Emacs Major Mode
+
+An Emacs major mode for bloom-lisp source (`bloom-lisp-mode.el`) lives in `emacs/`. It is installed by `make install` to `$(datadir)/emacs/site-lisp/bloom-lisp/`. Byte-compilation and ERT tests are manual targets (Emacs is not a build dependency):
+
+```bash
+make -C build/emacs byte-compile   # .el → .elc
+make -C build/emacs test           # ERT test suite
+make -C build/emacs elisp-format   # auto-indent .el files
+```
+
+See `emacs/bloom-lisp-mode.el` header for installation and usage instructions.
+
 Docstrings are generated from `doc/*.md` into `src/docstrings.gen.h` automatically by `make` (declared as `BUILT_SOURCES` in `src/Makefile.am`); to regenerate manually run `scripts/gen-docstrings.sh doc > src/docstrings.gen.h`.
 
 ### Cross-Compile for Windows
@@ -270,6 +282,7 @@ src/                interpreter core
     highlight.c         one-shot flare_highlight() convenience function
 lat/                lat — syntax highlighting CLI (links bloomflare + bloomlisp)
 lisp/               Lisp source formatter (lisp-fmt.lisp, loaded by bloom-repl)
+emacs/              Emacs major mode (bloom-lisp-mode.el, bloom-lisp-mode-tests.el)
 repl/               interactive TUI REPL (links bloom-boba)
 tests/              test suite
   basic/               foundational feature tests

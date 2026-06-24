@@ -37,6 +37,9 @@ Makefile.in
 # Executables
 /repl/bloom-repl
 /lat/lat
+
+# Emacs byte-compiled files
+*.elc
 /tests/test_sf_kind
 /tests/test_token_type
 /tests/test_color

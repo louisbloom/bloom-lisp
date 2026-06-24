@@ -90,6 +90,7 @@ AC_CONFIG_FILES([
     src/Makefile
     lat/Makefile
     repl/Makefile
+    emacs/Makefile
     tests/Makefile
     bloom-lisp.pc
 ])
