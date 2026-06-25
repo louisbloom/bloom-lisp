@@ -79,6 +79,7 @@ libbloomlisp_a_SOURCES = \
     file_utils.c \
     flare_lexer.c \
     flare_lexer_bloom_lisp.c \
+    flare_lexer_commonmark.c \
     flare_token_type.c \
     flare_style.c \
     flare_style_monokai.c \

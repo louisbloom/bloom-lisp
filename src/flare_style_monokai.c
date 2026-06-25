@@ -67,5 +67,55 @@ FlareStyle *flare_style_build_monokai(void)
     e = (FlareStyleEntry){ .fg_r = 255, .fg_g = 70, .fg_b = 70, .bold = 0, .italic = 0, .underline = 1, .faint = 0, .strikethrough = 0 };
     flare_style_set(s, HL_ERROR, &e);
 
+    /* Markdown/CommonMark block markup */
+    e = (FlareStyleEntry){ .fg_r = 117, .fg_g = 113, .fg_b = 94, .bold = 0, .italic = 0, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 102, .fg_g = 217, .fg_b = 239, .bold = 1, .italic = 0, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_HEADING_MARKER, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 102, .fg_g = 217, .fg_b = 239, .bold = 0, .italic = 0, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_SETEXT_UNDERLINE, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 117, .fg_g = 113, .fg_b = 94, .bold = 0, .italic = 1, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_FENCED_INFO, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 230, .fg_g = 219, .fg_b = 116, .bold = 0, .italic = 0, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_INDENTED_CODE, &e);
+
+    /* Markdown/CommonMark inline markup */
+    e = (FlareStyleEntry){ .fg_r = 255, .fg_g = 117, .fg_b = 198, .bold = 0, .italic = 0, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_INLINE, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 248, .fg_g = 248, .fg_b = 248, .bold = 0, .italic = 1, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_INLINE_EMPHASIS, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 248, .fg_g = 248, .fg_b = 248, .bold = 1, .italic = 0, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_INLINE_STRONG, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 230, .fg_g = 219, .fg_b = 116, .bold = 0, .italic = 0, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_INLINE_CODE, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 166, .fg_g = 226, .fg_b = 46, .bold = 0, .italic = 0, .underline = 1, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_INLINE_LINK, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 166, .fg_g = 226, .fg_b = 46, .bold = 0, .italic = 0, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_INLINE_IMAGE, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 166, .fg_g = 226, .fg_b = 46, .bold = 0, .italic = 0, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_INLINE_AUTOLINK, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 117, .fg_g = 113, .fg_b = 94, .bold = 0, .italic = 0, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_INLINE_BREAK, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 230, .fg_g = 219, .fg_b = 116, .bold = 0, .italic = 0, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_INLINE_ESCAPE, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 230, .fg_g = 219, .fg_b = 116, .bold = 0, .italic = 0, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_INLINE_ENTITY, &e);
+
+    e = (FlareStyleEntry){ .fg_r = 117, .fg_g = 113, .fg_b = 94, .bold = 0, .italic = 0, .underline = 0, .faint = 0, .strikethrough = 0 };
+    flare_style_set(s, HL_MARKUP_INLINE_HTML, &e);
+
     return s;
 }

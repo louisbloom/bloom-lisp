@@ -18,7 +18,11 @@ int flare_token_category(FlareTokenType type)
         return 5000;
     if (type < 7000)
         return 6000;
-    return 7000;
+    if (type < 8000)
+        return 7000;
+    if (type < 9000)
+        return 8000;
+    return 9000;
 }
 
 int flare_token_subcategory(FlareTokenType type)

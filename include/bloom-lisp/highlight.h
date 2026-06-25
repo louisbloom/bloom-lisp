@@ -51,10 +51,40 @@ typedef int FlareTokenType;
 #define HL_ERROR_UNCLOSED_STRING     7010
 #define HL_ERROR_UNCLOSED_PAREN      7020
 
+/* ----- CommonMark / Markdown token types -------------------------------- */
+
+/* Block structure (category 8000) */
+#define HL_MARKUP                   8000
+#define HL_MARKUP_HEADING           8010
+#define HL_MARKUP_HEADING_MARKER    8011
+#define HL_MARKUP_SETEXT_UNDERLINE  8020
+#define HL_MARKUP_FENCED_OPEN       8030
+#define HL_MARKUP_FENCED_INFO       8031
+#define HL_MARKUP_FENCED_CLOSE      8032
+#define HL_MARKUP_INDENTED_CODE     8040
+#define HL_MARKUP_BLOCKQUOTE_MARKER 8050
+#define HL_MARKUP_LIST_MARKER       8060
+#define HL_MARKUP_THEMATIC_BREAK    8070
+#define HL_MARKUP_HTML_BLOCK        8080
+#define HL_MARKUP_LINKREF_DEF       8090
+
+/* Inline structure (category 9000) */
+#define HL_MARKUP_INLINE          9000
+#define HL_MARKUP_INLINE_EMPHASIS 9010
+#define HL_MARKUP_INLINE_STRONG   9020
+#define HL_MARKUP_INLINE_CODE     9030
+#define HL_MARKUP_INLINE_LINK     9040
+#define HL_MARKUP_INLINE_IMAGE    9050
+#define HL_MARKUP_INLINE_AUTOLINK 9060
+#define HL_MARKUP_INLINE_BREAK    9070
+#define HL_MARKUP_INLINE_ESCAPE   9080
+#define HL_MARKUP_INLINE_ENTITY   9090
+#define HL_MARKUP_INLINE_HTML     9100
+
 /* ----- Token type helpers ----------------------------------------------- */
 
 /* Return the category (range base) for a token type:
- *   0, 1000, 2000, 3000, 4000, 5000, 6000, 7000 */
+ *   0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000 */
 int flare_token_category(FlareTokenType type);
 
 /* Return the subcategory for a token type:
@@ -102,6 +132,11 @@ typedef struct
  * special forms, builtins, macros, or variables. Passing NULL
  * returns NULL. */
 FlareLexer *flare_lexer_bloom_lisp(Environment *env);
+
+/* Create a CommonMark/Markdown lexer. Requires a non-NULL Environment*
+ * for sub-lexing fenced code blocks with the bloom-lisp lexer.
+ * Passing NULL returns NULL. */
+FlareLexer *flare_lexer_commonmark(Environment *env);
 
 /* Generic lexer by name (future: "c", "python", etc.) */
 FlareLexer *flare_lexer_get(const char *name);

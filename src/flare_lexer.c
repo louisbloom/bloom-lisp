@@ -16,6 +16,8 @@ FlareLexer *flare_lexer_get(const char *name)
 {
     if (strcmp(name, "bloom-lisp") == 0)
         return flare_lexer_bloom_lisp(NULL);
+    if (strcmp(name, "commonmark") == 0 || strcmp(name, "markdown") == 0)
+        return flare_lexer_commonmark(NULL);
     return NULL;
 }
 

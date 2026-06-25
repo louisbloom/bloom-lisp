@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_STYLE_ENTRIES 64
+#define MAX_STYLE_ENTRIES 96
 
 typedef struct
 {
