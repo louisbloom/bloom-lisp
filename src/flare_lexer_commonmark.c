@@ -448,9 +448,26 @@ static int is_html_block_start(const char *line, size_t line_len)
         }
     }
 
-    /* Type 7: complete open tag or closing tag on its own line */
+    /* Type 7: complete open tag or closing tag on its own line.
+     * Exclude autolinks like <https://...> or <user@host> — these
+     * have a colon-slash-slash or at-sign in the tag name portion. */
     if (ti < line_len && isalpha((unsigned char)line[ti])) {
         size_t j = ti + 1;
+        while (j < line_len && (isalnum((unsigned char)line[j]) || line[j] == '-' ||
+                                line[j] == ':' || line[j] == '/' || line[j] == '.'))
+            j++;
+        /* If tag-name-like portion contains :// or @, it's a URL autolink */
+        int is_url = 0;
+        for (size_t k = ti; k < j; k++) {
+            if (line[k] == ':' && k + 2 < j && line[k + 1] == '/' && line[k + 2] == '/')
+                is_url = 1;
+            if (line[k] == '@')
+                is_url = 1;
+        }
+        if (is_url)
+            return 0;
+        /* Reset j to just past the tag name (alphanum + hyphen only) */
+        j = ti + 1;
         while (j < line_len && (isalnum((unsigned char)line[j]) || line[j] == '-'))
             j++;
         /* Must be followed by attributes then > or />  — simplified check */
@@ -1026,35 +1043,33 @@ static FlareToken *commonmark_scan(const char *input, size_t len,
 
             if (is_opening_fence(line, line_len, &indent_bytes, &fence_char,
                                  &fence_len, &info_start, &info_len)) {
-                /* Leading indent */
-                if (indent_bytes > 0)
-                    tv_push_text(&v, line_off, line_off + indent_bytes);
+                int sub_lex = is_lisp_info(line, info_start, info_len);
 
-                /* Opening fence marker */
-                tv_push(&v, HL_MARKUP_FENCED_OPEN,
-                        line_off + indent_bytes, fence_len);
+                if (!sub_lex) {
+                    /* No sub-lexer: emit the full fence line with markup tokens */
+                    if (indent_bytes > 0)
+                        tv_push_text(&v, line_off, line_off + indent_bytes);
 
-                /* Spaces between fence and info string */
-                if (info_start > indent_bytes + fence_len)
-                    tv_push_text(&v, line_off + indent_bytes + fence_len,
-                                 line_off + info_start);
+                    tv_push(&v, HL_MARKUP_FENCED_OPEN,
+                            line_off + indent_bytes, fence_len);
 
-                /* Info string */
-                if (info_len > 0)
-                    tv_push(&v, HL_MARKUP_FENCED_INFO,
-                            line_off + info_start, info_len);
+                    if (info_start > indent_bytes + fence_len)
+                        tv_push_text(&v, line_off + indent_bytes + fence_len,
+                                     line_off + info_start);
 
-                /* Trailing spaces after info string */
-                size_t info_end = info_start + info_len;
-                if (info_end < line_len)
-                    tv_push_text(&v, line_off + info_end, line_off + line_len);
+                    if (info_len > 0)
+                        tv_push(&v, HL_MARKUP_FENCED_INFO,
+                                line_off + info_start, info_len);
 
-                /* Newline */
+                    size_t info_end = info_start + info_len;
+                    if (info_end < line_len)
+                        tv_push_text(&v, line_off + info_end, line_off + line_len);
+                }
+
+                /* Newline after opening fence */
                 size_t nl_off = line_off + line_len;
                 if (nl_off < len && input[nl_off] == '\n')
                     tv_push_text(&v, nl_off, nl_off + 1);
-
-                int sub_lex = is_lisp_info(line, info_start, info_len);
 
                 /* Collect code content until closing fence */
                 size_t code_start = it.pos;
@@ -1081,17 +1096,24 @@ static FlareToken *commonmark_scan(const char *input, size_t len,
                                          code_start + code_content_len);
 
                         /* Newline before closing fence */
-                        if (code_content_len > 0)
+                        if (!sub_lex && code_content_len > 0)
                             tv_push_text(&v, code_start + code_content_len,
                                          code_start + code_content_len + 1);
 
-                        /* Closing fence */
-                        tv_push(&v, HL_MARKUP_FENCED_CLOSE,
-                                line_offset(&it, inner_line), inner_len);
+                        if (!sub_lex) {
+                            /* Closing fence */
+                            tv_push(&v, HL_MARKUP_FENCED_CLOSE,
+                                    line_offset(&it, inner_line), inner_len);
 
-                        size_t close_nl = line_offset(&it, inner_line) + inner_len;
-                        if (close_nl < len && input[close_nl] == '\n')
-                            tv_push_text(&v, close_nl, close_nl + 1);
+                            size_t close_nl = line_offset(&it, inner_line) + inner_len;
+                            if (close_nl < len && input[close_nl] == '\n')
+                                tv_push_text(&v, close_nl, close_nl + 1);
+                        } else {
+                            /* Sub-lexed: skip closing fence entirely */
+                            size_t close_nl = line_offset(&it, inner_line) + inner_len;
+                            if (close_nl < len && input[close_nl] == '\n')
+                                tv_push_text(&v, close_nl, close_nl + 1);
+                        }
 
                         goto next_line;
                     }

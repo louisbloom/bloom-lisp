@@ -5,6 +5,7 @@ FLARE_TESTS = \
     test_color \
     test_style \
     test_lexer \
+    test_lexer_commonmark \
     test_formatter \
     test_api \
     test_roundtrip
@@ -51,6 +52,10 @@ test_style_LDADD = $(AM_FLARE_LDADD)
 test_lexer_SOURCES = test_lexer.c
 test_lexer_CPPFLAGS = $(AM_FLARE_CPPFLAGS)
 test_lexer_LDADD = $(AM_FLARE_LDADD)
+
+test_lexer_commonmark_SOURCES = test_lexer_commonmark.c
+test_lexer_commonmark_CPPFLAGS = $(AM_FLARE_CPPFLAGS)
+test_lexer_commonmark_LDADD = $(AM_FLARE_LDADD)
 
 test_formatter_SOURCES = test_formatter.c
 test_formatter_CPPFLAGS = $(AM_FLARE_CPPFLAGS)
