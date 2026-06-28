@@ -50,6 +50,62 @@ static int is_fenced_marker(FlareTokenType type)
            type == HL_MARKUP_FENCED_CLOSE;
 }
 
+/* Ensure buffer has room for `need` bytes beyond `pos`. */
+static void buf_ensure(char **buf, size_t *cap, size_t pos, size_t need)
+{
+    while (pos + need > *cap) {
+        *cap *= 2;
+        *buf = realloc(*buf, *cap);
+    }
+}
+
+/* Copy token text to the output buffer, tracking line boundaries.
+ * When `indent` is true, prepend 2 spaces at the start of each line
+ * (after every \n). Returns the new output position. */
+static size_t emit_token_text(char **out, size_t *cap, size_t pos,
+                              const char *input, size_t offset, size_t length,
+                              int indent, int *at_line_start)
+{
+    const char *src = input + offset;
+
+    if (!indent) {
+        buf_ensure(out, cap, pos, length + 5);
+        memcpy(*out + pos, src, length);
+        pos += length;
+    } else {
+        size_t src_pos = 0;
+        while (src_pos < length) {
+            const char *nl = memchr(src + src_pos, '\n', length - src_pos);
+            if (!nl) {
+                size_t chunk = length - src_pos;
+                buf_ensure(out, cap, pos, chunk + 3);
+                memcpy(*out + pos, src + src_pos, chunk);
+                pos += chunk;
+                break;
+            }
+            size_t chunk = (size_t)(nl - (src + src_pos)) + 1;
+            buf_ensure(out, cap, pos, chunk + 3);
+            memcpy(*out + pos, src + src_pos, chunk);
+            pos += chunk;
+            src_pos += chunk;
+            /* Emit indentation after the newline (unless it's the
+             * very end of the token — the next token will handle it
+             * via the at_line_start mechanism). */
+            if (src_pos < length) {
+                buf_ensure(out, cap, pos, 3);
+                memcpy(*out + pos, "  ", 2);
+                pos += 2;
+            }
+        }
+    }
+
+    if (length > 0 && src[length - 1] == '\n')
+        *at_line_start = 1;
+    else if (length > 0)
+        *at_line_start = 0;
+    return pos;
+}
+
 /* Format token stream into an ANSI string */
 char *flare_format_terminal(const FlareToken *tokens, size_t count,
                             const char *input, const FlareStyle *style,
@@ -69,6 +125,8 @@ char *flare_format_terminal(const FlareToken *tokens, size_t count,
 
     FlareStyleEntry prev = { 0 };
     int prev_valid = 0;
+    int in_fenced = 0;
+    int at_line_start = 1; /* track line boundaries across tokens */
 
     for (size_t i = 0; i < count; i++) {
         /* Skip fenced code block structural markers — they are not
@@ -83,11 +141,15 @@ char *flare_format_terminal(const FlareToken *tokens, size_t count,
         if (is_fenced_marker(tokens[i].type)) {
             if (tokens[i].type == HL_MARKUP_FENCED_OPEN ||
                 tokens[i].type == HL_MARKUP_FENCED_INFO) {
+                in_fenced = 1;
+                at_line_start = 1;
                 /* Consume trailing \n that ends the fence line */
                 if (i + 1 < count && tokens[i + 1].type == HL_TEXT &&
                     tokens[i + 1].length == 1 &&
                     input[tokens[i + 1].offset] == '\n')
                     i++;
+            } else if (tokens[i].type == HL_MARKUP_FENCED_CLOSE) {
+                in_fenced = 0;
             }
             prev_valid = 0;
             continue;
@@ -96,22 +158,31 @@ char *flare_format_terminal(const FlareToken *tokens, size_t count,
             input[tokens[i].offset] == '\n' &&
             i + 1 < count && tokens[i + 1].type == HL_MARKUP_FENCED_CLOSE) {
             /* \n before closing fence: part of the fence block, not
-             * a paragraph separator — suppress */
+             * a paragraph separator — suppress.  Also clear
+             * in_fenced so subsequent content is not indented. */
+            in_fenced = 0;
             prev_valid = 0;
             continue;
         }
+
+        /* Emit 2-space indentation at the start of each line inside
+         * a fenced code block, before the first styled token. */
+        if (in_fenced && at_line_start) {
+            buf_ensure(&out, &cap, pos, 2);
+            memcpy(out + pos, "  ", 2);
+            pos += 2;
+            at_line_start = 0;
+        }
+
         FlareStyleEntry entry = flare_style_get(style, tokens[i].type);
 
         /* Coalesce: if same style as previous, skip the escape */
         if (prev_valid && style_entries_equal(&prev, &entry)) {
             /* Just copy the text */
             size_t tlen = tokens[i].length;
-            while (pos + tlen + 5 > cap) {
-                cap *= 2;
-                out = realloc(out, cap);
-            }
-            memcpy(out + pos, input + tokens[i].offset, tlen);
-            pos += tlen;
+            pos = emit_token_text(&out, &cap, pos, input,
+                                  tokens[i].offset, tlen, in_fenced,
+                                  &at_line_start);
             continue;
         }
 
@@ -229,15 +300,13 @@ char *flare_format_terminal(const FlareToken *tokens, size_t count,
 
         /* Write SGR + token text */
         size_t tlen = tokens[i].length;
-        while (pos + sgrpos + tlen + 5 > cap) {
-            cap *= 2;
-            out = realloc(out, cap);
-        }
+        buf_ensure(&out, &cap, pos, sgrpos + tlen + 5);
 
         memcpy(out + pos, sgr, sgrpos);
         pos += sgrpos;
-        memcpy(out + pos, input + tokens[i].offset, tlen);
-        pos += tlen;
+        pos = emit_token_text(&out, &cap, pos, input,
+                              tokens[i].offset, tlen, in_fenced,
+                              &at_line_start);
 
         prev = entry;
         prev_valid = 1;

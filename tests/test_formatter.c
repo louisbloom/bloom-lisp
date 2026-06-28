@@ -205,8 +205,8 @@ static void test_formatter_fenced_no_spurious_blank_line(void)
     }
     plain[j] = '\0';
 
-    /* Should be "Text\n\n'()\n" — one blank line, not two.
-     * A spurious blank line would produce "Text\n\n\n'()\n"
+    /* Expected: "Text\n\n  '()\n" — one blank line, not two.
+     * A spurious blank line would produce "Text\n\n\n  '()\n"
      * (three consecutive newlines). */
     const char *triple = strstr(plain, "\n\n\n");
     ASSERT_TRUE(triple == NULL);
@@ -248,12 +248,14 @@ static void test_formatter_fenced_preserves_blank_lines(void)
     }
     plain[j] = '\0';
 
-    /* Expected: "Text\n\nfoo\n\nbar\n\nAfter\n"
-     * - blank line between Text and foo (paragraph separator)
-     * - blank line between foo and bar (within code block)
+    /* Expected: "Text\n\n  foo\n  \n  bar\n\nAfter\n"
+     * Fenced code content is indented by 2 spaces.
+     * - blank line between Text and indented foo (paragraph separator)
+     * - blank line within the code block (between foo and bar,
+     *   also indented)
      * - blank line between bar and After (paragraph separator) */
     ASSERT_TRUE(strstr(plain, "Text\n\n") != NULL);
-    ASSERT_TRUE(strstr(plain, "foo\n\nbar") != NULL);
+    ASSERT_TRUE(strstr(plain, "  foo\n  \n  bar") != NULL);
     ASSERT_TRUE(strstr(plain, "bar\n\nAfter") != NULL);
 
     flare_result_free(r);
