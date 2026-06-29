@@ -1,6 +1,6 @@
 /* style_dracula.c - Built-in Dracula style */
 
-#include "../include/bloom-lisp/highlight.h"
+#include "../include/ditty/highlight.h"
 #include <stdlib.h>
 
 FlareStyle *flare_style_build_dracula(void)

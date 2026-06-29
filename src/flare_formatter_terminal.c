@@ -1,6 +1,6 @@
 /* formatter_terminal.c - ANSI terminal formatter */
 
-#include "../include/bloom-lisp/highlight.h"
+#include "../include/ditty/highlight.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -1,7 +1,7 @@
 /* test_roundtrip.c - Highlight → strip ANSI → matches input */
 
 #include "flare_testkit.h"
-#include <bloom-lisp/highlight.h>
+#include <ditty/highlight.h>
 #include <stdlib.h>
 #include <string.h>
 

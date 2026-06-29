@@ -1,6 +1,6 @@
 /* highlight.c - One-shot flare_highlight() convenience */
 
-#include "../include/bloom-lisp/highlight.h"
+#include "../include/ditty/highlight.h"
 #include "../include/lisp.h"
 #include <stdlib.h>
 #include <string.h>
@@ -28,7 +28,7 @@ FlareResult flare_highlight(const char *input, size_t input_len,
     Environment *def_env = NULL;
     if (!lexer) {
         def_env = lisp_init();
-        def_lexer = flare_lexer_bloom_lisp(def_env);
+        def_lexer = flare_lexer_ditty(def_env);
         lexer = def_lexer;
     }
 

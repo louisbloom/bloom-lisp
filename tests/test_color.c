@@ -1,7 +1,7 @@
 /* test_color.c - RGB ↔ 256 ↔ 16 ↔ 8 color conversion tests */
 
 #include "flare_testkit.h"
-#include <bloom-lisp/highlight.h>
+#include <ditty/highlight.h>
 
 static void test_rgb_to_256_pure_red(void)
 {

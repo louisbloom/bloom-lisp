@@ -1,5 +1,5 @@
 #!/bin/sh
-# Test wrapper script for bloom-lisp tests
+# Test wrapper script for ditty tests
 # Runs tests from the project root so (load "tests/...") works
 
 # Get the directory containing this script
@@ -7,15 +7,15 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Project root is one level up
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Find the bloom-repl binary
-if [ -n "$BLOOM_REPL" ] && [ -x "$BLOOM_REPL" ]; then
-	REPL="$BLOOM_REPL"
-elif [ -x "$PROJECT_ROOT/build/repl/bloom-repl" ]; then
-	REPL="$PROJECT_ROOT/build/repl/bloom-repl"
-elif [ -x "$PROJECT_ROOT/repl/bloom-repl" ]; then
-	REPL="$PROJECT_ROOT/repl/bloom-repl"
+# Find the ditty binary
+if [ -n "$DITTY_BIN" ] && [ -x "$DITTY_BIN" ]; then
+	REPL="$DITTY_BIN"
+elif [ -x "$PROJECT_ROOT/build/cli/ditty" ]; then
+	REPL="$PROJECT_ROOT/build/cli/ditty"
+elif [ -x "$PROJECT_ROOT/cli/ditty" ]; then
+	REPL="$PROJECT_ROOT/cli/ditty"
 else
-	echo "ERROR: bloom-repl not found" >&2
+	echo "ERROR: ditty not found" >&2
 	exit 1
 fi
 

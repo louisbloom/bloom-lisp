@@ -3,9 +3,9 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 
-Name: bloom-lisp
+Name: ditty
 Description: Embeddable Lisp interpreter library with syntax highlighting
 Version: @PACKAGE_VERSION@
 Requires: bdw-gc libpcre2-8
 Cflags: -I${includedir}
-Libs: -L${libdir} -lbloomlisp
+Libs: -L${libdir} -lditty

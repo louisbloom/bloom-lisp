@@ -1,7 +1,7 @@
 /* colors.h - RGB color constants for the REPL */
 
-#ifndef BLOOM_REPL_COLORS_H
-#define BLOOM_REPL_COLORS_H
+#ifndef DITTY_BIN_COLORS_H
+#define DITTY_BIN_COLORS_H
 
 /* Prompt ">>>" - Hot pink (Charm signature) */
 #define COLOR_PROMPT_R 255
@@ -53,4 +53,4 @@
 #define COLOR_RESULT_G 229
 #define COLOR_RESULT_B 229
 
-#endif /* BLOOM_REPL_COLORS_H */
+#endif /* DITTY_BIN_COLORS_H */

@@ -4,12 +4,12 @@
  *   Phase 1 — Block structure: identify block types line-by-line
  *   Phase 2 — Inline structure: tokenize emphasis, links, etc. within text
  *
- * Fenced code blocks with an info string of "lisp", "bloom-lisp",
- * or "bloom" are sub-lexed through the bloom-lisp lexer for
+ * Fenced code blocks with an info string of "lisp", "ditty",
+ * are sub-lexed through the ditty lexer for
  * syntax highlighting.
  */
 
-#include "../include/bloom-lisp/highlight.h"
+#include "../include/ditty/highlight.h"
 #include "../include/lisp.h"
 #include <ctype.h>
 #include <stdlib.h>
@@ -511,7 +511,7 @@ static int is_link_ref_def(const char *line, size_t line_len,
     return 1;
 }
 
-/* Check if the info string indicates bloom-lisp code */
+/* Check if the info string indicates ditty code */
 static int is_lisp_info(const char *line, size_t info_start, size_t info_len)
 {
     if (info_len == 0)
@@ -525,8 +525,7 @@ static int is_lisp_info(const char *line, size_t info_start, size_t info_len)
     size_t word_len = word_end - info_start;
 
     return (word_len == 4 && strncmp(line + info_start, "lisp", 4) == 0) ||
-           (word_len == 10 && strncmp(line + info_start, "bloom-lisp", 10) == 0) ||
-           (word_len == 5 && strncmp(line + info_start, "bloom", 5) == 0);
+           (word_len == 5 && strncmp(line + info_start, "ditty", 5) == 0);
 }
 
 /* ----- Inline tokenizer ------------------------------------------------- */
@@ -872,7 +871,7 @@ static void emit_line_with_inlines(TokenVec *v, const char *input,
     free(iv.items);
 }
 
-/* ----- Helper: sub-lex fenced code content through bloom-lisp ---------- */
+/* ----- Helper: sub-lex fenced code content through ditty ---------- */
 
 static void emit_sublexed_code(TokenVec *v, const char *input,
                                size_t code_start, size_t code_len,
@@ -883,7 +882,7 @@ static void emit_sublexed_code(TokenVec *v, const char *input,
         return;
     }
 
-    FlareLexer *sub = flare_lexer_bloom_lisp(env);
+    FlareLexer *sub = flare_lexer_ditty(env);
     if (!sub) {
         tv_push_text(v, code_start, code_start + code_len);
         return;

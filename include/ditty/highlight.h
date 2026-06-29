@@ -1,4 +1,4 @@
-/* highlight.h - Public API for bloom-flare syntax highlighting
+/* highlight.h - Public API for ditty flare syntax highlighting
  *
  * A Chroma-inspired, pure-C syntax highlighting library producing
  * ANSI terminal output at 16-color, 256-color, and truecolor depths.
@@ -131,10 +131,10 @@ typedef struct
  * from lisp_init()) for semantic classification of symbols as
  * special forms, builtins, macros, or variables. Passing NULL
  * returns NULL. */
-FlareLexer *flare_lexer_bloom_lisp(Environment *env);
+FlareLexer *flare_lexer_ditty(Environment *env);
 
 /* Create a CommonMark/Markdown lexer. Requires a non-NULL Environment*
- * for sub-lexing fenced code blocks with the bloom-lisp lexer.
+ * for sub-lexing fenced code blocks with the ditty lexer.
  * Passing NULL returns NULL. */
 FlareLexer *flare_lexer_commonmark(Environment *env);
 
@@ -202,7 +202,7 @@ void flare_color_256_to_rgb(int idx, uint8_t *r, uint8_t *g, uint8_t *b);
 /* Highlight source text in one call.
  *
  * lexer, style, formatter are all optional (NULL = defaults:
- * bloom-lisp lexer, monokai style, truecolor terminal formatter).
+ * ditty lexer, monokai style, truecolor terminal formatter).
  *
  * Returns a FlareResult with a malloc'd ANSI string.
  * Caller frees with flare_result_free(). */

@@ -5,7 +5,7 @@
  */
 
 #include "repl_app.h"
-#include <bloom-boba/ansi_sequences.h>
+#include <boba/ansi_sequences.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

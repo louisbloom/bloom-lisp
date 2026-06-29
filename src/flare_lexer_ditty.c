@@ -1,14 +1,14 @@
-/* lexer_bloom_lisp.c - Bloom Lisp scanner
+/* lexer_ditty.c - Bloom Lisp scanner
  *
- * Classification uses the bloom-lisp runtime as the single source of truth:
- *   - Special forms: lisp_sf_kind() from bloom-lisp (auto-generated from
+ * Classification uses the ditty runtime as the single source of truth:
+ *   - Special forms: lisp_sf_kind() from ditty (auto-generated from
  *     the SPECIAL_FORMS X-macro, maps each form to its semantic kind).
  *   - Builtins/functions: resolved via env_lookup on the Environment.
  *
  * An Environment* is required. Pass the result of lisp_init().
  */
 
-#include "../include/bloom-lisp/highlight.h"
+#include "../include/ditty/highlight.h"
 #include "../include/lisp.h"
 #include <ctype.h>
 #include <stdlib.h>
@@ -24,7 +24,7 @@ typedef struct
     Environment *env;
 } BloomLispCtx;
 
-/* Map bloom-lisp's SfKind to bloom-flare's token subcategory */
+/* Map ditty's SfKind to bloom-flare's token subcategory */
 static FlareTokenType sf_kind_to_type(SfKind kind)
 {
     switch (kind) {
@@ -127,7 +127,7 @@ static FlareTokenType classify_atom(const char *input, size_t offset, size_t len
 
     LispObject *sym = lisp_intern(buf);
 
-    /* Special forms: ask bloom-lisp.
+    /* Special forms: ask ditty.
      * Returns -1 for non-special-forms; must cast to int because
      * SfKind is an enum and GCC may treat the comparison as unsigned. */
     int kind = (int)lisp_sf_kind(sym);
@@ -148,8 +148,8 @@ static FlareTokenType classify_atom(const char *input, size_t offset, size_t len
 }
 
 /* Main scan function */
-static FlareToken *bloom_lisp_scan(const char *input, size_t len,
-                                   void *ctx, size_t *out_count)
+static FlareToken *ditty_scan(const char *input, size_t len,
+                              void *ctx, size_t *out_count)
 {
     TokenVec v = { NULL, 0, 0 };
     size_t pos = 0;
@@ -299,7 +299,7 @@ static void lctx_free(void *p)
     free(p);
 }
 
-FlareLexer *flare_lexer_bloom_lisp(Environment *env)
+FlareLexer *flare_lexer_ditty(Environment *env)
 {
     if (!env)
         return NULL;
@@ -310,7 +310,7 @@ FlareLexer *flare_lexer_bloom_lisp(Environment *env)
 
     ctx->env = env;
 
-    return flare_lexer_alloc("bloom-lisp", ctx,
-                             bloom_lisp_scan,
+    return flare_lexer_alloc("ditty", ctx,
+                             ditty_scan,
                              lctx_free);
 }

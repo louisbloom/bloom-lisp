@@ -1,7 +1,7 @@
 /* testkit.h - Reusable C test infrastructure for bloom-flare
  *
  * Provides RUN_TEST / TEST_SUMMARY macros and assertion helpers,
- * following the pattern from bloom-telnet's testkit.h.
+ * following the pattern from mudlark's testkit.h.
  */
 
 #ifndef BLOOM_FLARE_TESTKIT_H

@@ -1,7 +1,7 @@
 /* test_api.c - Public API contract tests */
 
 #include "flare_testkit.h"
-#include <bloom-lisp/highlight.h>
+#include <ditty/highlight.h>
 #include <string.h>
 
 static void test_result_free_null_safe(void)

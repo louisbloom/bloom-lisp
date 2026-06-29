@@ -1,5 +1,5 @@
 #!/bin/sh
-# git-version.sh - print the bloom-lisp version string.
+# git-version.sh - print the ditty version string.
 #
 # Usage: git-version.sh [SRCDIR]
 #

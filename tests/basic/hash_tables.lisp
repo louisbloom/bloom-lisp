@@ -88,7 +88,7 @@
 
 (assert-nil (hash-ref ht2 #\B) "different char returns nil")
 
-;; Boolean keys (#f is nil in bloom-lisp, so they share a key)
+;; Boolean keys (#f is nil in ditty, so they share a key)
 (hash-set! ht2 #t "true val")
 
 (assert-equal (hash-ref ht2 #t) "true val" "boolean true key works")

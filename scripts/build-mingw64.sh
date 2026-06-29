@@ -1,5 +1,5 @@
 #!/bin/bash
-# build-mingw64.sh - Cross-compile bloom-lisp for Windows using mingw64.
+# build-mingw64.sh - Cross-compile ditty for Windows using mingw64.
 #
 # Usage:
 #   scripts/build-mingw64.sh [--no-debug]
@@ -11,7 +11,7 @@
 #     because we call ../autogen.sh ourselves)
 #
 # Boehm GC is downloaded and cross-built into deps/gc-mingw64-prefix/ on
-# first run, then cached. Output binary: build-mingw64/repl/bloom-repl.exe
+# first run, then cached. Output binary: build-mingw64/cli/ditty.exe
 # with required runtime DLLs copied alongside.
 
 set -eu
@@ -144,7 +144,7 @@ CFLAGS_OPT="-O2"
 	make -j"$PARALLEL_JOBS"
 )
 
-EXE_DIR="${BUILD_DIR}/repl"
+EXE_DIR="${BUILD_DIR}/cli"
 echo "Collecting runtime DLLs..."
 for dll in libpcre2-8-0.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
 	if [ -f "${SYSROOT}/bin/${dll}" ]; then
@@ -154,4 +154,4 @@ for dll in libpcre2-8-0.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
 	fi
 done
 
-echo "Cross-compilation complete: ${EXE_DIR}/bloom-repl.exe"
+echo "Cross-compilation complete: ${EXE_DIR}/ditty.exe"

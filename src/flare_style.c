@@ -1,6 +1,6 @@
 /* style.c - FlareStyle hierarchy resolution */
 
-#include "../include/bloom-lisp/highlight.h"
+#include "../include/ditty/highlight.h"
 #include <stdlib.h>
 #include <string.h>
 

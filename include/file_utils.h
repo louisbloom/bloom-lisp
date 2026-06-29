@@ -69,8 +69,8 @@ int file_mkdir_p(const char *path);
 /* Resolve a file path by searching XDG data directories.
  * For relative paths (not starting with / ./ ../), searches:
  *   1. Current working directory
- *   2. $XDG_DATA_HOME/bloom-lisp/ (default: ~/.local/share/bloom-lisp/)
- *   3. Each dir in $XDG_DATA_DIRS/bloom-lisp/ (default: /usr/local/share:/usr/share)
+ *   2. $XDG_DATA_HOME/ditty/ (default: ~/.local/share/ditty/)
+ *   3. Each dir in $XDG_DATA_DIRS/ditty/ (default: /usr/local/share:/usr/share)
  *
  * Parameters:
  *   filename - File path to resolve

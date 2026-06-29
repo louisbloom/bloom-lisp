@@ -1,6 +1,6 @@
 /* formatter.c - FlareFormatter interface */
 
-#include "../include/bloom-lisp/highlight.h"
+#include "../include/ditty/highlight.h"
 #include <stdlib.h>
 
 struct FlareFormatter

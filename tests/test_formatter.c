@@ -2,7 +2,7 @@
 
 #include "flare_testkit.h"
 #include "lisp.h"
-#include <bloom-lisp/highlight.h>
+#include <ditty/highlight.h>
 #include <string.h>
 
 static Environment *env;
@@ -11,7 +11,7 @@ static void test_formatter_truecolor_produces_rgb(void)
 {
     FlareFormatter *fmt = flare_formatter_terminal(BFLARE_COLOR_TRUECOLOR);
     FlareStyle *style = flare_style_monokai();
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     FlareResult r = flare_highlight("\"hello\"", 7, lex, style, fmt);
     ASSERT_TRUE(strstr(r.data, "38;2;") != NULL);
     flare_result_free(r);
@@ -24,7 +24,7 @@ static void test_formatter_256_produces_palette_index(void)
 {
     FlareFormatter *fmt = flare_formatter_terminal(BFLARE_COLOR_256);
     FlareStyle *style = flare_style_monokai();
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     FlareResult r = flare_highlight("\"hello\"", 7, lex, style, fmt);
     ASSERT_TRUE(strstr(r.data, "38;5;") != NULL);
     ASSERT_TRUE(strstr(r.data, "38;2;") == NULL);
@@ -38,7 +38,7 @@ static void test_formatter_16_produces_aixterm_ansi(void)
 {
     FlareFormatter *fmt = flare_formatter_terminal(BFLARE_COLOR_16);
     FlareStyle *style = flare_style_monokai();
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     FlareResult r = flare_highlight("\"hello\"", 7, lex, style, fmt);
     ASSERT_TRUE(strstr(r.data, "38;") == NULL);
     flare_result_free(r);
@@ -51,7 +51,7 @@ static void test_formatter_8_produces_basic_ansi(void)
 {
     FlareFormatter *fmt = flare_formatter_terminal(BFLARE_COLOR_8);
     FlareStyle *style = flare_style_monokai();
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     FlareResult r = flare_highlight("\"hello\"", 7, lex, style, fmt);
     ASSERT_TRUE(strstr(r.data, "38;") == NULL);
     ASSERT_TRUE(strstr(r.data, "\033[90") == NULL);
@@ -65,7 +65,7 @@ static void test_formatter_ends_with_reset(void)
 {
     FlareFormatter *fmt = flare_formatter_terminal(BFLARE_COLOR_TRUECOLOR);
     FlareStyle *style = flare_style_monokai();
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     FlareResult r = flare_highlight("(+ 1 2)", 7, lex, style, fmt);
     size_t len = r.length;
     ASSERT_TRUE(len >= 4);
@@ -85,7 +85,7 @@ static void test_formatter_bold_does_not_leak_into_next_token(void)
      * a prior \033[1m.  Every SGR must lead with 0 (reset). */
     FlareFormatter *fmt = flare_formatter_terminal(BFLARE_COLOR_TRUECOLOR);
     FlareStyle *style = flare_style_monokai();
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     FlareResult r = flare_highlight("(set! x 1)", 10, lex, style, fmt);
 
     /* Find the SGR right after the bold "set!" token.
@@ -128,7 +128,7 @@ static void test_formatter_coalesces_same_style(void)
 {
     FlareFormatter *fmt = flare_formatter_terminal(BFLARE_COLOR_TRUECOLOR);
     FlareStyle *style = flare_style_monokai();
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     FlareResult r = flare_highlight("(1 2 3)", 7, lex, style, fmt);
     int sgr_count = 0;
     for (size_t i = 0; i < r.length; i++) {

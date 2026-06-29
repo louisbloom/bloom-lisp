@@ -1,28 +1,28 @@
-#include "bloom_version.h"
 #include "builtins_internal.h"
+#include "ditty_version.h"
 
-/* BLOOM_LISP_VERSION comes from bloom_version.h (regenerated each build
+/* DITTY_VERSION comes from ditty_version.h (regenerated each build
  * from git state). MAJOR/MINOR/PATCH still come from config.h. */
-#ifndef BLOOM_LISP_VERSION
-#define BLOOM_LISP_VERSION "unknown"
+#ifndef DITTY_VERSION
+#define DITTY_VERSION "unknown"
 #endif
 
-#ifndef BLOOM_LISP_VERSION_MAJOR
-#define BLOOM_LISP_VERSION_MAJOR 0
+#ifndef DITTY_VERSION_MAJOR
+#define DITTY_VERSION_MAJOR 0
 #endif
 
-#ifndef BLOOM_LISP_VERSION_MINOR
-#define BLOOM_LISP_VERSION_MINOR 0
+#ifndef DITTY_VERSION_MINOR
+#define DITTY_VERSION_MINOR 0
 #endif
 
-#ifndef BLOOM_LISP_VERSION_PATCH
-#define BLOOM_LISP_VERSION_PATCH 0
+#ifndef DITTY_VERSION_PATCH
+#define DITTY_VERSION_PATCH 0
 #endif
 
-/* Create bloom-lisp-version alist with version information.
- * Called during initialization to define the bloom-lisp-version variable.
+/* Create ditty-version alist with version information.
+ * Called during initialization to define the ditty-version variable.
  */
-static LispObject *create_bloom_lisp_version_alist(void)
+static LispObject *create_ditty_version_alist(void)
 {
     /* Build association list using tail-pointer pattern */
     LispObject *result = NIL;
@@ -45,10 +45,10 @@ static LispObject *create_bloom_lisp_version_alist(void)
     } while (0)
 
     /* Version information */
-    ADD_VERSION_PAIR("version", lisp_make_string(BLOOM_LISP_VERSION));
-    ADD_VERSION_PAIR("major", lisp_make_integer(BLOOM_LISP_VERSION_MAJOR));
-    ADD_VERSION_PAIR("minor", lisp_make_integer(BLOOM_LISP_VERSION_MINOR));
-    ADD_VERSION_PAIR("patch", lisp_make_integer(BLOOM_LISP_VERSION_PATCH));
+    ADD_VERSION_PAIR("version", lisp_make_string(DITTY_VERSION));
+    ADD_VERSION_PAIR("major", lisp_make_integer(DITTY_VERSION_MAJOR));
+    ADD_VERSION_PAIR("minor", lisp_make_integer(DITTY_VERSION_MINOR));
+    ADD_VERSION_PAIR("patch", lisp_make_integer(DITTY_VERSION_PATCH));
 
 #undef ADD_VERSION_PAIR
 
@@ -77,7 +77,7 @@ void register_builtins(Environment *env)
     register_time_profiling_builtins(env);
 
     /* Define version information variable */
-    env_define(env, LISP_SYM_VAL(lisp_intern("bloom-lisp-version")), create_bloom_lisp_version_alist(), pkg_core);
+    env_define(env, LISP_SYM_VAL(lisp_intern("ditty-version")), create_ditty_version_alist(), pkg_core);
 }
 
 /* ========================================================================== */

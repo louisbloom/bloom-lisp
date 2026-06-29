@@ -1,6 +1,6 @@
 /* token_type.c - Token type hierarchy and helpers */
 
-#include "../include/bloom-lisp/highlight.h"
+#include "../include/ditty/highlight.h"
 
 int flare_token_category(FlareTokenType type)
 {

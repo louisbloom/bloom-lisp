@@ -1,6 +1,6 @@
 /* style_monokai.c - Built-in Monokai style */
 
-#include "../include/bloom-lisp/highlight.h"
+#include "../include/ditty/highlight.h"
 #include <stdlib.h>
 
 FlareStyle *flare_style_build_monokai(void)

@@ -1,18 +1,18 @@
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = include src lat repl emacs tests
+SUBDIRS = include src flare cli emacs tests
 
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = bloom-lisp.pc
+pkgconfig_DATA = ditty.pc
 
-bloomlispdir = $(datadir)/bloom-lisp/lisp
-bloomlisp_DATA = lisp/lisp-fmt.lisp
+dittydatadir = $(datadir)/ditty/lisp
+dittydata_DATA = lisp/lisp-fmt.lisp
 
 EXTRA_DIST = \
     autogen.sh \
     build-aux/git-version.sh \
     version \
-    bloom-lisp.pc.in \
+    ditty.pc.in \
     README.md \
     LANGUAGE_REFERENCE.md \
     COPYING \
@@ -38,16 +38,16 @@ EXTRA_DIST = \
     doc/time-and-profiling.md \
     doc/type-predicates.md \
     doc/vectors.md \
-    emacs/bloom-lisp-mode.el \
-    emacs/bloom-lisp-mode-tests.el
+    emacs/ditty-mode.el \
+    emacs/ditty-mode-tests.el
 
 # Format target — clang-format on C, shfmt on shell, prettier on Markdown,
-# and the Lisp formatter (lisp/lisp-fmt.lisp) on .lisp files via bloom-repl.
+# and the Lisp formatter (lisp/lisp-fmt.lisp) on .lisp files via ditty.
 .PHONY: format
 format:
 	@if command -v clang-format >/dev/null 2>&1; then \
 	    echo "Formatting C with clang-format..."; \
-	    find $(top_srcdir)/src $(top_srcdir)/include $(top_srcdir)/repl $(top_srcdir)/lat $(top_srcdir)/tests \
+	    find $(top_srcdir)/src $(top_srcdir)/include $(top_srcdir)/cli $(top_srcdir)/flare $(top_srcdir)/tests \
 	        \( -name '*.c' -o -name '*.h' \) -print0 \
 	        | xargs -0 clang-format -i; \
 	else \
@@ -73,15 +73,15 @@ format:
 	else \
 	    echo "emacs not found - skipping Elisp formatting." >&2; \
 	fi
-	@repl=""; \
-	if [ -x "$(top_builddir)/repl/bloom-repl" ]; then repl="$(top_builddir)/repl/bloom-repl"; \
-	elif command -v bloom-repl >/dev/null 2>&1; then repl=bloom-repl; fi; \
-	if [ -n "$$repl" ]; then \
-	    echo "Formatting Lisp via $$repl ..."; \
+	@ditty_bin=""; \
+	if [ -x "$(top_builddir)/cli/ditty" ]; then ditty_bin="$(top_builddir)/cli/ditty"; \
+	elif command -v ditty >/dev/null 2>&1; then ditty_bin=ditty; fi; \
+	if [ -n "$$ditty_bin" ]; then \
+	    echo "Formatting Lisp via $$ditty_bin ..."; \
 	    find $(top_srcdir)/lisp $(top_srcdir)/tests -name '*.lisp' -print0 \
-	        | xargs -0 -r -n 1 "$$repl" $(top_srcdir)/lisp/lisp-fmt.lisp -- -i; \
+	        | xargs -0 -r -n 1 "$$ditty_bin" $(top_srcdir)/lisp/lisp-fmt.lisp -- -i; \
 	else \
-	    echo "bloom-repl not found - skipping Lisp formatting (build first)." >&2; \
+	    echo "ditty not found - skipping Lisp formatting (build first)." >&2; \
 	fi
 
 # Bear target — produce compile_commands.json for clangd by intercepting

@@ -1,6 +1,6 @@
 /* color.c - RGB ↔ 256-color ↔ 16-color conversion (canonical implementation) */
 
-#include "../include/bloom-lisp/highlight.h"
+#include "../include/ditty/highlight.h"
 #include <math.h>
 
 int flare_color_rgb_to_256(int r, int g, int b)

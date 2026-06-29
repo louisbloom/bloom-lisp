@@ -7,7 +7,7 @@
 
 #include "flare_testkit.h"
 #include "lisp.h"
-#include <bloom-lisp/highlight.h>
+#include <ditty/highlight.h>
 
 static Environment *env;
 
@@ -402,7 +402,7 @@ static void test_fenced_lisp_emits_fences_and_content(void)
     free(tokens);
 }
 
-/* Lisp sub-lexing: content is tokenized as bloom-lisp */
+/* Lisp sub-lexing: content is tokenized as ditty */
 static void test_fenced_lisp_sublexes_content(void)
 {
     size_t count = 0;
@@ -412,21 +412,11 @@ static void test_fenced_lisp_sublexes_content(void)
     free(tokens);
 }
 
-/* bloom-lisp and bloom aliases also trigger sub-lexing */
-static void test_fenced_bloom_lisp_alias(void)
+/* ditty alias also triggers sub-lexing */
+static void test_fenced_ditty_alias(void)
 {
     size_t count = 0;
-    FlareToken *tokens = lex("```bloom-lisp\n(+ 1)\n```\n", &count);
-    /* Lexer emits fence markers + sub-lexed content */
-    ASSERT_TRUE(find_token(tokens, count, HL_MARKUP_FENCED_OPEN) >= 0);
-    ASSERT_TRUE(find_token(tokens, count, HL_PUNCT_OPEN_PAREN) >= 0);
-    free(tokens);
-}
-
-static void test_fenced_bloom_alias(void)
-{
-    size_t count = 0;
-    FlareToken *tokens = lex("```bloom\n(+ 1)\n```\n", &count);
+    FlareToken *tokens = lex("```ditty\n(+ 1)\n```\n", &count);
     /* Lexer emits fence markers + sub-lexed content */
     ASSERT_TRUE(find_token(tokens, count, HL_MARKUP_FENCED_OPEN) >= 0);
     ASSERT_TRUE(find_token(tokens, count, HL_PUNCT_OPEN_PAREN) >= 0);
@@ -1067,8 +1057,7 @@ int main(void)
     RUN_TEST(test_fenced_backtick_info_with_backticks);
     RUN_TEST(test_fenced_lisp_emits_fences_and_content);
     RUN_TEST(test_fenced_lisp_sublexes_content);
-    RUN_TEST(test_fenced_bloom_lisp_alias);
-    RUN_TEST(test_fenced_bloom_alias);
+    RUN_TEST(test_fenced_ditty_alias);
     RUN_TEST(test_fenced_unclosed);
 
     /* §4.6 HTML blocks */

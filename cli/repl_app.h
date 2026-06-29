@@ -11,10 +11,10 @@
 
 #include <stddef.h>
 
-#include <bloom-boba/component.h>
-#include <bloom-boba/components/textinput.h>
-#include <bloom-boba/components/viewport.h>
-#include <bloom-boba/style.h>
+#include <boba/component.h>
+#include <boba/components/textinput.h>
+#include <boba/components/viewport.h>
+#include <boba/style.h>
 
 /* ReplApp configuration */
 typedef struct

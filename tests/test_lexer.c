@@ -2,13 +2,13 @@
 
 #include "flare_testkit.h"
 #include "lisp.h"
-#include <bloom-lisp/highlight.h>
+#include <ditty/highlight.h>
 
 static Environment *env;
 
 static void test_lexer_empty_input(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "", 0, &count);
     ASSERT_EQ(count, 0);
@@ -18,7 +18,7 @@ static void test_lexer_empty_input(void)
 
 static void test_lexer_whitespace_only(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "   \n\t  ", 7, &count);
     ASSERT_EQ(count, 1);
@@ -29,7 +29,7 @@ static void test_lexer_whitespace_only(void)
 
 static void test_lexer_line_comment(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "; hello", 7, &count);
     ASSERT_EQ(count, 1);
@@ -42,7 +42,7 @@ static void test_lexer_line_comment(void)
 
 static void test_lexer_string_double_quoted(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "\"hello\"", 7, &count);
     ASSERT_EQ(count, 1);
@@ -53,7 +53,7 @@ static void test_lexer_string_double_quoted(void)
 
 static void test_lexer_string_with_escape(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "\"a\\nb\"", 6, &count);
     ASSERT_EQ(count, 1);
@@ -64,7 +64,7 @@ static void test_lexer_string_with_escape(void)
 
 static void test_lexer_unclosed_string(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "\"hello", 6, &count);
     ASSERT_EQ(count, 1);
@@ -75,7 +75,7 @@ static void test_lexer_unclosed_string(void)
 
 static void test_lexer_open_paren(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "(", 1, &count);
     ASSERT_EQ(count, 1);
@@ -86,7 +86,7 @@ static void test_lexer_open_paren(void)
 
 static void test_lexer_close_paren(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, ")", 1, &count);
     ASSERT_EQ(count, 1);
@@ -97,7 +97,7 @@ static void test_lexer_close_paren(void)
 
 static void test_lexer_quote(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "'foo", 4, &count);
     ASSERT_EQ(count, 2);
@@ -108,7 +108,7 @@ static void test_lexer_quote(void)
 
 static void test_lexer_backquote(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "`(list ,a ,@b)", 14, &count);
     ASSERT_EQ(tokens[0].type, HL_OPERATOR_BACKQUOTE);
@@ -123,7 +123,7 @@ static void test_lexer_backquote(void)
 
 static void test_lexer_integer(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "42", 2, &count);
     ASSERT_EQ(count, 1);
@@ -134,7 +134,7 @@ static void test_lexer_integer(void)
 
 static void test_lexer_float(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "3.14", 4, &count);
     ASSERT_EQ(count, 1);
@@ -145,7 +145,7 @@ static void test_lexer_float(void)
 
 static void test_lexer_negative_number(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "-7", 2, &count);
     ASSERT_EQ(count, 1);
@@ -156,7 +156,7 @@ static void test_lexer_negative_number(void)
 
 static void test_lexer_character_literal(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "#\\space", 7, &count);
     ASSERT_EQ(count, 1);
@@ -167,7 +167,7 @@ static void test_lexer_character_literal(void)
 
 static void test_lexer_boolean_true(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "#t", 2, &count);
     ASSERT_EQ(count, 1);
@@ -178,7 +178,7 @@ static void test_lexer_boolean_true(void)
 
 static void test_lexer_boolean_false(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "#f", 2, &count);
     ASSERT_EQ(count, 1);
@@ -189,7 +189,7 @@ static void test_lexer_boolean_false(void)
 
 static void test_lexer_nil(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "nil", 3, &count);
     ASSERT_EQ(count, 1);
@@ -200,7 +200,7 @@ static void test_lexer_nil(void)
 
 static void test_lexer_keyword_arg(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, ":foo", 4, &count);
     ASSERT_EQ(count, 1);
@@ -211,7 +211,7 @@ static void test_lexer_keyword_arg(void)
 
 static void test_lexer_vector_literal(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "#(1 2 3)", 8, &count);
     ASSERT_TRUE(count >= 2);
@@ -223,7 +223,7 @@ static void test_lexer_vector_literal(void)
 
 static void test_lexer_dotted_pair(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "(a . b)", 7, &count);
     int dot_found = 0;
@@ -237,7 +237,7 @@ static void test_lexer_dotted_pair(void)
 
 static void test_lexer_env_special_form(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "if", 2, &count);
     ASSERT_EQ(tokens[0].type, HL_KEYWORD_CONTROL);
@@ -247,7 +247,7 @@ static void test_lexer_env_special_form(void)
 
 static void test_lexer_partial_unclosed_paren(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     size_t count = 0;
     FlareToken *tokens = flare_lex(lex, "(+ 1", 4, &count);
     int open_found = 0;
@@ -261,7 +261,7 @@ static void test_lexer_partial_unclosed_paren(void)
 
 static void test_lexer_fuzz_no_crash(void)
 {
-    FlareLexer *lex = flare_lexer_bloom_lisp(env);
+    FlareLexer *lex = flare_lexer_ditty(env);
     const char *edge_cases[] = {
         "", " ", "\n", "\t", "(", ")", "\"", "'", "`", ",",
         ",@", "#", "#\\", "#(", "#t", "#f", "nil", ";;;",

@@ -1,7 +1,7 @@
 /* test_style.c - Style hierarchy and built-in style tests */
 
 #include "flare_testkit.h"
-#include <bloom-lisp/highlight.h>
+#include <ditty/highlight.h>
 
 static void test_style_fallback_to_category(void)
 {

@@ -1,6 +1,6 @@
 /* style_github_light.c - Built-in GitHub Light style */
 
-#include "../include/bloom-lisp/highlight.h"
+#include "../include/ditty/highlight.h"
 #include <stdlib.h>
 
 FlareStyle *flare_style_build_github_light(void)

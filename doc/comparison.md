@@ -131,7 +131,7 @@ Logical negation.
 
 ### Notes
 
-Only `nil` (and `#f`) are falsy in bloom-lisp
+Only `nil` (and `#f`) are falsy in ditty
 
 ## `eq?`
 

@@ -20,7 +20,7 @@ test_sf_kind_CPPFLAGS = \
     $(GC_CFLAGS) \
     $(PCRE2_CFLAGS)
 test_sf_kind_LDADD = \
-    $(top_builddir)/src/libbloomlisp.a \
+    $(top_builddir)/src/libditty.a \
     $(GC_LIBS) \
     $(PCRE2_LIBS)
 
@@ -33,7 +33,7 @@ AM_FLARE_CPPFLAGS = \
     $(PCRE2_CFLAGS)
 
 AM_FLARE_LDADD = \
-    $(top_builddir)/src/libbloomlisp.a \
+    $(top_builddir)/src/libditty.a \
     $(GC_LIBS) \
     $(PCRE2_LIBS)
 
@@ -69,9 +69,9 @@ test_roundtrip_SOURCES = test_roundtrip.c
 test_roundtrip_CPPFLAGS = $(AM_FLARE_CPPFLAGS)
 test_roundtrip_LDADD = $(AM_FLARE_LDADD)
 
-# Force bloom_version.h to exist before test objects compile
-$(test_sf_kind_OBJECTS): $(top_builddir)/src/bloom_version.h
-$(FLARE_TESTS_OBJECTS): $(top_builddir)/src/bloom_version.h
+# Force ditty_version.h to exist before test objects compile
+$(test_sf_kind_OBJECTS): $(top_builddir)/src/ditty_version.h
+$(FLARE_TESTS_OBJECTS): $(top_builddir)/src/ditty_version.h
 
 # Lisp script tests
 TESTS = \
@@ -128,8 +128,8 @@ TEST_EXTENSIONS = .lisp
 LISP_LOG_COMPILER = $(srcdir)/run-test.sh
 
 AM_TESTS_ENVIRONMENT = \
-    BLOOM_REPL="$(abs_top_builddir)/repl/bloom-repl"; \
-    export BLOOM_REPL;
+    DITTY_BIN="$(abs_top_builddir)/cli/ditty"; \
+    export DITTY_BIN;
 
 EXTRA_DIST = \
     run-test.sh \

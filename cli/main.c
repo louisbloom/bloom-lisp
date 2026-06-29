@@ -9,19 +9,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef HAVE_BLOOM_BOBA
+#ifdef HAVE_BOBA
 #include "colors.h"
 #include "repl_app.h"
-#include <bloom-boba/ansi_sequences.h>
-#include <bloom-boba/cmd.h>
-#include <bloom-boba/runtime.h>
+#include <boba/ansi_sequences.h>
+#include <boba/cmd.h>
+#include <boba/runtime.h>
 #include <fcntl.h>
 #include <unistd.h>
 #endif
 
-#include "bloom_version.h"
-#ifndef BLOOM_LISP_VERSION
-#define BLOOM_LISP_VERSION "unknown"
+#include "ditty_version.h"
+#ifndef DITTY_VERSION
+#define DITTY_VERSION "unknown"
 #endif
 
 /* Boehm GC manages most allocations, and its finalizers (e.g. the one that frees
@@ -34,7 +34,7 @@ const char *__asan_default_options(void)
     return "detect_leaks=0";
 }
 
-#ifdef HAVE_BLOOM_BOBA
+#ifdef HAVE_BOBA
 
 /* Global state */
 static Environment *g_env = NULL;
@@ -156,7 +156,7 @@ static void echo_to_viewport(const char *text)
     }
 }
 
-#endif /* HAVE_BLOOM_BOBA */
+#endif /* HAVE_BOBA */
 
 /* --- Non-interactive helpers --- */
 
@@ -172,21 +172,21 @@ static LispObject *argv_to_list(int start, int end, char **argv)
 
 static void print_help(void)
 {
-    printf("Bloom Lisp Interpreter v%s\n", BLOOM_LISP_VERSION);
+    printf("Bloom Lisp Interpreter v%s\n", DITTY_VERSION);
     printf("\n");
     printf("Usage:\n");
-    printf("  bloom-repl                          Start interactive REPL\n");
-    printf("  bloom-repl -e \"CODE\"                Execute CODE and exit\n");
-    printf("  bloom-repl FILE [FILE...]           Execute FILE(s) and exit\n");
-    printf("  bloom-repl FILE -- [ARG...]         Run FILE with script arguments\n");
-    printf("  bloom-repl -h, --help               Show this help message\n");
+    printf("  ditty                          Start interactive REPL\n");
+    printf("  ditty -e \"CODE\"                Execute CODE and exit\n");
+    printf("  ditty FILE [FILE...]           Execute FILE(s) and exit\n");
+    printf("  ditty FILE -- [ARG...]         Run FILE with script arguments\n");
+    printf("  ditty -h, --help               Show this help message\n");
     printf("\n");
     printf("Examples:\n");
-    printf("  bloom-repl                            # Start REPL\n");
-    printf("  bloom-repl -e \"(+ 1 2 3)\"             # Execute code\n");
-    printf("  bloom-repl script.lisp                # Run file\n");
-    printf("  bloom-repl script.lisp -- -i foo.txt  # Run with args in *command-line-args*\n");
-    printf("  bloom-repl -e \"(define x 10) (* x 5)\" # Multiple expressions\n");
+    printf("  ditty                            # Start REPL\n");
+    printf("  ditty -e \"(+ 1 2 3)\"             # Execute code\n");
+    printf("  ditty script.lisp                # Run file\n");
+    printf("  ditty script.lisp -- -i foo.txt  # Run with args in *command-line-args*\n");
+    printf("  ditty -e \"(define x 10) (* x 5)\" # Multiple expressions\n");
     printf("\n");
     printf("REPL Commands:\n");
     printf("  :quit             Exit the REPL\n");
@@ -195,7 +195,7 @@ static void print_help(void)
     printf("See LANGUAGE_REFERENCE.md for complete language documentation.\n");
 }
 
-#ifdef HAVE_BLOOM_BOBA
+#ifdef HAVE_BOBA
 
 static int handle_command(const char *input, Environment *env)
 {
@@ -566,14 +566,14 @@ static void run_interactive_repl(Environment *env)
              "%sBloom Lisp Interpreter v%s\n"
              "Type expressions to evaluate, :quit to exit, :load <file> to load a file\n"
              "Tab for completion, Up/Down for history, PageUp/PageDown to scroll%s\n\n",
-             color_info, BLOOM_LISP_VERSION, SGR_RESET);
+             color_info, DITTY_VERSION, SGR_RESET);
     repl_app_echo(g_app, welcome, strlen(welcome));
 
     /* Blocking event loop — runtime owns raw mode, signals, select() */
     tui_runtime_run(g_runtime);
 }
 
-#endif /* HAVE_BLOOM_BOBA */
+#endif /* HAVE_BOBA */
 
 /* --- Main --- */
 
@@ -593,7 +593,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "ERROR: Failed to initialize Lisp interpreter\n");
         return 1;
     }
-#ifdef HAVE_BLOOM_BOBA
+#ifdef HAVE_BOBA
     g_env = env;
 #endif
 
@@ -699,7 +699,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
-#ifdef HAVE_BLOOM_BOBA
+#ifdef HAVE_BOBA
     /* Interactive REPL */
     run_interactive_repl(env);
 
@@ -708,8 +708,8 @@ int main(int argc, char **argv)
 
     return 0;
 #else
-    fprintf(stderr, "Interactive REPL requires bloom-boba (batch mode only)\n");
-    fprintf(stderr, "Usage: bloom-repl -e \"CODE\" or bloom-repl FILE\n");
+    fprintf(stderr, "Interactive REPL requires boba (batch mode only)\n");
+    fprintf(stderr, "Usage: ditty -e \"CODE\" or ditty FILE\n");
     lisp_cleanup();
     return 1;
 #endif

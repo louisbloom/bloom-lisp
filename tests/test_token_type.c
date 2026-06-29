@@ -1,7 +1,7 @@
 /* test_token_type.c - Token type hierarchy tests */
 
 #include "flare_testkit.h"
-#include <bloom-lisp/highlight.h>
+#include <ditty/highlight.h>
 
 static void test_token_category_text(void)
 {

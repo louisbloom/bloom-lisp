@@ -1,6 +1,6 @@
-/* lat.c - "lisp cat": highlight source files to the terminal
+/* flare.c - Flare syntax highlighting CLI: highlight source files to the terminal
  *
- * Usage: lat [OPTIONS] [FILE...]
+ * Usage: flare [OPTIONS] [FILE...]
  *
  * Reads each FILE (or stdin if no files / '-') and writes
  * syntax-highlighted ANSI output to stdout.
@@ -8,7 +8,7 @@
  * Options:
  *   -f, --format FORMAT   output color format: truecolor (default), 256, 16, 8
  *   -s, --style STYLE     color style: dracula (default), monokai, github-dark, github-light
- *   -l, --language LANG   lexer language: bloom-lisp, commonmark/markdown, auto (default)
+ *   -l, --language LANG   lexer language: ditty, commonmark/markdown, auto (default)
  *   -h, --help            show this help text
  *   -v, --version         show version
  */
@@ -16,19 +16,19 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
-#include "../include/bloom-lisp/highlight.h"
+#include "../include/ditty/highlight.h"
 #include "../include/lisp.h"
-#include "bloom_version.h"
+#include "ditty_version.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define PROGNAME "lat"
+#define PROGNAME "flare"
 
 static const char *version_string(void)
 {
-#ifdef BLOOM_LISP_VERSION
-    return BLOOM_LISP_VERSION;
+#ifdef DITTY_VERSION
+    return DITTY_VERSION;
 #else
     return "unknown";
 #endif
@@ -37,7 +37,7 @@ static const char *version_string(void)
 typedef enum
 {
     LANG_AUTO,
-    LANG_BLOOM_LISP,
+    LANG_DITTY,
     LANG_COMMONMARK
 } LangChoice;
 
@@ -53,7 +53,7 @@ static void usage(void)
         "  -f, --format FORMAT   output color format: truecolor (default), 256, 16, 8\n"
         "  -s, --style STYLE     color style: dracula (default), monokai,\n"
         "                        github-dark, github-light\n"
-        "  -l, --language LANG   lexer language: auto (default), bloom-lisp,\n"
+        "  -l, --language LANG   lexer language: auto (default), ditty,\n"
         "                        commonmark, markdown\n"
         "  -h, --help            show this help text\n"
         "  -v, --version         show version\n"
@@ -72,7 +72,7 @@ static void usage(void)
         "\n"
         "Languages:\n"
         "  auto          detect from file extension (default)\n"
-        "  bloom-lisp    Bloom Lisp source\n"
+        "  ditty    Bloom Lisp source\n"
         "  commonmark    CommonMark/Markdown (highlights fenced lisp code blocks)\n"
         "  markdown      alias for commonmark\n",
         PROGNAME);
@@ -133,8 +133,8 @@ static int parse_language(const char *s, LangChoice *out)
         *out = LANG_AUTO;
         return 0;
     }
-    if (strcmp(s, "bloom-lisp") == 0) {
-        *out = LANG_BLOOM_LISP;
+    if (strcmp(s, "ditty") == 0) {
+        *out = LANG_DITTY;
         return 0;
     }
     if (strcmp(s, "commonmark") == 0 || strcmp(s, "markdown") == 0) {
@@ -142,7 +142,7 @@ static int parse_language(const char *s, LangChoice *out)
         return 0;
     }
     fprintf(stderr,
-            "%s: unknown language '%s' (choose: auto, bloom-lisp, commonmark, markdown)\n",
+            "%s: unknown language '%s' (choose: auto, ditty, commonmark, markdown)\n",
             PROGNAME, s);
     return -1;
 }
@@ -152,12 +152,12 @@ static LangChoice detect_language(const char *path)
 {
     const char *dot = strrchr(path, '.');
     if (!dot)
-        return LANG_BLOOM_LISP;
+        return LANG_DITTY;
 
     if (strcmp(dot, ".md") == 0 || strcmp(dot, ".markdown") == 0)
         return LANG_COMMONMARK;
 
-    return LANG_BLOOM_LISP;
+    return LANG_DITTY;
 }
 
 static char *read_all(FILE *f, size_t *out_len)
@@ -223,7 +223,7 @@ static int highlight_file(const char *path, Environment *env,
     if (effective == LANG_COMMONMARK)
         lexer = flare_lexer_commonmark(env);
     else
-        lexer = flare_lexer_bloom_lisp(env);
+        lexer = flare_lexer_ditty(env);
 
     if (!lexer) {
         fprintf(stderr, "%s: failed to create lexer for %s\n", PROGNAME, path);

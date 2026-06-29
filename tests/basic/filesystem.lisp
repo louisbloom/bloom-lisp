@@ -12,7 +12,7 @@
 (assert-true (> (length (getenv "HOME")) 0) "HOME is non-empty")
 
 ;; Nonexistent variable returns nil
-(assert-nil (getenv "BLOOM_LISP_NONEXISTENT_VAR_12345")
+(assert-nil (getenv "DITTY_NONEXISTENT_VAR_12345")
  "nonexistent var returns nil")
 
 ;; ============================================================================
@@ -53,7 +53,7 @@
 (assert-true (file-exists? (getenv "HOME")) "home directory exists")
 
 ;; Nonexistent path returns nil
-(assert-nil (file-exists? "/no/such/path/bloom-lisp-test-12345")
+(assert-nil (file-exists? "/no/such/path/ditty-test-12345")
  "nonexistent path returns nil")
 
 ;; ============================================================================
@@ -63,7 +63,7 @@
 (assert-error (mkdir 42) "mkdir requires a string")
 
 ;; Create a temp directory with nested subdirs
-(define test-dir (concat (getenv "HOME") "/.cache/bloom-lisp-test/nested/dir"))
+(define test-dir (concat (getenv "HOME") "/.cache/ditty-test/nested/dir"))
 
 (assert-true (mkdir test-dir) "mkdir creates nested directories")
 (assert-true (file-exists? test-dir) "created directory exists")
@@ -71,8 +71,8 @@
 (assert-true (mkdir test-dir) "mkdir succeeds on existing directory")
 
 ;; Clean up
-(delete-file (concat (getenv "HOME") "/.cache/bloom-lisp-test/nested/dir"))
-(delete-file (concat (getenv "HOME") "/.cache/bloom-lisp-test/nested"))
-(delete-file (concat (getenv "HOME") "/.cache/bloom-lisp-test"))
+(delete-file (concat (getenv "HOME") "/.cache/ditty-test/nested/dir"))
+(delete-file (concat (getenv "HOME") "/.cache/ditty-test/nested"))
+(delete-file (concat (getenv "HOME") "/.cache/ditty-test"))
 
 (print "All tests passed!")

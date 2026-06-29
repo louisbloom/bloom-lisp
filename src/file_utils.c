@@ -121,22 +121,22 @@ static const char *file_resolve_one(const char *filename, char *resolved, size_t
     if (file_exists(filename))
         return filename;
 
-    /* Try XDG_DATA_HOME/bloom-lisp/ */
+    /* Try XDG_DATA_HOME/ditty/ */
     const char *data_home = getenv("XDG_DATA_HOME");
     if (data_home && data_home[0]) {
-        snprintf(resolved, resolved_size, "%s/bloom-lisp/%s", data_home, filename);
+        snprintf(resolved, resolved_size, "%s/ditty/%s", data_home, filename);
         if (file_exists(resolved))
             return resolved;
     } else {
         const char *home = getenv("HOME");
         if (home) {
-            snprintf(resolved, resolved_size, "%s/.local/share/bloom-lisp/%s", home, filename);
+            snprintf(resolved, resolved_size, "%s/.local/share/ditty/%s", home, filename);
             if (file_exists(resolved))
                 return resolved;
         }
     }
 
-    /* Try each dir in XDG_DATA_DIRS/bloom-lisp/ */
+    /* Try each dir in XDG_DATA_DIRS/ditty/ */
     const char *data_dirs = getenv("XDG_DATA_DIRS");
     if (!data_dirs || !data_dirs[0])
         data_dirs = "/usr/local/share:/usr/share";
@@ -151,7 +151,7 @@ static const char *file_resolve_one(const char *filename, char *resolved, size_t
     char *saveptr = NULL;
     char *dir = strtok_r(dirs_copy, ":", &saveptr);
     while (dir) {
-        snprintf(resolved, resolved_size, "%s/bloom-lisp/%s", dir, filename);
+        snprintf(resolved, resolved_size, "%s/ditty/%s", dir, filename);
         if (file_exists(resolved)) {
             free(dirs_copy);
             return resolved;

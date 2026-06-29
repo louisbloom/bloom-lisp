@@ -1,4 +1,4 @@
-# Bloom Lisp
+# Ditty Lisp
 
 An embeddable Lisp interpreter library and syntax highlighter written in C. This implementation follows traditional Lisp naming conventions and provides a REPL for testing and demonstration.
 
@@ -34,13 +34,13 @@ See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for complete function lis
 
 ### Flare — Syntax Highlighting
 
-Flare is a built-in syntax highlighting module (compiled into `libbloomlisp.a`) that produces ANSI terminal output at 8-color, 16-color, 256-color, and truecolor depths.
+Flare is a built-in syntax highlighting module (compiled into `libditty.a`) that produces ANSI terminal output at 8-color, 16-color, 256-color, and truecolor depths.
 
-- **Runtime-driven classification**: Uses the bloom-lisp `Environment` as the single source of truth for symbol classification — no parallel hardcoded keyword lists
-- **Two lexers**: Bloom Lisp and CommonMark/Markdown (fenced code blocks with `lisp`/`bloom-lisp`/`bloom` info strings are sub-lexed through the Lisp lexer)
+- **Runtime-driven classification**: Uses the ditty `Environment` as the single source of truth for symbol classification — no parallel hardcoded keyword lists
+- **Two lexers**: Ditty Lisp and CommonMark/Markdown (fenced code blocks with `lisp`/`ditty` info strings are sub-lexed through the Lisp lexer)
 - **Four built-in styles**: Dracula, Monokai, GitHub Dark, GitHub Light
 - **Modular pipeline**: Lex → Style lookup → Format, each stage pluggable
-- **`lat` CLI**: A `cat`-like tool that highlights source files to the terminal, with auto-detection of file language
+- **`flare` CLI**: A `cat`-like tool that highlights source files to the terminal, with auto-detection of file language
 
 ## Building
 
@@ -82,9 +82,9 @@ make install        # Install library, headers, REPL, pkg-config file
 
 Useful targets (from `build/`):
 
-- `make` — build `libbloomlisp.a` (includes Flare) and `lat` and `repl/bloom-repl`
+- `make` — build `libditty.a` (includes Flare) and `flare` and `cli/ditty`
 - `make check` — run the test suite
-- `make install` — install library, headers, REPL, `lat`, pkg-config files
+- `make install` — install library, headers, REPL, `flare`, pkg-config files
 - `make format` — clang-format on C, shfmt on shell, prettier on Markdown, lisp-fmt on Lisp
 - `make bear` — produce `compile_commands.json` for clangd
 
@@ -92,7 +92,7 @@ The default build enables AddressSanitizer and UndefinedBehaviorSanitizer. Use `
 
 ### Emacs Major Mode
 
-An Emacs major mode for bloom-lisp source (`bloom-lisp-mode.el`) lives in `emacs/`. It is installed by `make install` to `$(datadir)/emacs/site-lisp/bloom-lisp/`. Byte-compilation and ERT tests are manual targets (Emacs is not a build dependency):
+An Emacs major mode for ditty source (`ditty-mode.el`) lives in `emacs/`. It is installed by `make install` to `$(datadir)/emacs/site-lisp/ditty/`. Byte-compilation and ERT tests are manual targets (Emacs is not a build dependency):
 
 ```bash
 make -C build/emacs byte-compile   # .el → .elc
@@ -100,7 +100,7 @@ make -C build/emacs test           # ERT test suite
 make -C build/emacs elisp-format   # auto-indent .el files
 ```
 
-See `emacs/bloom-lisp-mode.el` header for installation and usage instructions.
+See `emacs/ditty-mode.el` header for installation and usage instructions.
 
 Docstrings are generated from `doc/*.md` into `src/docstrings.gen.h` automatically by `make` (declared as `BUILT_SOURCES` in `src/Makefile.am`); to regenerate manually run `scripts/gen-docstrings.sh doc > src/docstrings.gen.h`.
 
@@ -110,17 +110,17 @@ Cross-compiles using the Fedora mingw64 toolchain. Boehm GC is downloaded and ca
 
 ```bash
 sudo dnf install mingw64-gcc mingw64-pcre2   # One-time setup
-scripts/build-mingw64.sh                     # Build bloom-repl.exe
+scripts/build-mingw64.sh                     # Build ditty.exe
 ```
 
-Output: `build-mingw64/repl/bloom-repl.exe` with DLLs (`libpcre2-8-0.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`).
+Output: `build-mingw64/cli/ditty.exe` with DLLs (`libpcre2-8-0.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`).
 
-The Windows build includes file execution and `-e` eval modes but not the interactive TUI REPL, which requires [bloom-boba](https://codeberg.org/thomasc/bloom-boba) (a Windows port of bloom-boba is planned).
+The Windows build includes file execution and `-e` eval modes but not the interactive TUI REPL, which requires [boba](https://codeberg.org/thomasc/boba) (a Windows port of boba is planned).
 
 Test with wine64:
 
 ```bash
-wine64 build-mingw64/repl/bloom-repl.exe -e "(+ 1 2 3)"   # => 6
+wine64 build-mingw64/cli/ditty.exe -e "(+ 1 2 3)"   # => 6
 make -C build-mingw64 check                                 # Full test suite
 ```
 
@@ -132,11 +132,11 @@ sudo make install
 
 This installs:
 
-- `bloom-repl` executable
-- `lat` executable (syntax highlighting CLI)
-- `libbloomlisp.a` static library (interpreter + syntax highlighting)
-- Header files to `$(includedir)/bloom-lisp/` (including `highlight.h` for Flare)
-- `bloom-lisp.pc` pkg-config file
+- `ditty` executable
+- `flare` executable (syntax highlighting CLI)
+- `libditty.a` static library (interpreter + syntax highlighting)
+- Header files to `$(includedir)/ditty/` (including `highlight.h` for Flare)
+- `ditty.pc` pkg-config file
 - `lisp-fmt.lisp` Lisp source formatter
 
 ## Usage
@@ -144,29 +144,29 @@ This installs:
 ### Command Line Options
 
 ```bash
-bloom-repl                      # Start interactive REPL
-bloom-repl -e "CODE"            # Execute CODE and exit
-bloom-repl FILE [FILE...]       # Execute FILE(s) and exit
-bloom-repl FILE -- [ARG...]     # Run FILE with script arguments
-bloom-repl -h, --help           # Show help message
+ditty                      # Start interactive REPL
+ditty -e "CODE"            # Execute CODE and exit
+ditty FILE [FILE...]       # Execute FILE(s) and exit
+ditty FILE -- [ARG...]     # Run FILE with script arguments
+ditty -h, --help           # Show help message
 ```
 
-### `lat` — Syntax Highlighting CLI
+### `flare` — Syntax Highlighting CLI
 
 ```bash
-lat FILE                        # Highlight FILE to stdout (truecolor + dracula)
-lat -f 256 -s monokai FILE      # 256-color monokai
-lat -l commonmark README.md    # Highlight Markdown
-lat -                           # Read stdin
-lat --help                      # Show options
+flare FILE                        # Highlight FILE to stdout (truecolor + dracula)
+flare -f 256 -s monokai FILE      # 256-color monokai
+flare -l commonmark README.md    # Highlight Markdown
+flare -                           # Read stdin
+flare --help                      # Show options
 ```
 
-Options: `-f`/`--format` (`truecolor`, `256`, `16`, `8`), `-s`/`--style` (`dracula`, `monokai`, `github-dark`, `github-light`), `-l`/`--language` (`auto`, `bloom-lisp`, `commonmark`/`markdown`). Auto-detection selects by file extension.
+Options: `-f`/`--format` (`truecolor`, `256`, `16`, `8`), `-s`/`--style` (`dracula`, `monokai`, `github-dark`, `github-light`), `-l`/`--language` (`auto`, `ditty`, `commonmark`/`markdown`). Auto-detection selects by file extension.
 
 ### REPL Mode
 
 ```bash
-./repl/bloom-repl
+./cli/ditty
 ```
 
 Features:
@@ -183,9 +183,9 @@ REPL Commands:
 ### Command-Line Execution
 
 ```bash
-./repl/bloom-repl -e "(+ 1 2 3)"                               # => 6
-./repl/bloom-repl -e "(map (lambda (x) (* x 2)) '(1 2 3 4 5))" # => (2 4 6 8 10)
-./repl/bloom-repl -e '(concat "hello" " " "world")'            # => "hello world"
+./cli/ditty -e "(+ 1 2 3)"                               # => 6
+./cli/ditty -e "(map (lambda (x) (* x 2)) '(1 2 3 4 5))" # => (2 4 6 8 10)
+./cli/ditty -e '(concat "hello" " " "world")'            # => "hello world"
 ```
 
 Exit code is 0 on success, 1 on error.
@@ -193,7 +193,7 @@ Exit code is 0 on success, 1 on error.
 ### Running Files
 
 ```bash
-./repl/bloom-repl script.lisp
+./cli/ditty script.lisp
 ```
 
 ## Embedding in Your Application
@@ -203,7 +203,7 @@ The library is self-contained and can be integrated into any C project.
 **Example:**
 
 ```c
-#include <bloom-lisp/lisp.h>
+#include <ditty/lisp.h>
 
 int main() {
     Environment* env = lisp_init();
@@ -219,23 +219,23 @@ int main() {
 
 Memory is managed by Boehm GC. Call `lisp_cleanup()` once at program exit.
 
-> **Embedder contract.** A `LispObject *` is **not** always a real pointer — it may be a tagged immediate value (small integer, char, `NIL`, `LISP_TRUE`). Never read `obj->type` or `obj->value.X` directly; always go through the `LISP_*` accessor macros (`LISP_TYPE`, `LISP_INT_VAL`, `LISP_CAR`, `LISP_CDR`, `LISP_LAMBDA_NAME`, ...). The macros are defined in `<bloom-lisp/lisp_value.h>` and decode the tag bits and follow boxed-out pointers transparently. See [Object representation & GC](#object-representation--gc) below.
+> **Embedder contract.** A `LispObject *` is **not** always a real pointer — it may be a tagged immediate value (small integer, char, `NIL`, `LISP_TRUE`). Never read `obj->type` or `obj->value.X` directly; always go through the `LISP_*` accessor macros (`LISP_TYPE`, `LISP_INT_VAL`, `LISP_CAR`, `LISP_CDR`, `LISP_LAMBDA_NAME`, ...). The macros are defined in `<ditty/lisp_value.h>` and decode the tag bits and follow boxed-out pointers transparently. See [Object representation & GC](#object-representation--gc) below.
 
 ### Integration Options
 
 **pkg-config (after `make install`):**
 
 ```bash
-# bloom-lisp (interpreter + syntax highlighting)
-cc myapp.c $(pkg-config --cflags --libs bloom-lisp) -o myapp
+# ditty (interpreter + syntax highlighting)
+cc myapp.c $(pkg-config --cflags --libs ditty) -o myapp
 ```
 
 **Copy into your project** and link directly:
 
 ```bash
-cc -I./libs/bloom-lisp/include \
+cc -I./libs/ditty/include \
    myapp.c \
-   ./libs/bloom-lisp/src/libbloomlisp.a \
+   ./libs/ditty/src/libditty.a \
    $(pkg-config --libs bdw-gc libpcre2-8) -lm \
    -o myapp
 ```
@@ -244,20 +244,20 @@ cc -I./libs/bloom-lisp/include \
 
 ```bash
 # In your configure.ac
-AC_CONFIG_SUBDIRS([libs/bloom-lisp])
+AC_CONFIG_SUBDIRS([libs/ditty])
 ```
 
 ```makefile
 # In your Makefile.am
-SUBDIRS = libs/bloom-lisp
-myapp_LDADD = libs/bloom-lisp/src/libbloomlisp.a
+SUBDIRS = libs/ditty
+myapp_LDADD = libs/ditty/src/libditty.a
 ```
 
 ## Repository layout
 
 ```
 include/            public headers — lisp.h, lisp_value.h, utf8.h, file_utils.h
-  bloom-lisp/         installed header subdirectory — highlight.h (Flare API)
+  ditty/         installed header subdirectory — highlight.h (Flare API)
 src/                interpreter core
   lisp.c              constructors, lisp_init, NIL/LISP_TRUE, stdlib macros
   eval.c              eval loop, 17 special forms, package-ref dispatch, macro expansion
@@ -272,7 +272,7 @@ src/                interpreter core
   file_utils.c        file path resolution and opening
   flare_*.c         syntax highlighting (lexer, styles, formatter, color)
     lexer.c             lexer factory, registry
-    lexer_bloom_lisp.c  Bloom Lisp scanner (runtime-driven classification)
+    lexer_ditty.c  Ditty Lisp scanner (runtime-driven classification)
     lexer_commonmark.c  CommonMark/Markdown scanner (v0.31.2, two-phase parsing)
     token_type.c        token type hierarchy helpers
     style.c             style storage and hierarchy resolution
@@ -281,10 +281,10 @@ src/                interpreter core
     formatter_terminal.c terminal SGR/ANSI emission
     color.c             RGB ↔ 256 ↔ 16 ↔ 8 color conversion
     highlight.c         one-shot flare_highlight() convenience function
-lat/                lat — syntax highlighting CLI (links libbloomlisp.a)
-lisp/               Lisp source formatter (lisp-fmt.lisp, loaded by bloom-repl)
-emacs/              Emacs major mode (bloom-lisp-mode.el, bloom-lisp-mode-tests.el)
-repl/               interactive TUI REPL (links bloom-boba)
+flare/                flare — syntax highlighting CLI (links libditty.a)
+lisp/               Lisp source formatter (lisp-fmt.lisp, loaded by ditty)
+emacs/              Emacs major mode (ditty-mode.el, ditty-mode-tests.el)
+cli/               interactive TUI REPL (links boba)
 tests/              test suite
   basic/               foundational feature tests
   advanced/            macro, TCO, condition system, regex, etc.
@@ -309,9 +309,9 @@ See `src/builtins_internal.h` for the `REGISTER` macro, `CHECK_ARGS_n` arity gua
 
 ### Tests
 
-Lisp files under `tests/` load `tests/test-helpers.lisp` and call `assert-equal` / `assert-true` / `assert-false` / `assert-error` / `assert-nil`. Tests abort on first failure via `(error ...)`; exit code 0 = pass. `make check` runs the full suite in parallel; `./tests/run-test.sh tests/basic/strings.lisp` runs a single file (the `BLOOM_REPL` env var overrides which binary to use).
+Lisp files under `tests/` load `tests/test-helpers.lisp` and call `assert-equal` / `assert-true` / `assert-false` / `assert-error` / `assert-nil`. Tests abort on first failure via `(error ...)`; exit code 0 = pass. `make check` runs the full suite in parallel; `./tests/run-test.sh tests/basic/strings.lisp` runs a single file (the `DITTY_BIN` env var overrides which binary to use).
 
-C unit tests (`test_sf_kind`, `test_token_type`, `test_color`, `test_style`, `test_lexer`, `test_lexer_commonmark`, `test_formatter`, `test_api`, `test_roundtrip`) are compiled and run by `make check` alongside the Lisp tests. They link against `libbloomlisp.a` (which includes all flare code).
+C unit tests (`test_sf_kind`, `test_token_type`, `test_color`, `test_style`, `test_lexer`, `test_lexer_commonmark`, `test_formatter`, `test_api`, `test_roundtrip`) are compiled and run by `make check` alongside the Lisp tests. They link against `libditty.a` (which includes all flare code).
 
 ## Object representation & GC
 
@@ -499,7 +499,7 @@ Symptoms of violation: intermittent "Undefined symbol" errors for builtins, or c
 
 ### Value accessors (read these instead of `obj->value.X`)
 
-Defined in `<bloom-lisp/lisp_value.h>`. Required for correctness — see [Object representation & GC](#object-representation--gc).
+Defined in `<ditty/lisp_value.h>`. Required for correctness — see [Object representation & GC](#object-representation--gc).
 
 | Macro                              | What it returns                                        |
 | ---------------------------------- | ------------------------------------------------------ |
