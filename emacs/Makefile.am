@@ -5,7 +5,7 @@ emacslispdir = $(datadir)/emacs/site-lisp/ditty
 
 emacslisp_DATA = ditty-mode.el
 
-EXTRA_DIST = ditty-mode.el ditty-mode-tests.el
+EXTRA_DIST = ditty-mode.el ditty-mode-tests.el COPYING
 
 # --- Optional targets (not hooked into the automake build / install / check
 #     because they need Emacs at build time, which is not a configure

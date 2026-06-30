@@ -1,9 +1,21 @@
 ;;; ditty-mode-tests.el --- Tests for ditty-mode  -*- lexical-binding: t; -*-
 
-;; This file is free software; you can redistribute it and/or modify
+;; This file is NOT part of GNU Emacs.
+
+;; Copyright (C) 2026 Thomas Christensen
+
+;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 3, or (at your option)
-;; any later version.
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -222,27 +234,27 @@ NAME is spliced into the test name."
 (ert-deftest ditty-test-char-literal ()
   "`#\\a' should get ditty-character-face."
   (should (ditty-test-face-has "(list #\\a)" 7
-                                    'ditty-character-face)))
+                               'ditty-character-face)))
 
 (ert-deftest ditty-test-char-named ()
   "`#\\space' should get ditty-character-face."
   (should (ditty-test-face-has "(list #\\space)" 7
-                                    'ditty-character-face)))
+                               'ditty-character-face)))
 
 (ert-deftest ditty-test-char-named-newline ()
   "`#\\newline' should get ditty-character-face."
   (should (ditty-test-face-has "(list #\\newline)" 7
-                                    'ditty-character-face)))
+                               'ditty-character-face)))
 
 (ert-deftest ditty-test-char-hex ()
   "`#\\x41' should get ditty-character-face."
   (should (ditty-test-face-has "(list #\\x41)" 7
-                                    'ditty-character-face)))
+                               'ditty-character-face)))
 
 (ert-deftest ditty-test-char-unicode ()
   "`#\\u03B1' should get ditty-character-face."
   (should (ditty-test-face-has "(list #\\u03B1)" 7
-                                    'ditty-character-face)))
+                               'ditty-character-face)))
 
 ;; ============================================================================
 ;; Font-lock: package-qualified symbols

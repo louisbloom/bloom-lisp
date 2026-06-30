@@ -38,6 +38,7 @@ EXTRA_DIST = \
     doc/time-and-profiling.md \
     doc/type-predicates.md \
     doc/vectors.md \
+    emacs/COPYING \
     emacs/ditty-mode.el \
     emacs/ditty-mode-tests.el
 
