@@ -303,6 +303,40 @@ static LispObject *builtin_file_is_directory_question(LispObject *args, Environm
     return file_is_directory(LISP_STR_VAL(path)) ? LISP_TRUE : NIL;
 }
 
+/* Return a symbol identifying the operating system family.
+ * Emacs Lisp style: 'gnu/linux, 'windows-nt, 'darwin, 'msys, 'cygwin, etc.
+ * Takes no arguments.
+ * Returns: Symbol
+ */
+static LispObject *builtin_system_type(LispObject *args, Environment *env)
+{
+    (void)args;
+    (void)env;
+
+#if defined(_WIN32) || defined(_WIN64)
+    return lisp_make_symbol("windows-nt");
+#elif defined(__CYGWIN__)
+    /* MSYS2 (including UCRT64/MINGW64 shells) defines __CYGWIN__ and
+     * uname -s returns "MINGW64_NT-..." or "MSYS_NT-...".  MSYS2 is a
+     * Cygwin derivative, so we report it as 'msys rather than
+     * 'cygwin — the distinction matters for tests that need to know
+     * the filesystem is case-insensitive. */
+    return lisp_make_symbol("msys");
+#elif defined(__APPLE__)
+    return lisp_make_symbol("darwin");
+#elif defined(__linux__)
+    return lisp_make_symbol("gnu/linux");
+#elif defined(__FreeBSD__)
+    return lisp_make_symbol("freebsd");
+#elif defined(__NetBSD__)
+    return lisp_make_symbol("netbsd");
+#elif defined(__OpenBSD__)
+    return lisp_make_symbol("openbsd");
+#else
+    return lisp_make_symbol("unknown");
+#endif
+}
+
 void register_filesystem_builtins(Environment *env)
 {
     REGISTER("home-directory", builtin_home_directory);
@@ -314,4 +348,5 @@ void register_filesystem_builtins(Environment *env)
     REGISTER("mkdir", builtin_mkdir);
     REGISTER("delete-directory", builtin_delete_directory);
     REGISTER("file-is-directory?", builtin_file_is_directory_question);
+    REGISTER("system-type", builtin_system_type);
 }

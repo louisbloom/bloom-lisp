@@ -259,3 +259,58 @@ Use `delete-file` for files — `delete-file` will refuse to delete directories.
 - `delete-file` - Delete a file
 - `mkdir` - Create a directory
 - `file-exists?` - Check if path exists
+
+## `system-type`
+
+Return a symbol identifying the operating system family. Emacs Lisp style.
+
+### Parameters
+
+None.
+
+### Returns
+
+Symbol identifying the OS:
+
+| Symbol       | Platform                             |
+| ------------ | ------------------------------------ |
+| `windows-nt` | Native Windows (MSVC/MinGW)          |
+| `msys`       | MSYS2 / Cygwin (case-insensitive FS) |
+| `darwin`     | macOS                                |
+| `gnu/linux`  | Linux                                |
+| `freebsd`    | FreeBSD                              |
+| `netbsd`     | NetBSD                               |
+| `openbsd`    | OpenBSD                              |
+| `unknown`    | Unrecognized platform                |
+
+### Examples
+
+```lisp
+(system-type)        ; => gnu/linux (on Linux)
+(system-type)        ; => windows-nt (on native Windows)
+(system-type)        ; => msys (on MSYS2/Cygwin)
+
+;; Branch on platform
+(if (eq? (system-type) 'windows-nt)
+    (load "windows-init.lisp")
+    (load "unix-init.lisp"))
+
+;; Guard case-sensitive-filesystem assertions
+(unless (eq? (system-type) 'msys)
+  (assert-false (file-exists? "MIXED-CASE-File")
+    "case-sensitive filesystem distinguishes case"))
+```
+
+### Notes
+
+- `msys` covers both Cygwin and MSYS2 (including UCRT64 and MINGW64
+  shells). The filesystem is case-insensitive in these environments,
+  which affects tests that assert file case sensitivity.
+- On native Windows builds (not through MSYS2/Cygwin), `windows-nt` is
+  returned instead.
+
+### See Also
+
+- `home-directory` - Get home directory (platform-specific)
+- `config-directory` - Get config directory (platform-specific)
+- `data-directory` - Get data directory (platform-specific)
