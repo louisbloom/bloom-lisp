@@ -1,0 +1,12 @@
+# Normalize all text files to LF line endings in the repository.
+# This overrides core.autocrlf=true (common on Windows/Scoop Git installs),
+# which causes spurious "dirty" working-tree states because git's stat-cache
+# sees a line-ending filter mismatch even when file content is byte-identical.
+#
+# With this file in place:
+#   - On checkout, files keep LF (no CRLF conversion)
+#   - On commit, CRLF is normalized to LF
+#   - git diff-index sees no phantom changes
+#   - build-aux/git-version.sh no longer appends -dirty
+
+* text=auto eol=lf
