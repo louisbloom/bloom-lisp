@@ -137,6 +137,58 @@ static void test_read_whitespace_only(void)
     ASSERT_TRUE(result == NULL, "whitespace-only should return NULL");
 }
 
+/* Test: lisp_read on "'(" returns unclosed-input (quote + unclosed list) */
+static void test_read_quote_unclosed(void)
+{
+    const char *input = "'(";
+    const char *ptr = input;
+    LispObject *result = lisp_read(&ptr);
+
+    ASSERT_TRUE(result != NULL, "read should return non-NULL for '(");
+    ASSERT_TRUE(LISP_TYPE(result) == LISP_ERROR, "'( should be an error");
+    ASSERT_TRUE(LISP_ERROR_TYPE(result) == sym_unclosed_input,
+                "'( should be unclosed-input, not wrapped in quote");
+}
+
+/* Test: lisp_read on "`(" returns unclosed-input (backquote + unclosed list) */
+static void test_read_backquote_unclosed(void)
+{
+    const char *input = "`(";
+    const char *ptr = input;
+    LispObject *result = lisp_read(&ptr);
+
+    ASSERT_TRUE(result != NULL, "read should return non-NULL for `(");
+    ASSERT_TRUE(LISP_TYPE(result) == LISP_ERROR, "`( should be an error");
+    ASSERT_TRUE(LISP_ERROR_TYPE(result) == sym_unclosed_input,
+                "`( should be unclosed-input, not wrapped in quasiquote");
+}
+
+/* Test: lisp_read on ",(" returns unclosed-input (unquote + unclosed list) */
+static void test_read_unquote_unclosed(void)
+{
+    const char *input = ",(";
+    const char *ptr = input;
+    LispObject *result = lisp_read(&ptr);
+
+    ASSERT_TRUE(result != NULL, "read should return non-NULL for ,(");
+    ASSERT_TRUE(LISP_TYPE(result) == LISP_ERROR, ",( should be an error");
+    ASSERT_TRUE(LISP_ERROR_TYPE(result) == sym_unclosed_input,
+                ",( should be unclosed-input, not wrapped in unquote");
+}
+
+/* Test: lisp_read on ",@(" returns unclosed-input (unquote-splicing + unclosed) */
+static void test_read_unquote_splicing_unclosed(void)
+{
+    const char *input = ",@(";
+    const char *ptr = input;
+    LispObject *result = lisp_read(&ptr);
+
+    ASSERT_TRUE(result != NULL, "read should return non-NULL for ,@(");
+    ASSERT_TRUE(LISP_TYPE(result) == LISP_ERROR, ",@( should be an error");
+    ASSERT_TRUE(LISP_ERROR_TYPE(result) == sym_unclosed_input,
+                ",@( should be unclosed-input, not wrapped in unquote-splicing");
+}
+
 int main(void)
 {
     lisp_init();
@@ -150,6 +202,10 @@ int main(void)
     RUN_TEST(test_read_nested_complete);
     RUN_TEST(test_read_nested_incomplete);
     RUN_TEST(test_read_whitespace_only);
+    RUN_TEST(test_read_quote_unclosed);
+    RUN_TEST(test_read_backquote_unclosed);
+    RUN_TEST(test_read_unquote_unclosed);
+    RUN_TEST(test_read_unquote_splicing_unclosed);
 
     lisp_cleanup();
 

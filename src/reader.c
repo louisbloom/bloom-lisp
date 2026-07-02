@@ -418,6 +418,9 @@ static LispObject *read_quote(const char **input)
     if (quoted == NULL) {
         return lisp_make_error("Nothing to quote");
     }
+    if (LISP_TYPE(quoted) == LISP_ERROR) {
+        return quoted; /* propagate parse errors (e.g. unclosed-input) */
+    }
 
     /* Build (quote <quoted>) */
     LispObject *quoted_list = lisp_make_cons(quoted, NIL);
@@ -430,6 +433,9 @@ static LispObject *read_backquote(const char **input)
     LispObject *expr = lisp_read(input);
     if (expr == NULL) {
         return lisp_make_error("Nothing to backquote");
+    }
+    if (LISP_TYPE(expr) == LISP_ERROR) {
+        return expr;
     }
 
     /* Build (quasiquote <expr>) */
@@ -444,6 +450,9 @@ static LispObject *read_unquote(const char **input)
     if (expr == NULL) {
         return lisp_make_error("Nothing to unquote");
     }
+    if (LISP_TYPE(expr) == LISP_ERROR) {
+        return expr;
+    }
 
     /* Build (unquote <expr>) */
     LispObject *expr_list = lisp_make_cons(expr, NIL);
@@ -456,6 +465,9 @@ static LispObject *read_unquote_splicing(const char **input)
     LispObject *expr = lisp_read(input);
     if (expr == NULL) {
         return lisp_make_error("Nothing to unquote-splice");
+    }
+    if (LISP_TYPE(expr) == LISP_ERROR) {
+        return expr;
     }
 
     /* Build (unquote-splicing <expr>) */
