@@ -74,6 +74,13 @@ TuiUpdateResult repl_app_update(TuiModel *model, TuiMsg msg)
         return tui_update_result_none();
     }
 
+    /* Handle EOF (Ctrl+D) — quit on empty input, ignore otherwise */
+    if (msg.type == TUI_MSG_EOF) {
+        if (tui_textinput_len(app->textinput) == 0)
+            return tui_update_result(tui_cmd_quit());
+        return tui_update_result_none();
+    }
+
     if (msg.type == TUI_MSG_KEY_PRESS) {
         /* Intercept Enter: if the form is incomplete, insert a newline
          * instead of submitting. If complete and on_submit is set,
