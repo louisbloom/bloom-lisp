@@ -69,6 +69,13 @@ TuiUpdateResult repl_app_update(TuiModel *model, TuiMsg msg)
     }
 
     if (msg.type == TUI_MSG_KEY_PRESS) {
+        /* Intercept Ctrl-C: abort current edit, start fresh prompt */
+        if (msg.data.key.key == TUI_KEY_NONE &&
+            msg.data.key.rune == 'c' &&
+            (msg.data.key.mods & TUI_MOD_CTRL) && app->on_break) {
+            app->on_break();
+            return tui_update_result_none();
+        }
         /* Intercept Enter: if the form is incomplete, insert a newline
          * instead of submitting. If complete and on_submit is set,
          * call on_submit instead of letting line_submit fire. */

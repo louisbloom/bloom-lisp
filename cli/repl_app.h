@@ -37,9 +37,10 @@ typedef struct
      * after the newline was inserted. */
     int (*compute_indent)(const char *text);
 
-    /* Callback: called when a complete form is submitted. Receives the
-     * submitted text (malloc'd, callee frees). The textinput is already
-     * cleared when this is called. */
+    /* Callback: called when Ctrl-C is pressed to abort the current
+     * edit and start a fresh prompt. */
+    void (*on_break)(void);
+
     void (*on_submit)(char *text);
 } ReplAppModel;
 

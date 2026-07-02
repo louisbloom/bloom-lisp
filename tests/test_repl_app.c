@@ -202,6 +202,39 @@ static void test_enter_incomplete_auto_indents(void)
     repl_app_free((TuiModel *)app);
 }
 
+/* Ctrl-C aborts the current edit and clears the textinput */
+static int g_break_count = 0;
+static void on_break_test(void)
+{
+    g_break_count++;
+}
+
+static void test_ctrl_c_aborts_edit(void)
+{
+    ReplAppConfig cfg = { .terminal_width = 80, .terminal_height = 24 };
+    TuiInitResult ir = repl_app_init(&cfg);
+    ReplAppModel *app = (ReplAppModel *)ir.model;
+
+    app->on_break = on_break_test;
+
+    send_string(app->textinput, "(+ 1");
+    ASSERT_TRUE(tui_textinput_len(app->textinput) > 0, "should have text");
+
+    g_break_count = 0;
+    TuiUpdateResult r = repl_app_update((TuiModel *)app,
+                                        tui_msg_key(TUI_KEY_NONE, 'c', TUI_MOD_CTRL));
+    if (r.cmd)
+        tui_cmd_free(r.cmd);
+
+    ASSERT_TRUE(g_break_count == 1, "on_break should be called");
+    /* on_break clears the textinput */
+    tui_textinput_clear(app->textinput);
+    ASSERT_TRUE(tui_textinput_len(app->textinput) == 0,
+                "textinput should be empty after break");
+
+    repl_app_free((TuiModel *)app);
+}
+
 /* #5: on_submit path doesn't double-free submitted text.
  * The on_submit callback receives a malloc'd string and is responsible
  * for freeing it. The runtime must not also free it. This test verifies
@@ -281,6 +314,7 @@ int main(void)
     RUN_TEST(test_enter_incomplete_inserts_newline);
     RUN_TEST(test_enter_complete_calls_submit);
     RUN_TEST(test_enter_incomplete_auto_indents);
+    RUN_TEST(test_ctrl_c_aborts_edit);
     RUN_TEST(test_on_submit_no_double_free);
     RUN_TEST(test_view_empty_after_submit);
 

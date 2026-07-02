@@ -209,6 +209,13 @@ static int compute_auto_indent(const char *text)
     return count_unclosed_parens(text) * 2;
 }
 
+/* Ctrl-C handler: abort current edit, start fresh prompt */
+static void handle_break(void)
+{
+    tui_textinput_clear(g_app->textinput);
+    tui_runtime_finish_inline(g_runtime);
+}
+
 #endif /* HAVE_BOBA */
 
 /* --- Non-interactive helpers --- */
@@ -484,6 +491,7 @@ static void run_interactive_repl(Environment *env)
     /* Wire completeness check for Enter interception */
     g_app->is_complete = is_form_complete;
     g_app->compute_indent = compute_auto_indent;
+    g_app->on_break = handle_break;
 
     atexit(cleanup);
 
