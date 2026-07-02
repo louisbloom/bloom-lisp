@@ -74,11 +74,13 @@ TuiUpdateResult repl_app_update(TuiModel *model, TuiMsg msg)
         return tui_update_result_none();
     }
 
-    /* Handle EOF (Ctrl+D) — quit on empty input, ignore otherwise */
+    /* Handle EOF (Ctrl+D) — quit on empty input, delete char otherwise */
     if (msg.type == TUI_MSG_EOF) {
         if (tui_textinput_len(app->textinput) == 0)
             return tui_update_result(tui_cmd_quit());
-        return tui_update_result_none();
+        /* Non-empty: forward as Ctrl+D key to textinput for delete-char */
+        return tui_textinput_update(app->textinput,
+                                    tui_msg_key(TUI_KEY_NONE, 'd', TUI_MOD_CTRL));
     }
 
     if (msg.type == TUI_MSG_KEY_PRESS) {
