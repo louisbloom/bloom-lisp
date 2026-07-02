@@ -28,10 +28,21 @@
  * LeakSanitizer also cannot see into the GC heap to know those blocks are still
  * referenced, so it reports false positives. Disable leak detection; ASan and
  * UBSan still catch real memory errors. */
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define DITTY_ASAN 1
+#endif
+#endif
+#if defined(__SANITIZE_ADDRESS__)
+#define DITTY_ASAN 1
+#endif
+
+#ifdef DITTY_ASAN
 const char *__asan_default_options(void)
 {
     return "detect_leaks=0";
 }
+#endif
 
 #ifdef HAVE_BOBA
 
