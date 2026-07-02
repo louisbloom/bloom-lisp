@@ -316,15 +316,11 @@ static void handle_line_submit(char *line)
     }
 
     /* Complete form — evaluate it.
-     * Write \r\n to end the input line (preserving it in scrollback),
-     * then print output directly. The event loop's next flush will
-     * render the fresh prompt below the output. */
-    fputs("\r\n", stdout);
-
-    /* Reset inline line count so the event loop's flush doesn't
-     * cursor-up into the old input line (which we want to preserve). */
-    g_runtime->inline_lines_rendered = 0;
-    g_runtime->inline_cursor_row = 0;
+     * Use tui_runtime_finish_inline to move cursor past all rendered
+     * content (even if cursor was on an earlier line), then print
+     * output directly. The event loop's next flush renders the fresh
+     * prompt below the output. */
+    tui_runtime_finish_inline(g_runtime);
 
     /* Add to history */
     tui_textinput_history_add(g_app->textinput, full_text);
