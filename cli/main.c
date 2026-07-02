@@ -324,6 +324,7 @@ static void handle_line_submit(char *line)
     /* Reset inline line count so the event loop's flush doesn't
      * cursor-up into the old input line (which we want to preserve). */
     g_runtime->inline_lines_rendered = 0;
+    g_runtime->inline_cursor_row = 0;
 
     /* Add to history */
     tui_textinput_history_add(g_app->textinput, full_text);
