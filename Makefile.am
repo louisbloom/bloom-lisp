@@ -19,6 +19,7 @@ EXTRA_DIST = \
     .clang-format \
     lisp/lisp-fmt.lisp \
     scripts/gen-docstrings.sh \
+    scripts/make-dist-zip.sh \
     doc/arithmetic.md \
     doc/characters.md \
     doc/comparison.md \
@@ -84,6 +85,13 @@ format:
 	else \
 	    echo "ditty not found - skipping Lisp formatting (build first)." >&2; \
 	fi
+
+# Portable Windows ZIP target — stages the exes, data files, runtime DLLs,
+# and a launcher .cmd into a self-contained ZIP. Only meaningful on Windows
+# (MSYS2 UCRT64), where ldd is available.
+.PHONY: dist-portable
+dist-portable:
+	@sh "$(top_srcdir)/scripts/make-dist-zip.sh" "$(abs_builddir)" "$(top_srcdir)"
 
 # Bear target — produce compile_commands.json for clangd by intercepting
 # the build. Cleans first so bear sees every compile invocation.
