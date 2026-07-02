@@ -19,7 +19,6 @@ EXTRA_DIST = \
     .clang-format \
     lisp/lisp-fmt.lisp \
     scripts/gen-docstrings.sh \
-    scripts/build-mingw64.sh \
     doc/arithmetic.md \
     doc/characters.md \
     doc/comparison.md \

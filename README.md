@@ -104,29 +104,22 @@ See `emacs/ditty-mode.el` header for installation and usage instructions.
 
 Docstrings are generated from `doc/*.md` into `src/docstrings.gen.h` automatically by `make` (declared as `BUILT_SOURCES` in `src/Makefile.am`); to regenerate manually run `scripts/gen-docstrings.sh doc > src/docstrings.gen.h`.
 
-### Cross-Compile for Windows
+### Windows
 
-Cross-compiles using the Fedora mingw64 toolchain. Boehm GC is downloaded and cached under `deps/`.
-
-```bash
-sudo dnf install mingw64-gcc mingw64-pcre2   # One-time setup
-scripts/build-mingw64.sh                     # Build ditty.exe (includes boba REPL)
-```
-
-Output: `build-mingw64/cli/ditty.exe` with DLLs (`libpcre2-8-0.dll`,
-`libgcc_s_seh-1.dll`, `libwinpthread-1.dll`). The build script
-cross-compiles boba from `../boba` automatically.
-
-The Windows build includes the interactive REPL (via boba, which is
-cross-compiled automatically), file execution, and `-e` eval modes.
-When running inside [portty](https://codeberg.org/thomasc/portty)
-(ConPTY passthrough), VT escape sequences work natively.
-
-Test with wine64:
+Ditty builds natively on Windows using MSYS2/UCRT64. The `#ifdef _WIN32`
+guards in the source handle Windows-specific APIs (file paths, timing,
+environment variables). The interactive REPL requires
+[boba](https://codeberg.org/thomasc/boba), which also builds natively
+on Windows via MSYS2.
 
 ```bash
-wine64 build-mingw64/cli/ditty.exe -e "(+ 1 2 3)"   # => 6
-make -C build-mingw64 check                                 # Full test suite
+# In an MSYS2 UCRT64 shell:
+./autogen.sh
+mkdir build && cd build
+../configure --prefix=$HOME/.local
+make -j$(nproc)
+make check
+make install
 ```
 
 ### Installation
@@ -311,7 +304,7 @@ tests/              test suite
   flare_testkit.h      assertion macros for C flare tests
   run-test.sh          Lisp test wrapper script
 doc/                builtin docstrings (Markdown → src/docstrings.gen.h at build)
-scripts/            build helpers (gen-docstrings.sh, build-mingw64.sh)
+scripts/            build helpers (gen-docstrings.sh)
 ```
 
 ### Adding a builtin
